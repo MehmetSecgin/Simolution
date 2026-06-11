@@ -7,10 +7,20 @@ Current milestone: **Kernel v0.1** — a deterministic VM for evolving signal gr
 ## Commands
 
 ```sh
-./gradlew run     # demo: 4-gene feedback genome, 10 ticks, table output
+./gradlew run     # demo: 4-gene feedback genome, 10 ticks, trace + report
 ./gradlew test    # JUnit 5; includes spec-conformance tests
 ./gradlew build   # full verification
+
+# population run with deterministic report (schema: docs/specs/report-v1.md)
+./gradlew run --args="--units 100 --ticks 1000 --seed 42"
+# flags: --units N --ticks T --seed S --genes G --trace --out <file>
 ```
+
+**Baseline workflow — mandatory before kernel-behavior changes**: regenerate
+`runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --out runs/baseline.txt`
+after the change and diff it (it is committed). The report is byte-deterministic,
+so every changed line was caused by your change; the `state-digest` line catches
+drift below display rounding. Explain the diff (or its absence) when delivering.
 
 Requires JDK 25 (`.sdkmanrc` pins `25.0.1-oracle`; `sdk env` activates it).
 
@@ -34,7 +44,13 @@ com.simolution
     │   ├── KernelSnapshot    read view of tick + outputs + delay memory
     │   └── Noise             stateless counter-based RNG: sample(seed, unit, tick)
     └── logging
-        └── ConsoleTableLogger renders snapshots; presentation stays out of runtime
+        └── ConsoleTableLogger renders snapshots as a per-tick trace table
+com.simolution.sim            run harness + observer (laws stay in kernel, interpretation here)
+├── RunConfig                 CLI args: --units --ticks --seed --genes --trace --out
+├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
+├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
+├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
+└── RunReport                 byte-deterministic report-v1 text (docs/specs/report-v1.md)
 ```
 
 Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]`. SrcType 0=sensor 1=internal; DstType 0=internal 1=action. IDs wrap modulo TYPE_COUNT, so **every random int is a legal gene**. Weight: signed int16 × (4.0 / 32767), linear, unclamped.
@@ -47,6 +63,7 @@ Binding (implementations MUST conform):
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
+- [docs/specs/report-v1.md](docs/specs/report-v1.md) — run report schema; every metric defined with formula and spec cross-reference
 
 Historical / non-binding:
 

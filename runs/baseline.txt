@@ -1,0 +1,44 @@
+# Simolution run report
+schema: report-v1
+kernel: v0.1
+seed: 42
+units: 100
+ticks: 1000
+genome-source: random
+genes-per-unit: 32
+
+## structure
+connections-compiled: 3200
+connections-meaningful: 992
+connections-junk-touching: 2208
+duplicate-connection-pairs: 628
+weight-abs-mean: 1.9717865535447276
+weight-abs-max: 3.999633777886288
+weight-positive-fraction: 0.50375
+units-sensor-action-reachable: 94
+units-rand-wired: 86
+
+## dynamics
+ticks-with-any-activity: 999
+signal-propagations-total: 1442909
+junk-sink-propagations: 640078
+junk-sink-propagation-fraction: 0.4436024725051961
+clamp-saturation-events: 39367
+thresh-flips-total: 17933
+units-dormant-from-birth: 0
+units-dormant-at-end: 0
+
+## terminal-regimes
+fixed-point: 11
+bounded: 69
+divergent: 20
+divergence-cutoff: 1000000.0
+
+## action-channel
+units-final-y-nonfinite: 4
+final-abs-y-p0: 0.0
+final-abs-y-p50: 2.5830599762998805
+final-abs-y-p90: 10.183235894052176
+final-abs-y-p100: 1.7687033390785278E270
+
+state-digest: 21a2fab62eb378ad

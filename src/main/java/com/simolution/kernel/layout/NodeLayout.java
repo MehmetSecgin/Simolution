@@ -58,6 +58,22 @@ public final class NodeLayout {
     public static final int TOTAL =
             Sensor.COUNT + Internal.COUNT + Action.COUNT;
 
+    /**
+     * True if the unit-local index refers to a meaningful node — one the
+     * kernel actually evaluates. Junk nodes pad each block's tail; their
+     * outputs stay 0 forever, so signals into them vanish (junk sinks)
+     * and signals from them are always zero.
+     */
+    public static boolean isMeaningful(final int localIndex) {
+        if (localIndex < INTERNAL_OFFSET) {
+            return localIndex - SENSOR_OFFSET < Sensor.MEANINGFUL_COUNT;
+        }
+        if (localIndex < ACTION_OFFSET) {
+            return localIndex - INTERNAL_OFFSET < Internal.MEANINGFUL_COUNT;
+        }
+        return localIndex - ACTION_OFFSET < Action.MEANINGFUL_COUNT;
+    }
+
     private NodeLayout() {}
 
 }

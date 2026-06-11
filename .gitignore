@@ -42,3 +42,6 @@ bin/
 ### Mac OS ###
 .DS_Store
 .sdkmanrc
+### Simolution runs ###
+runs/*
+!runs/baseline.txt
