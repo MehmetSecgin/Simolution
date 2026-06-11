@@ -30,8 +30,9 @@ com.simolution
     │   ├── GeneDecoder       gene → CompiledConnection; modulo ID wrap; weight scaling
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (precompute, never per-tick)
     ├── runtime
-    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap (double-buffered)
-    │   └── KernelSnapshot    read view of tick + outputs + delay memory
+    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap (double-buffered); whole population in one flat array set
+    │   ├── KernelSnapshot    read view of tick + outputs + delay memory
+    │   └── Noise             stateless counter-based RNG: sample(seed, unit, tick)
     └── logging
         └── ConsoleTableLogger renders snapshots; presentation stays out of runtime
 ```
@@ -85,11 +86,11 @@ The owner wants autonomous implementation but full understanding. So: small sing
 
 - Conventional Commits (`feat:`, `refactor(kernel):`, ...).
 - Tests mirror main package layout; spec-conformance tests compare kernel output against an independent reference model (see KernelVerticalSliceTest).
-- Known intentional deviations from spec, tracked for later: MUL is pass-through (spec says product of two strongest inputs); evaluation hardcodes single unit (base = 0) though layout/config support UNIT_COUNT > 1.
+- Known intentional deviations from spec, tracked for later: MUL is pass-through (spec says product of two strongest inputs).
 
 ## Roadmap (from specs, in order)
 
-1. Multi-unit evaluation (base = unitIndex × NodeLayout.TOTAL)
+1. ~~Multi-unit evaluation~~ done (ADR 0002, 0003)
 2. True MUL semantics
 3. Energy accounting: structural decay + activity cost (contract §4, §6)
 4. Then, and only then: mutation, reproduction, environment, selection

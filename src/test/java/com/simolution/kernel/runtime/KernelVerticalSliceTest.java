@@ -44,7 +44,7 @@ class KernelVerticalSliceTest {
                            .build()
         };
         CompiledConnection[] connections = GenomeCompiler.compile(genome, 0);
-        Kernel kernel = new Kernel(connections);
+        Kernel kernel = new Kernel(1, connections);
 
         double wConstToAdd = W_CONST_TO_ADD * KernelConfig.WEIGHT_MULTIPLIER;
         double wAddToDelay = W_ADD_TO_DELAY * KernelConfig.WEIGHT_MULTIPLIER;
@@ -94,8 +94,8 @@ class KernelVerticalSliceTest {
                            .weightRaw((short) 16384)
                            .build()
         };
-        Kernel first = new Kernel(GenomeCompiler.compile(genome, 0));
-        Kernel second = new Kernel(GenomeCompiler.compile(genome, 0));
+        Kernel first = new Kernel(1, GenomeCompiler.compile(genome, 0));
+        Kernel second = new Kernel(1, GenomeCompiler.compile(genome, 0));
 
         // act + assert
         for (int tick = 0; tick < 50; tick++) {

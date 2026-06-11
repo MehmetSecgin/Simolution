@@ -42,9 +42,9 @@ public class Main {
                         .build()
         };
 
-        CompiledConnection[] connections = GenomeCompiler.compile(genome, 0);
+        CompiledConnection[] connections = GenomeCompiler.compileAll(new int[][] {genome});
 
-        Kernel kernel = new Kernel(connections);
+        Kernel kernel = new Kernel(1, connections);
         ConsoleTableLogger logger = new ConsoleTableLogger();
 
         for (int i = 0; i < 10; i++) {

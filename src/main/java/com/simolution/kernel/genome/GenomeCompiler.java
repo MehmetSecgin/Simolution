@@ -1,6 +1,7 @@
 package com.simolution.kernel.genome;
 
 import com.simolution.kernel.layout.CompiledConnection;
+import com.simolution.kernel.layout.NodeLayout;
 
 public final class GenomeCompiler {
 
@@ -36,6 +37,27 @@ public final class GenomeCompiler {
 
         final CompiledConnection[] result = new CompiledConnection[validConnectionCount];
         System.arraycopy(temp, 0, result, 0, validConnectionCount);
+        return result;
+    }
+
+    public static CompiledConnection[] compileAll(final int[][] genomes) {
+
+        final CompiledConnection[][] perUnit = new CompiledConnection[genomes.length][];
+
+        int totalConnections = 0;
+        for (int unit = 0; unit < genomes.length; unit++) {
+            perUnit[unit] = compile(genomes[unit], unit * NodeLayout.TOTAL);
+            totalConnections += perUnit[unit].length;
+        }
+
+        final CompiledConnection[] result = new CompiledConnection[totalConnections];
+
+        int cursor = 0;
+        for (final CompiledConnection[] unitConnections : perUnit) {
+            System.arraycopy(unitConnections, 0, result, cursor, unitConnections.length);
+            cursor += unitConnections.length;
+        }
+
         return result;
     }
 }
