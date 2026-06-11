@@ -64,6 +64,23 @@ If code and a binding spec disagree, the spec wins. If a change requires the spe
 - **Data-oriented, not OO organisms.** Flat arrays + indices + phases. No object graphs between nodes.
 - **Mutation-safe encoding.** Any 32-bit int must remain decodable. Never add validation that can reject a gene outright (structural no-ops are fine).
 
+## Performance doctrine
+
+The kernel must stay small enough to embed in a game loop later — think microcontroller-class budgets, not server-class.
+
+- Primitives and flat arrays only in runtime state. No boxing, no collections, no streams, no lambdas in the hot path.
+- Zero allocation and zero decoding inside `tick()`. Anything structure-derived is precomputed once (see cache spec).
+- Memory budget is a feature: per-unit state is currently 4 × NodeLayout.TOTAL × 8 bytes. Any change that grows per-unit or per-connection footprint needs an ADR justifying it.
+- Known future optimizations, deliberately deferred (each needs an ADR when taken): CompiledConnection object array → structure-of-arrays; double → float for state.
+
+## Decision records
+
+Every non-obvious decision gets a short ADR in `docs/decisions/NNNN-slug.md` — 5–15 lines: context, decision, why, what was rejected. The owner reads ADRs to stay in full command of the project; write them for him, not for posterity. No decision is too small if a future reader might ask "why is it like this?"
+
+## Working mode
+
+The owner wants autonomous implementation but full understanding. So: small single-purpose commits, an ADR per real decision, and every delivered change explained in plain language (what changed, why, what was traded away). Never bundle an unexplained judgment call into a big diff.
+
 ## Conventions
 
 - Conventional Commits (`feat:`, `refactor(kernel):`, ...).
