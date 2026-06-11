@@ -11,16 +11,18 @@ Current milestone: **Kernel v0.1** — a deterministic VM for evolving signal gr
 ./gradlew test    # JUnit 5; includes spec-conformance tests
 ./gradlew build   # full verification
 
-# population run with deterministic report (schema: docs/specs/report-v2.md)
+# population run with deterministic report (schema: docs/specs/report-v3.md)
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42"
 # flags: --units N --ticks T --seed S --genes G --trace --out <file>
+# --out also writes a per-unit <base>.units.csv sidecar
 ```
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
 `runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --out runs/baseline.txt`
-after the change and diff it (it is committed). The report is byte-deterministic,
-so every changed line was caused by your change; the `state-digest` line catches
-drift below display rounding. Explain the diff (or its absence) when delivering.
+after the change and diff it (both it and `runs/baseline.units.csv` are committed).
+Output is byte-deterministic, so every changed line was caused by your change; the
+`state-digest` line catches drift below display rounding. Explain the diff (or its
+absence) when delivering.
 
 Requires JDK 25 (`.sdkmanrc` pins `25.0.1-oracle`; `sdk env` activates it).
 
@@ -50,7 +52,8 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
 ├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
 ├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
-└── RunReport                 byte-deterministic report-v2 text (docs/specs/report-v2.md)
+├── RunReport                 byte-deterministic report-v3 text (aggregates + distributions)
+└── UnitCsvReport             per-unit .units.csv sidecar (one row per unit; docs/specs/report-v3.md)
 ```
 
 Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]`. SrcType 0=sensor 1=internal; DstType 0=internal 1=action. IDs wrap modulo TYPE_COUNT, so **every random int is a legal gene**. Weight: signed int16 × (4.0 / 32767), linear, unclamped.
@@ -63,7 +66,7 @@ Binding (implementations MUST conform):
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
-- [docs/specs/report-v2.md](docs/specs/report-v2.md) — run report schema; every metric defined with formula and spec cross-reference
+- [docs/specs/report-v3.md](docs/specs/report-v3.md) — run report + per-unit CSV schema; every metric defined with formula and spec cross-reference
 
 Historical / non-binding:
 

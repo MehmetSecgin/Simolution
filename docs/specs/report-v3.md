@@ -1,17 +1,27 @@
-# Run Report Schema — report-v2
+# Run Report Schema — report-v3
 
 ## Purpose
 
-Defines every line of the `report-v2` run report so that any reader — human or
-agent — given a report file plus this document can reconstruct what happened in
-the run without reading code.
+Defines every line of the `report-v3` run report **and** the per-unit
+`.units.csv` sidecar, so that any reader — human or agent — given the files
+plus this document can reconstruct what happened in the run without reading
+code.
 
-(v2 adds the `## energy` section and per-unit death ticks; v1 had no energy
-law.)
+Version history: v1 = signal dynamics only; v2 added the `## energy` section
+and per-unit death ticks; v3 adds the `## burn-rate` section and moves all
+per-unit detail into the CSV sidecar (the report keeps aggregates and
+distributions only).
 
-The report is **deterministic**: the same kernel code, seed, and configuration
-produce a byte-identical file. No wall-clock data is ever included; timing is
+Both files are **deterministic**: the same kernel code, seed, and configuration
+produce byte-identical output. No wall-clock data is ever included; timing is
 printed to the console only.
+
+## Output files
+
+- The report (this schema) goes to stdout always, and to `--out <file>` when given.
+- When `--out` is given, a per-unit CSV is written beside it: the report path's
+  extension is replaced with `.units.csv` (e.g. `runs/baseline.txt` →
+  `runs/baseline.units.csv`).
 
 ## How a run works
 
@@ -31,7 +41,7 @@ printed to the console only.
 
 | Line | Meaning |
 |---|---|
-| `schema` | this format, `report-v2` |
+| `schema` | this format, `report-v3` |
 | `kernel` | kernel contract version the binary implements |
 | `seed` | run seed; drives both genome generation (salted) and RAND noise |
 | `units`, `ticks`, `genes-per-unit` | run dimensions |
@@ -86,6 +96,15 @@ Note: a unit with zero connections has zero structural decay and, if also
 inactive, never loses energy — degenerate immortality. Random genomes always
 have connections, so this appears only with hand-built empty genomes.
 
+## `## burn-rate` — how fast units spent energy
+
+Mean burn rate of a unit = `energy_consumed / lifespan` (energy per tick lived).
+The distribution is over all units (dead and alive together).
+
+| Line | Definition |
+|---|---|
+| `mean-burn-rate-p0 / -p50 / -p90 / -p100` | quantiles of per-unit mean burn rate; p0 = slowest burner (longest-lived lean unit), p100 = fastest |
+
 ## `## terminal-regimes` — classification of each unit's endgame
 
 Priority order; first match wins:
@@ -107,14 +126,38 @@ final action value overflowed; quantiles are over the finite rest.
 Quantile rule: sorted ascending, `index = floor(p/100 × (n−1))`, no
 interpolation. p0 = min, p100 = max.
 
-## `## units` — per-unit lines, only when units ≤ 20
+## `per-unit-detail` line
 
-`unit | regime | reachable | rand-wired | first-activity-tick | death-tick | final-abs-y | max-abs-output`
+Names the `.units.csv` sidecar and its row count. The detail itself is in that
+file (next section).
 
-`first-activity-tick` = first tick with a non-zero propagation in that unit
-(−1 = never). Note tick 1 can never be active: propagation reads the previous
-tick's outputs, which start at zero. `death-tick` = tick energy first reached
-0 (−1 = still alive at the end).
+## Per-unit CSV sidecar
+
+One header row plus one row per unit, in unit-index order (so it diffs
+cleanly). Columns:
+
+| Column | Definition |
+|---|---|
+| `unit` | unit index |
+| `connections` | compiled connections for this unit (gene count, since every gene is valid) |
+| `meaningful_connections` | connections with both endpoints meaningful (non-junk) |
+| `reachable` | 1 if a meaningful sensor→action path exists, else 0 |
+| `rand_wired` | 1 if RAND feeds a meaningful node (noise-driven), else 0 |
+| `first_activity_tick` | first tick with a non-zero propagation (−1 = never; tick 1 can never be active) |
+| `death_tick` | tick energy first reached 0 (−1 = still alive at end) |
+| `lifespan` | ticks lived = `death_tick`, or the whole run if it survived |
+| `alive` | 1 if alive at the end, else 0 |
+| `energy_consumed` | `INITIAL_ENERGY − final_energy` |
+| `final_energy` | energy remaining at the last tick (0 if dead) |
+| `mean_burn_rate` | `energy_consumed / lifespan` |
+| `peak_burn` | largest energy charge in any single tick of its life |
+| `total_propagations` | non-zero propagations summed over its life |
+| `ticks_active` | ticks in which it had any activity |
+| `clamp_saturations` | ticks its CLAMP input exceeded ±1 |
+| `thresh_flips` | times its THRESH output changed sign |
+| `regime` | `fixed-point` / `bounded` / `divergent` (see terminal-regimes) |
+| `final_abs_y` | |ACTION_Y| at the last tick |
+| `max_abs_output` | largest finite |output| over the run |
 
 ## `state-digest`
 

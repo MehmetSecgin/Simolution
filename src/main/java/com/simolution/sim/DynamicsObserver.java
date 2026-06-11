@@ -36,6 +36,12 @@ public final class DynamicsObserver {
 
     private final double[] prevEnergy;
     private final int[] deathTick;
+    private final double[] finalEnergy;
+    private final double[] peakBurn;
+    private final long[] propagationsByUnit;
+    private final int[] ticksActiveByUnit;
+    private final long[] clampByUnit;
+    private final long[] threshFlipsByUnit;
 
     private long ticksWithAnyActivity;
     private long propagationsTotal;
@@ -69,6 +75,13 @@ public final class DynamicsObserver {
         Arrays.fill(prevEnergy, KernelConfig.INITIAL_ENERGY);
         this.deathTick = new int[unitCount];
         Arrays.fill(deathTick, -1);
+        this.finalEnergy = new double[unitCount];
+        Arrays.fill(finalEnergy, KernelConfig.INITIAL_ENERGY);
+        this.peakBurn = new double[unitCount];
+        this.propagationsByUnit = new long[unitCount];
+        this.ticksActiveByUnit = new int[unitCount];
+        this.clampByUnit = new long[unitCount];
+        this.threshFlipsByUnit = new long[unitCount];
     }
 
     /**
@@ -98,6 +111,7 @@ public final class DynamicsObserver {
             if (signal != 0.0) {
                 anyActivity = true;
                 propagationsTotal++;
+                propagationsByUnit[unit]++;
 
                 activeThisTick[unit] = true;
                 if (firstActivityTick[unit] < 0) {
@@ -120,11 +134,24 @@ public final class DynamicsObserver {
             final int clampIdx = base + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.CLAMP;
             if (Math.abs(accumulators[clampIdx]) > 1.0) {
                 clampSaturationEvents++;
+                clampByUnit[unit]++;
             }
 
             final int threshIdx = base + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.THRESH;
             if (snapshot.tick >= 2 && snapshot.outputs[threshIdx] != prevOutputs[threshIdx]) {
                 threshFlipsTotal++;
+                threshFlipsByUnit[unit]++;
+            }
+
+            if (activeThisTick[unit]) {
+                ticksActiveByUnit[unit]++;
+            }
+
+            // energy charged this tick = what left the unit; peak is the
+            // hardest single-tick burn over its life
+            final double burn = prevEnergy[unit] - snapshot.energy[unit];
+            if (burn > peakBurn[unit]) {
+                peakBurn[unit] = burn;
             }
 
             endedAtFixedPoint[unit] = unitStateUnchanged(snapshot, unit);
@@ -142,6 +169,7 @@ public final class DynamicsObserver {
             if (deathTick[unit] < 0 && snapshot.energy[unit] <= 0.0) {
                 deathTick[unit] = snapshot.tick;
             }
+            finalEnergy[unit] = snapshot.energy[unit];
         }
 
         foldDigest(snapshot);
@@ -224,9 +252,16 @@ public final class DynamicsObserver {
                 maxAbsOutput,
                 finalAbsAction,
                 deathTick,
+                finalEnergy,
+                peakBurn,
+                propagationsByUnit,
+                ticksActiveByUnit,
+                clampByUnit,
+                threshFlipsByUnit,
                 finalEnergyTotal,
                 finalEnergySink,
                 KernelConfig.INITIAL_ENERGY * unitCount,
+                KernelConfig.INITIAL_ENERGY,
                 stateDigest
         );
     }

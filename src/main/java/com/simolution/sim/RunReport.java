@@ -3,15 +3,15 @@ package com.simolution.sim;
 import java.util.Arrays;
 
 /**
- * Renders a run into the report-v2 text format
- * (docs/specs/report-v2.md). Every value is deterministic: same code +
+ * Renders a run into the report-v3 text format
+ * (docs/specs/report-v3.md). Every value is deterministic: same code +
  * same config produce a byte-identical file. No wall-clock data belongs
- * here — timing goes to the console, never the report.
+ * here — timing goes to the console, never the report. Per-unit detail
+ * lives in the .units.csv sidecar (see UnitCsvReport).
  */
 public final class RunReport {
 
-    public static final String SCHEMA = "report-v2";
-    private static final int PER_UNIT_LINE_LIMIT = 20;
+    public static final String SCHEMA = "report-v3";
 
     private RunReport() {}
 
@@ -64,6 +64,14 @@ public final class RunReport {
         out.append("death-tick-last: ")
            .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length - 1]).append('\n');
 
+        out.append("\n## burn-rate\n");
+        final double[] burnRates = dynamics.meanBurnRates().clone();
+        Arrays.sort(burnRates);
+        out.append("mean-burn-rate-p0: ").append(quantile(burnRates, 0)).append('\n');
+        out.append("mean-burn-rate-p50: ").append(quantile(burnRates, 50)).append('\n');
+        out.append("mean-burn-rate-p90: ").append(quantile(burnRates, 90)).append('\n');
+        out.append("mean-burn-rate-p100: ").append(quantile(burnRates, 100)).append('\n');
+
         out.append("\n## terminal-regimes\n");
         out.append("fixed-point: ").append(dynamics.countRegime(DynamicsSummary.Regime.FIXED_POINT)).append('\n');
         out.append("bounded: ").append(dynamics.countRegime(DynamicsSummary.Regime.BOUNDED)).append('\n');
@@ -82,23 +90,10 @@ public final class RunReport {
         out.append("final-abs-y-p90: ").append(quantile(finiteFinalY, 90)).append('\n');
         out.append("final-abs-y-p100: ").append(quantile(finiteFinalY, 100)).append('\n');
 
-        if (units <= PER_UNIT_LINE_LIMIT) {
-            out.append("\n## units\n");
-            out.append("unit | regime | reachable | rand-wired | first-activity-tick | death-tick | final-abs-y | max-abs-output\n");
-            for (int unit = 0; unit < units; unit++) {
-                out.append(unit)
-                   .append(" | ").append(regimeName(dynamics.regime(unit)))
-                   .append(" | ").append(structure.sensorActionReachable()[unit] ? "yes" : "no")
-                   .append(" | ").append(structure.randWired()[unit] ? "yes" : "no")
-                   .append(" | ").append(dynamics.firstActivityTick()[unit])
-                   .append(" | ").append(dynamics.deathTick()[unit])
-                   .append(" | ").append(dynamics.finalAbsAction()[unit])
-                   .append(" | ").append(dynamics.maxAbsOutput()[unit])
-                   .append('\n');
-            }
-        }
+        out.append("\nper-unit-detail: ")
+           .append(units).append(" rows in the .units.csv sidecar (see docs/specs/report-v3.md)\n");
 
-        out.append("\nstate-digest: ").append(String.format("%016x", dynamics.stateDigest())).append('\n');
+        out.append("state-digest: ").append(String.format("%016x", dynamics.stateDigest())).append('\n');
         return out.toString();
     }
 
@@ -114,13 +109,5 @@ public final class RunReport {
         }
         final int index = (int) Math.floor(p / 100.0 * (sorted.length - 1));
         return sorted[index];
-    }
-
-    private static String regimeName(final DynamicsSummary.Regime regime) {
-        return switch (regime) {
-            case FIXED_POINT -> "fixed-point";
-            case BOUNDED -> "bounded";
-            case DIVERGENT -> "divergent";
-        };
     }
 }

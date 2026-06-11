@@ -1,5 +1,5 @@
 # Simolution run report
-schema: report-v2
+schema: report-v3
 kernel: v0.1
 seed: 42
 units: 100
@@ -39,6 +39,12 @@ death-tick-first: 483
 death-tick-median: 677
 death-tick-last: 944
 
+## burn-rate
+mean-burn-rate-p0: 0.99964
+mean-burn-rate-p50: 1.4184397163120568
+mean-burn-rate-p90: 1.7152658662092624
+mean-burn-rate-p100: 2.070393374741201
+
 ## terminal-regimes
 fixed-point: 85
 bounded: 0
@@ -52,4 +58,5 @@ final-abs-y-p50: 2.5995659173764394
 final-abs-y-p90: 10.366553675471918
 final-abs-y-p100: 9.206325011251272E297
 
+per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v3.md)
 state-digest: e5614db6984d0b7e

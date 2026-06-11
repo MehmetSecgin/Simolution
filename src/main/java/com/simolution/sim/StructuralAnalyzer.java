@@ -26,10 +26,13 @@ public final class StructuralAnalyzer {
         final boolean[] seenPair = new boolean[NodeLayout.TOTAL * NodeLayout.TOTAL];
         final boolean[] reachable = new boolean[unitCount];
         final boolean[] randWired = new boolean[unitCount];
+        final int[] perUnitConnections = new int[unitCount];
+        final int[] perUnitMeaningful = new int[unitCount];
 
         int cursor = 0;
         for (int unit = 0; unit < unitCount; unit++) {
             final int unitEnd = endOfUnit(connections, cursor, unit);
+            perUnitConnections[unit] = unitEnd - cursor;
 
             Arrays.fill(seenPair, false);
             final boolean[][] adjacency = new boolean[NodeLayout.TOTAL][NodeLayout.TOTAL];
@@ -56,6 +59,7 @@ public final class StructuralAnalyzer {
                         NodeLayout.isMeaningful(srcLocal) && NodeLayout.isMeaningful(dstLocal);
                 if (bothMeaningful) {
                     meaningful++;
+                    perUnitMeaningful[unit]++;
                     adjacency[srcLocal][dstLocal] = true;
                     if (srcLocal == NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND) {
                         randWired[unit] = true;
@@ -76,7 +80,9 @@ public final class StructuralAnalyzer {
                 absMax,
                 total == 0 ? 0.0 : (double) positives / total,
                 reachable,
-                randWired
+                randWired,
+                perUnitConnections,
+                perUnitMeaningful
         );
     }
 

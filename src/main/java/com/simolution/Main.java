@@ -12,11 +12,13 @@ import com.simolution.kernel.logging.ConsoleTableLogger;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.DynamicsObserver;
+import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunReport;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
+import com.simolution.sim.UnitCsvReport;
 
 public class Main {
 
@@ -48,7 +50,8 @@ public class Main {
         }
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000;
 
-        String report = RunReport.render(config, structure, observer.summarize());
+        DynamicsSummary summary = observer.summarize();
+        String report = RunReport.render(config, structure, summary);
         System.out.println();
         System.out.print(report);
         System.out.println();
@@ -61,7 +64,20 @@ public class Main {
             }
             Files.writeString(out, report);
             System.out.println("report written to " + out);
+
+            Path csv = unitsCsvPath(out);
+            Files.writeString(csv, UnitCsvReport.render(config.units(), structure, summary));
+            System.out.println("per-unit detail written to " + csv);
         }
+    }
+
+    private static Path unitsCsvPath(final Path reportPath) {
+        String name = reportPath.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        String base = dot < 0 ? name : name.substring(0, dot);
+        Path parent = reportPath.getParent();
+        String csvName = base + ".units.csv";
+        return parent == null ? Path.of(csvName) : parent.resolve(csvName);
     }
 
     private static int[] demoGenome() {

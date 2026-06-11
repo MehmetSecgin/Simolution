@@ -8,7 +8,9 @@ public record StructuralStats(
         double weightAbsMax,
         double weightPositiveFraction,
         boolean[] sensorActionReachable,
-        boolean[] randWired
+        boolean[] randWired,
+        int[] perUnitConnections,
+        int[] perUnitMeaningful
 ) {
 
     public int countReachable() {

@@ -39,14 +39,13 @@ class RunReportTest {
     }
 
     @Test
-    void smallRunsIncludePerUnitLines() {
+    void reportPointsToCsvInsteadOfInliningUnits() {
         // act
-        String small = runAndRender(new RunConfig(3, 50, 1L, 8, false, false, null));
-        String large = runAndRender(new RunConfig(25, 50, 1L, 8, false, false, null));
+        String report = runAndRender(new RunConfig(25, 50, 1L, 8, false, false, null));
 
         // assert
-        assertTrue(small.contains("## units"));
-        assertFalse(large.contains("## units"));
+        assertFalse(report.contains("## units"));
+        assertTrue(report.contains("per-unit-detail: 25 rows"));
     }
 
     @Test
@@ -55,10 +54,11 @@ class RunReportTest {
         String report = runAndRender(new RunConfig(5, 50, 9L, 8, false, false, null));
 
         // assert
-        assertTrue(report.contains("schema: report-v2"));
+        assertTrue(report.contains("schema: report-v3"));
         assertTrue(report.contains("## structure"));
         assertTrue(report.contains("## dynamics"));
         assertTrue(report.contains("## energy"));
+        assertTrue(report.contains("## burn-rate"));
         assertTrue(report.contains("## terminal-regimes"));
         assertTrue(report.contains("## action-channel"));
         assertTrue(report.contains("energy-audit-error: "));

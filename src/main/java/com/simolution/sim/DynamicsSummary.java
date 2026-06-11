@@ -14,9 +14,16 @@ public record DynamicsSummary(
         double[] maxAbsOutput,
         double[] finalAbsAction,
         int[] deathTick,
+        double[] finalEnergy,
+        double[] peakBurn,
+        long[] propagationsByUnit,
+        int[] ticksActiveByUnit,
+        long[] clampByUnit,
+        long[] threshFlipsByUnit,
         double finalEnergyTotal,
         double finalEnergySink,
         double initialEnergyTotal,
+        double initialEnergyPerUnit,
         long stateDigest
 ) {
 
@@ -108,5 +115,31 @@ public record DynamicsSummary(
      */
     public double energyAuditError() {
         return Math.abs(initialEnergyTotal - (finalEnergyTotal + finalEnergySink));
+    }
+
+    /**
+     * Ticks the unit was alive: its death tick, or the whole run if it never
+     * died. Born at tick 0, so this is also age at death.
+     */
+    public int lifespan(int unit) {
+        return deathTick[unit] < 0 ? ticks : deathTick[unit];
+    }
+
+    public double energyConsumed(int unit) {
+        return initialEnergyPerUnit - finalEnergy[unit];
+    }
+
+    /** Mean energy burned per tick of life; 0 for a unit that lived 0 ticks. */
+    public double meanBurnRate(int unit) {
+        int life = lifespan(unit);
+        return life == 0 ? 0.0 : energyConsumed(unit) / life;
+    }
+
+    public double[] meanBurnRates() {
+        double[] rates = new double[deathTick.length];
+        for (int unit = 0; unit < rates.length; unit++) {
+            rates[unit] = meanBurnRate(unit);
+        }
+        return rates;
     }
 }
