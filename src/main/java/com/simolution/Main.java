@@ -19,6 +19,7 @@ import com.simolution.sim.RunReport;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
 import com.simolution.sim.UnitCsvReport;
+import com.simolution.sim.WiringReport;
 
 public class Main {
 
@@ -65,19 +66,23 @@ public class Main {
             Files.writeString(out, report);
             System.out.println("report written to " + out);
 
-            Path csv = unitsCsvPath(out);
+            Path csv = sibling(out, ".units.csv");
             Files.writeString(csv, UnitCsvReport.render(config.units(), structure, summary));
             System.out.println("per-unit detail written to " + csv);
+
+            Path wiring = sibling(out, ".wiring.csv");
+            Files.writeString(wiring, WiringReport.render(connections));
+            System.out.println("per-unit wiring written to " + wiring);
         }
     }
 
-    private static Path unitsCsvPath(final Path reportPath) {
+    private static Path sibling(final Path reportPath, final String suffix) {
         String name = reportPath.getFileName().toString();
         int dot = name.lastIndexOf('.');
         String base = dot < 0 ? name : name.substring(0, dot);
         Path parent = reportPath.getParent();
-        String csvName = base + ".units.csv";
-        return parent == null ? Path.of(csvName) : parent.resolve(csvName);
+        String siblingName = base + suffix;
+        return parent == null ? Path.of(siblingName) : parent.resolve(siblingName);
     }
 
     private static int[] demoGenome() {

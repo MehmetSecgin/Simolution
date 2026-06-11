@@ -74,6 +74,34 @@ public final class NodeLayout {
         return localIndex - ACTION_OFFSET < Action.MEANINGFUL_COUNT;
     }
 
+    /**
+     * Human name for a unit-local node index. Meaningful nodes get their role
+     * name (CONST, ADD, DELAY, ...); junk padding gets JUNK-S/I/A + offset.
+     */
+    public static String localName(final int localIndex) {
+        if (localIndex < INTERNAL_OFFSET) {
+            final int s = localIndex - SENSOR_OFFSET;
+            return switch (s) {
+                case Sensor.CONST -> "CONST";
+                case Sensor.RAND -> "RAND";
+                default -> "JUNK-S" + s;
+            };
+        }
+        if (localIndex < ACTION_OFFSET) {
+            final int n = localIndex - INTERNAL_OFFSET;
+            return switch (n) {
+                case Internal.ADD -> "ADD";
+                case Internal.MUL -> "MUL";
+                case Internal.CLAMP -> "CLAMP";
+                case Internal.DELAY -> "DELAY";
+                case Internal.THRESH -> "THRESH";
+                default -> "JUNK-I" + n;
+            };
+        }
+        final int a = localIndex - ACTION_OFFSET;
+        return a == Action.Y ? "ACTION_Y" : "JUNK-A" + a;
+    }
+
     private NodeLayout() {}
 
 }

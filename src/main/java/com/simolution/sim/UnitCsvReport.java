@@ -5,7 +5,7 @@ package com.simolution.sim;
  * the same config produce a byte-identical file (diffable like the report).
  * This is the per-unit companion to the aggregate report; it scales to any
  * unit count because it is bounded by units, not ticks (memory discipline).
- * Columns are documented in docs/specs/report-v3.md.
+ * Columns are documented in docs/specs/report-v4.md.
  */
 public final class UnitCsvReport {
 

@@ -1,5 +1,5 @@
 # Simolution run report
-schema: report-v3
+schema: report-v4
 kernel: v0.1
 seed: 42
 units: 100
@@ -58,5 +58,6 @@ final-abs-y-p50: 2.5995659173764394
 final-abs-y-p90: 10.366553675471918
 final-abs-y-p100: 9.206325011251272E297
 
-per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v3.md)
+per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v4.md)
+per-unit-wiring: 3200 connections in the .wiring.csv sidecar (see docs/specs/report-v4.md)
 state-digest: e5614db6984d0b7e

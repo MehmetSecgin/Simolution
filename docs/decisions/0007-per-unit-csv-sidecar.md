@@ -4,7 +4,7 @@
 The owner wanted a far more extensive per-unit view: lifespan, energy burn rate, death tick, work done, etc. The report-v2 inline `## units` table only printed for ≤20 units and held few columns.
 
 ## Decision
-Per-unit detail moves to a `.units.csv` sidecar (one row per unit, fixed unit order), written beside the report whenever `--out` is given. The report (now v3) drops the inline units table and instead carries a `## burn-rate` distribution section plus a `per-unit-detail` pointer line. CSV columns documented in docs/specs/report-v3.md.
+Per-unit detail moves to a `.units.csv` sidecar (one row per unit, fixed unit order), written beside the report whenever `--out` is given. The report (now v3) drops the inline units table and instead carries a `## burn-rate` distribution section plus a `per-unit-detail` pointer line. CSV columns documented in docs/specs/report-v4.md.
 
 ## Why
 - CSV is the right tool for the owner's intent — sort by lifespan, plot burn rate, correlate structure vs survival — without bespoke report code.

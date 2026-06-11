@@ -1,27 +1,29 @@
-# Run Report Schema — report-v3
+# Run Report Schema — report-v4
 
 ## Purpose
 
-Defines every line of the `report-v3` run report **and** the per-unit
-`.units.csv` sidecar, so that any reader — human or agent — given the files
-plus this document can reconstruct what happened in the run without reading
-code.
+Defines every line of the `report-v4` run report **and** the per-unit
+`.units.csv` and `.wiring.csv` sidecars, so that any reader — human or agent —
+given the files plus this document can reconstruct what happened in the run
+without reading code.
 
 Version history: v1 = signal dynamics only; v2 added the `## energy` section
-and per-unit death ticks; v3 adds the `## burn-rate` section and moves all
-per-unit detail into the CSV sidecar (the report keeps aggregates and
-distributions only).
+and per-unit death ticks; v3 added the `## burn-rate` section and moved all
+per-unit detail into the `.units.csv` sidecar; v4 adds the `.wiring.csv`
+sidecar — each unit's decoded connections, its structural signature.
 
-Both files are **deterministic**: the same kernel code, seed, and configuration
+All files are **deterministic**: the same kernel code, seed, and configuration
 produce byte-identical output. No wall-clock data is ever included; timing is
 printed to the console only.
 
 ## Output files
 
 - The report (this schema) goes to stdout always, and to `--out <file>` when given.
-- When `--out` is given, a per-unit CSV is written beside it: the report path's
-  extension is replaced with `.units.csv` (e.g. `runs/baseline.txt` →
-  `runs/baseline.units.csv`).
+- When `--out` is given, two sidecars are written beside it, with the report
+  path's extension replaced:
+  - `.units.csv` — one row per unit (scalar metrics)
+  - `.wiring.csv` — one row per connection (the per-unit signature)
+  (e.g. `runs/baseline.txt` → `runs/baseline.units.csv`, `runs/baseline.wiring.csv`)
 
 ## How a run works
 
@@ -41,7 +43,7 @@ printed to the console only.
 
 | Line | Meaning |
 |---|---|
-| `schema` | this format, `report-v3` |
+| `schema` | this format, `report-v4` |
 | `kernel` | kernel contract version the binary implements |
 | `seed` | run seed; drives both genome generation (salted) and RAND noise |
 | `units`, `ticks`, `genes-per-unit` | run dimensions |
@@ -126,10 +128,10 @@ final action value overflowed; quantiles are over the finite rest.
 Quantile rule: sorted ascending, `index = floor(p/100 × (n−1))`, no
 interpolation. p0 = min, p100 = max.
 
-## `per-unit-detail` line
+## `per-unit-detail` / `per-unit-wiring` lines
 
-Names the `.units.csv` sidecar and its row count. The detail itself is in that
-file (next section).
+Name the two sidecars and their row counts. The detail itself is in those files
+(next sections).
 
 ## Per-unit CSV sidecar
 
@@ -158,6 +160,25 @@ cleanly). Columns:
 | `regime` | `fixed-point` / `bounded` / `divergent` (see terminal-regimes) |
 | `final_abs_y` | |ACTION_Y| at the last tick |
 | `max_abs_output` | largest finite |output| over the run |
+
+## Per-unit wiring CSV sidecar — the signature
+
+One header row plus one row per connection, grouped by unit (ascending) and in
+genome order within each unit (so it diffs cleanly). This is the raw structure
+the genome built — every other per-unit metric derives from it. Columns:
+
+| Column | Definition |
+|---|---|
+| `unit` | unit index |
+| `conn_index` | connection's position in this unit's genome (resets to 0 per unit) |
+| `src_local` / `dst_local` | unit-local node indices (0..TOTAL−1) of the connection's endpoints |
+| `src_name` / `dst_name` | node names: CONST, RAND, ADD, MUL, CLAMP, DELAY, THRESH, ACTION_Y, or JUNK-S/I/A + offset |
+| `weight` | scaled connection weight (signed) |
+| `meaningful` | 1 if both endpoints are meaningful (non-junk) nodes, else 0 |
+
+A unit with zero connections contributes no rows. Junk endpoints carry no
+signal (their outputs are pinned to 0), so `meaningful=0` rows are structurally
+inert — they still cost decay (slice §3) but never propagate.
 
 ## `state-digest`
 
