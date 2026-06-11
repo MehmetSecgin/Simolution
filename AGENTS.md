@@ -89,7 +89,12 @@ The kernel must stay small enough to embed in a game loop later — think microc
 - Primitives and flat arrays only in runtime state. No boxing, no collections, no streams, no lambdas in the hot path.
 - Zero allocation and zero decoding inside `tick()`. Anything structure-derived is precomputed once (see cache spec).
 - Memory budget is a feature: per-unit state is currently 4 × NodeLayout.TOTAL × 8 bytes. Any change that grows per-unit or per-connection footprint needs an ADR justifying it.
-- Known future optimizations, deliberately deferred (each needs an ADR when taken): CompiledConnection object array → structure-of-arrays; double → float for state.
+- **Memory discipline (core value).** Total footprint must be linear in units and CONSTANT in tick count. Concretely:
+  - No unbounded collections anywhere in a loop. Nothing may accumulate per-tick history — observers and future instruments keep running aggregates (O(units)), never trajectories. If a feature seems to need history, it needs a bounded ring buffer and an ADR.
+  - Observers preallocate every buffer in their constructor; `observe()`-style per-tick methods allocate nothing.
+  - Any new allocation in a per-tick path needs an ADR. Known accepted exception: `Kernel.snapshot()` allocates one small view object per call — fine at game framerates, to be replaced with a reusable view if profiling ever shows GC pressure.
+  - Boxing, varargs, streams, and string building stay out of per-tick paths (trace logging is exempt: opt-in, small runs only).
+- Known future optimizations, deliberately deferred (each needs an ADR when taken): CompiledConnection object array → structure-of-arrays; double → float for state; reusable snapshot view.
 
 ## Decision records
 
