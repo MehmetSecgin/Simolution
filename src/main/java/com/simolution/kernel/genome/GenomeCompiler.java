@@ -40,6 +40,15 @@ public final class GenomeCompiler {
         return result;
     }
 
+    /**
+     * Compiles one genome per unit into a single flat connection array.
+     * <p>
+     * Unit {@code u}'s connections get absolute indices offset by
+     * {@code u * NodeLayout.TOTAL}, which is the entire multi-unit
+     * mechanism: propagation stays one unit-agnostic loop because
+     * isolation is baked into the indices here, at compile time
+     * (see ADR 0002).
+     */
     public static CompiledConnection[] compileAll(final int[][] genomes) {
 
         final CompiledConnection[][] perUnit = new CompiledConnection[genomes.length][];

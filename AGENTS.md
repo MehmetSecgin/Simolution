@@ -85,6 +85,7 @@ The owner wants autonomous implementation but full understanding. So: small sing
 ## Conventions
 
 - Conventional Commits (`feat:`, `refactor(kernel):`, ...).
+- Javadoc is welcome here (project-local exception to any global no-comment rule): the owner wants deep understanding, so document the non-obvious — bit layouts, numeric tricks, invariant reasoning, spec cross-references. Skip prose on self-explanatory code; never narrate what a line does.
 - Tests mirror main package layout; spec-conformance tests compare kernel output against an independent reference model (see KernelVerticalSliceTest).
 - Known intentional deviations from spec, tracked for later: MUL is pass-through (spec says product of two strongest inputs).
 
