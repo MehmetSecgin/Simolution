@@ -4,6 +4,7 @@ import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.logging.ConsoleTableLogger;
 import com.simolution.kernel.runtime.Kernel;
 
 public class Main {
@@ -28,7 +29,7 @@ public class Main {
                            .weightRaw(wAddToDelay)
                         .build(),
 
-                // DELAY -> ADD  (feedback loop, 1-tick delayed)
+                // DELAY -> ADD (feedback loop, 1-tick delayed)
                 GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
                            .toInternal(NodeLayout.Internal.ADD)
                            .weightRaw(wDelayToAdd)
@@ -44,12 +45,11 @@ public class Main {
         CompiledConnection[] connections = GenomeCompiler.compile(genome, 0);
 
         Kernel kernel = new Kernel(connections);
-        kernel.dumpWiring();
-
+        ConsoleTableLogger logger = new ConsoleTableLogger();
 
         for (int i = 0; i < 10; i++) {
             kernel.tick();
-            kernel.debugDump();
+            logger.log(kernel.snapshot());
         }
     }
 

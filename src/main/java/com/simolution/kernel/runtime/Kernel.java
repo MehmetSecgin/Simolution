@@ -19,8 +19,6 @@ public final class Kernel {
 
     private int tick = 0;
 
-    private boolean headerPrinted = false;
-
     public Kernel(final CompiledConnection[] connections) {
 
         final int unitCount = KernelConfig.UNIT_COUNT;
@@ -117,108 +115,7 @@ public final class Kernel {
         outputsNext = tmp;
     }
 
-    public void debugDump() {
-        final int base = 0;
-
-        final int constIdx = base + NodeLayout.SENSOR_OFFSET
-                             + (NodeLayout.Sensor.CONST * NodeLayout.Sensor.INSTANCES_PER_TYPE);
-        final int randIdx = base + NodeLayout.SENSOR_OFFSET
-                            + (NodeLayout.Sensor.RAND * NodeLayout.Sensor.INSTANCES_PER_TYPE);
-
-        final int addIdx = base + NodeLayout.INTERNAL_OFFSET
-                           + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        final int mulIdx = base + NodeLayout.INTERNAL_OFFSET
-                           + (NodeLayout.Internal.MUL * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        final int clampIdx = base + NodeLayout.INTERNAL_OFFSET
-                             + (NodeLayout.Internal.CLAMP * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        final int delayIdx = base + NodeLayout.INTERNAL_OFFSET
-                             + (NodeLayout.Internal.DELAY * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        final int threshIdx = base + NodeLayout.INTERNAL_OFFSET
-                              + (NodeLayout.Internal.THRESH * NodeLayout.Internal.INSTANCES_PER_TYPE);
-
-        final int actionIdx = base + NodeLayout.ACTION_OFFSET
-                              + (NodeLayout.Action.Y * NodeLayout.Action.INSTANCES_PER_TYPE);
-
-        if (!headerPrinted) {
-            System.out.printf(
-                    "%5s | %7s %7s | %7s %7s %7s %7s %7s | %7s | %7s%n",
-                    "Tick",
-                    "CONST", "RAND",
-                    "ADD", "MUL", "CLAMP", "DELAY", "THRESH",
-                    "ACTION",
-                    "DELAY_M"
-            );
-            System.out.println(
-                    "-----+-----------------+---------------------------------------+---------+---------"
-            );
-            headerPrinted = true;
-        }
-
-        System.out.printf(
-                "%5d | %7.4f %7.4f | %7.4f %7.4f %7.4f %7.4f %7.4f | %7.4f | %7.4f%n",
-                tick,
-                outputsPrev[constIdx],
-                outputsPrev[randIdx],
-                outputsPrev[addIdx],
-                outputsPrev[mulIdx],
-                outputsPrev[clampIdx],
-                outputsPrev[delayIdx],
-                outputsPrev[threshIdx],
-                outputsPrev[actionIdx],
-                delayMemory[delayIdx]
-        );
+    public KernelSnapshot snapshot() {
+        return new KernelSnapshot(tick, outputsPrev, delayMemory);
     }
-
-    private static String nodeName(final int absoluteIndex) {
-        // Single-unit debug mapping only (base=0). This intentionally labels meaningful nodes by index.
-        // With junk nodes enabled, unknown indices will show SENSOR?/INTERNAL?/ACTION? which is fine for now.
-        if (absoluteIndex < NodeLayout.Internal.COUNT + NodeLayout.INTERNAL_OFFSET) {
-            // Sensors block
-            if (absoluteIndex < NodeLayout.INTERNAL_OFFSET) {
-                final int sensorLocal = absoluteIndex - NodeLayout.SENSOR_OFFSET;
-                return switch (sensorLocal) {
-                    case NodeLayout.Sensor.CONST -> "CONST";
-                    case NodeLayout.Sensor.RAND -> "RAND";
-                    default -> "SENSOR?" + sensorLocal;
-                };
-            }
-
-            // Internals block
-            final int internalLocal = absoluteIndex - NodeLayout.INTERNAL_OFFSET;
-            return switch (internalLocal) {
-                case NodeLayout.Internal.ADD -> "ADD";
-                case NodeLayout.Internal.MUL -> "MUL";
-                case NodeLayout.Internal.CLAMP -> "CLAMP";
-                case NodeLayout.Internal.DELAY -> "DELAY";
-                case NodeLayout.Internal.THRESH -> "THRESH";
-                default -> "INTERNAL?" + internalLocal;
-            };
-        }
-
-        // Actions block
-        final int actionLocal = absoluteIndex - NodeLayout.ACTION_OFFSET;
-        return switch (actionLocal) {
-            case NodeLayout.Action.Y -> "ACTION";
-            default -> "ACTION?" + actionLocal;
-        };
-    }
-
-    public void dumpWiring() {
-        System.out.println("=== Compiled Wiring ===");
-
-        for (int i = 0; i < connections.length; i++) {
-            final CompiledConnection c = connections[i];
-
-            final String src = nodeName(c.sourceAbsoluteIndex);
-            final String dst = nodeName(c.destinationAbsoluteIndex);
-
-            System.out.printf(
-                    "%2d: %-6s -> %-10s w=%+.6f%n",
-                    i, src, dst, c.weight
-            );
-        }
-
-        System.out.println();
-    }
-
 }
