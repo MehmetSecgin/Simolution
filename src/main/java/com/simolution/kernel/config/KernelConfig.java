@@ -7,6 +7,10 @@ public final class KernelConfig {
 
     public static final long RANDOM_SEED = 0L;
 
+    public static final double INITIAL_ENERGY = 1000.0;
+    public static final double DECAY_PER_CONNECTION = 0.02;
+    public static final double COST_PER_PROPAGATION = 0.06;
+
     public static final int SENSOR_JUNK_COUNT = 2;
     public static final int INTERNAL_JUNK_COUNT = 3;
     public static final int ACTION_JUNK_COUNT = 1;

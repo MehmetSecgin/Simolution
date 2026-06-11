@@ -2,6 +2,7 @@ package com.simolution.sim;
 
 import java.util.Arrays;
 
+import com.simolution.kernel.config.KernelConfig;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.KernelSnapshot;
@@ -33,6 +34,9 @@ public final class DynamicsObserver {
     private final boolean[] reachedNonFinite;
     private final double[] maxAbsOutput;
 
+    private final double[] prevEnergy;
+    private final int[] deathTick;
+
     private long ticksWithAnyActivity;
     private long propagationsTotal;
     private long junkSinkPropagations;
@@ -40,6 +44,9 @@ public final class DynamicsObserver {
     private long threshFlipsTotal;
     private long stateDigest;
     private int ticksObserved;
+
+    private double finalEnergyTotal;
+    private double finalEnergySink;
 
     public DynamicsObserver(final int unitCount, final CompiledConnection[] connections) {
         this.unitCount = unitCount;
@@ -57,6 +64,11 @@ public final class DynamicsObserver {
         this.endedAtFixedPoint = new boolean[unitCount];
         this.reachedNonFinite = new boolean[unitCount];
         this.maxAbsOutput = new double[unitCount];
+
+        this.prevEnergy = new double[unitCount];
+        Arrays.fill(prevEnergy, KernelConfig.INITIAL_ENERGY);
+        this.deathTick = new int[unitCount];
+        Arrays.fill(deathTick, -1);
     }
 
     /**
@@ -73,6 +85,13 @@ public final class DynamicsObserver {
 
         boolean anyActivity = false;
         for (final CompiledConnection connection : connections) {
+            final int unit = connection.sourceAbsoluteIndex / NodeLayout.TOTAL;
+            // mirror the kernel: a unit dead at the start of this tick (its
+            // energy in the previous snapshot) propagated nothing this tick
+            if (prevEnergy[unit] <= 0.0) {
+                continue;
+            }
+
             final double signal = prevOutputs[connection.sourceAbsoluteIndex] * connection.weight;
             accumulators[connection.destinationAbsoluteIndex] += signal;
 
@@ -80,7 +99,6 @@ public final class DynamicsObserver {
                 anyActivity = true;
                 propagationsTotal++;
 
-                final int unit = connection.sourceAbsoluteIndex / NodeLayout.TOTAL;
                 activeThisTick[unit] = true;
                 if (firstActivityTick[unit] < 0) {
                     firstActivityTick[unit] = snapshot.tick;
@@ -120,12 +138,28 @@ public final class DynamicsObserver {
                     maxAbsOutput[unit] = Math.max(maxAbsOutput[unit], Math.abs(value));
                 }
             }
+
+            if (deathTick[unit] < 0 && snapshot.energy[unit] <= 0.0) {
+                deathTick[unit] = snapshot.tick;
+            }
         }
 
         foldDigest(snapshot);
 
+        finalEnergyTotal = sum(snapshot.energy);
+        finalEnergySink = snapshot.energySink;
+
         System.arraycopy(snapshot.outputs, 0, prevOutputs, 0, prevOutputs.length);
         System.arraycopy(snapshot.delayMemory, 0, prevDelay, 0, prevDelay.length);
+        System.arraycopy(snapshot.energy, 0, prevEnergy, 0, prevEnergy.length);
+    }
+
+    private static double sum(final double[] values) {
+        double total = 0.0;
+        for (final double value : values) {
+            total += value;
+        }
+        return total;
     }
 
     /**
@@ -163,6 +197,9 @@ public final class DynamicsObserver {
         for (final double v : snapshot.delayMemory) {
             h = Noise.mix(h ^ Double.doubleToLongBits(v));
         }
+        for (final double v : snapshot.energy) {
+            h = Noise.mix(h ^ Double.doubleToLongBits(v));
+        }
         stateDigest = h;
     }
 
@@ -186,6 +223,10 @@ public final class DynamicsObserver {
                 reachedNonFinite,
                 maxAbsOutput,
                 finalAbsAction,
+                deathTick,
+                finalEnergyTotal,
+                finalEnergySink,
+                KernelConfig.INITIAL_ENERGY * unitCount,
                 stateDigest
         );
     }

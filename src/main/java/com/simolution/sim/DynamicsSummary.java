@@ -13,6 +13,10 @@ public record DynamicsSummary(
         boolean[] reachedNonFinite,
         double[] maxAbsOutput,
         double[] finalAbsAction,
+        int[] deathTick,
+        double finalEnergyTotal,
+        double finalEnergySink,
+        double initialEnergyTotal,
         long stateDigest
 ) {
 
@@ -68,5 +72,41 @@ public record DynamicsSummary(
             }
         }
         return n;
+    }
+
+    public int countAliveAtEnd() {
+        int alive = 0;
+        for (int tick : deathTick) {
+            if (tick < 0) {
+                alive++;
+            }
+        }
+        return alive;
+    }
+
+    /**
+     * Sorted ascending death ticks of units that died; living units (death
+     * tick -1) are excluded. Empty when nobody died.
+     */
+    public int[] sortedDeathTicks() {
+        int dead = deathTick.length - countAliveAtEnd();
+        int[] ticks = new int[dead];
+        int cursor = 0;
+        for (int tick : deathTick) {
+            if (tick >= 0) {
+                ticks[cursor++] = tick;
+            }
+        }
+        java.util.Arrays.sort(ticks);
+        return ticks;
+    }
+
+    /**
+     * Closed-system audit (contract v0 §3): energy is never created, only
+     * moved to the sink. Remaining live energy plus the sink must equal the
+     * energy the system started with, to floating-point exactness.
+     */
+    public double energyAuditError() {
+        return Math.abs(initialEnergyTotal - (finalEnergyTotal + finalEnergySink));
     }
 }

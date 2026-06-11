@@ -1,10 +1,13 @@
-# Run Report Schema — report-v1
+# Run Report Schema — report-v2
 
 ## Purpose
 
-Defines every line of the `report-v1` run report so that any reader — human or
+Defines every line of the `report-v2` run report so that any reader — human or
 agent — given a report file plus this document can reconstruct what happened in
 the run without reading code.
+
+(v2 adds the `## energy` section and per-unit death ticks; v1 had no energy
+law.)
 
 The report is **deterministic**: the same kernel code, seed, and configuration
 produce a byte-identical file. No wall-clock data is ever included; timing is
@@ -20,13 +23,15 @@ printed to the console only.
    ticks `ticks` times.
 3. An observer (`DynamicsObserver`) inspects the snapshot after each tick. It
    re-derives the propagation phase from the previous tick's outputs and the
-   wiring — the kernel is never modified or instrumented.
+   wiring — the kernel is never modified or instrumented. It mirrors the
+   kernel's dead-unit skip: a unit dead at a tick's start (its energy in the
+   previous snapshot) propagated nothing that tick.
 
 ## Header
 
 | Line | Meaning |
 |---|---|
-| `schema` | this format, `report-v1` |
+| `schema` | this format, `report-v2` |
 | `kernel` | kernel contract version the binary implements |
 | `seed` | run seed; drives both genome generation (salted) and RAND noise |
 | `units`, `ticks`, `genes-per-unit` | run dimensions |
@@ -50,13 +55,36 @@ printed to the console only.
 | Line | Definition |
 |---|---|
 | `ticks-with-any-activity` | ticks where ≥1 connection anywhere propagated a non-zero signal. Activity per slice §9 |
-| `signal-propagations-total` | count of non-zero `source × weight` propagations. This is the quantity activity cost will be proportional to (contract v0 §6) |
+| `signal-propagations-total` | count of non-zero `source × weight` propagations. Activity cost is proportional to this (contract v0 §6) |
 | `junk-sink-propagations` | propagations whose destination is a junk node — activity wasted into sinks |
 | `junk-sink-propagation-fraction` | junk-sink / total propagations (count-based, immune to overflow) |
 | `clamp-saturation-events` | per unit per tick: CLAMP input magnitude exceeded 1.0 |
 | `thresh-flips-total` | per unit per tick (from tick 2): THRESH output changed sign |
 | `units-dormant-from-birth` | units with zero propagations the entire run (dormancy per contract v0 §7) |
 | `units-dormant-at-end` | units with zero propagations during the final tick |
+
+## `## energy` — the entropy law (contract v0 §3, §4, §6, §9)
+
+Each unit starts with `INITIAL_ENERGY`. Every tick a living unit pays
+**structural decay** (`connection-count × DECAY_PER_CONNECTION`, charged
+regardless of activity) plus **activity cost**
+(`non-zero-propagations × COST_PER_PROPAGATION`). The charge is clamped to
+available energy, so a unit never overdraws. Energy is never created; charges
+flow to a global sink. A unit with energy ≤ 0 is dead: it computes nothing
+from the next tick on and its state is frozen.
+
+| Line | Definition |
+|---|---|
+| `initial-energy-total` | `INITIAL_ENERGY × units` — the closed system's entire energy budget |
+| `final-energy-total` | sum of remaining energy across all units at the last tick |
+| `energy-sink` | total energy irreversibly dissipated to the sink |
+| `energy-audit-error` | `\|initial − (final + sink)\|`. Must be ~0 (floating-point summation noise only); a non-trivial value means energy leaked or was created — a law violation |
+| `units-alive-at-end` / `units-dead-at-end` | by energy > 0 at the last tick |
+| `death-tick-first` / `-median` / `-last` | over units that died (−1 if none died); the death curve |
+
+Note: a unit with zero connections has zero structural decay and, if also
+inactive, never loses energy — degenerate immortality. Random genomes always
+have connections, so this appears only with hand-built empty genomes.
 
 ## `## terminal-regimes` — classification of each unit's endgame
 
@@ -81,18 +109,19 @@ interpolation. p0 = min, p100 = max.
 
 ## `## units` — per-unit lines, only when units ≤ 20
 
-`unit | regime | reachable | rand-wired | first-activity-tick | final-abs-y | max-abs-output`
+`unit | regime | reachable | rand-wired | first-activity-tick | death-tick | final-abs-y | max-abs-output`
 
 `first-activity-tick` = first tick with a non-zero propagation in that unit
 (−1 = never). Note tick 1 can never be active: propagation reads the previous
-tick's outputs, which start at zero.
+tick's outputs, which start at zero. `death-tick` = tick energy first reached
+0 (−1 = still alive at the end).
 
 ## `state-digest`
 
-A 64-bit fold (splitmix64 finalizer) over every output and delay-memory cell
-of every tick, in fixed order, RAND included. Two runs share a digest iff
-their full trajectories are bit-identical. Any kernel behavior change — even
-below display rounding — moves this line.
+A 64-bit fold (splitmix64 finalizer) over every output, delay-memory cell, and
+energy cell of every tick, in fixed order, RAND included. Two runs share a
+digest iff their full trajectories are bit-identical. Any kernel behavior
+change — even below display rounding — moves this line.
 
 ## Numbers
 

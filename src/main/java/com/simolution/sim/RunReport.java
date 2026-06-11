@@ -3,14 +3,14 @@ package com.simolution.sim;
 import java.util.Arrays;
 
 /**
- * Renders a run into the report-v1 text format
- * (docs/specs/report-v1.md). Every value is deterministic: same code +
+ * Renders a run into the report-v2 text format
+ * (docs/specs/report-v2.md). Every value is deterministic: same code +
  * same config produce a byte-identical file. No wall-clock data belongs
  * here — timing goes to the console, never the report.
  */
 public final class RunReport {
 
-    public static final String SCHEMA = "report-v1";
+    public static final String SCHEMA = "report-v2";
     private static final int PER_UNIT_LINE_LIMIT = 20;
 
     private RunReport() {}
@@ -50,6 +50,20 @@ public final class RunReport {
         out.append("units-dormant-from-birth: ").append(dynamics.countDormantFromBirth()).append('\n');
         out.append("units-dormant-at-end: ").append(dynamics.countDormantAtEnd()).append('\n');
 
+        out.append("\n## energy\n");
+        out.append("initial-energy-total: ").append(dynamics.initialEnergyTotal()).append('\n');
+        out.append("final-energy-total: ").append(dynamics.finalEnergyTotal()).append('\n');
+        out.append("energy-sink: ").append(dynamics.finalEnergySink()).append('\n');
+        out.append("energy-audit-error: ").append(dynamics.energyAuditError()).append('\n');
+        out.append("units-alive-at-end: ").append(dynamics.countAliveAtEnd()).append('\n');
+        out.append("units-dead-at-end: ").append(units - dynamics.countAliveAtEnd()).append('\n');
+        final int[] deathTicks = dynamics.sortedDeathTicks();
+        out.append("death-tick-first: ").append(deathTicks.length == 0 ? -1 : deathTicks[0]).append('\n');
+        out.append("death-tick-median: ")
+           .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length / 2]).append('\n');
+        out.append("death-tick-last: ")
+           .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length - 1]).append('\n');
+
         out.append("\n## terminal-regimes\n");
         out.append("fixed-point: ").append(dynamics.countRegime(DynamicsSummary.Regime.FIXED_POINT)).append('\n');
         out.append("bounded: ").append(dynamics.countRegime(DynamicsSummary.Regime.BOUNDED)).append('\n');
@@ -70,13 +84,14 @@ public final class RunReport {
 
         if (units <= PER_UNIT_LINE_LIMIT) {
             out.append("\n## units\n");
-            out.append("unit | regime | reachable | rand-wired | first-activity-tick | final-abs-y | max-abs-output\n");
+            out.append("unit | regime | reachable | rand-wired | first-activity-tick | death-tick | final-abs-y | max-abs-output\n");
             for (int unit = 0; unit < units; unit++) {
                 out.append(unit)
                    .append(" | ").append(regimeName(dynamics.regime(unit)))
                    .append(" | ").append(structure.sensorActionReachable()[unit] ? "yes" : "no")
                    .append(" | ").append(structure.randWired()[unit] ? "yes" : "no")
                    .append(" | ").append(dynamics.firstActivityTick()[unit])
+                   .append(" | ").append(dynamics.deathTick()[unit])
                    .append(" | ").append(dynamics.finalAbsAction()[unit])
                    .append(" | ").append(dynamics.maxAbsOutput()[unit])
                    .append('\n');

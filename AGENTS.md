@@ -11,7 +11,7 @@ Current milestone: **Kernel v0.1** — a deterministic VM for evolving signal gr
 ./gradlew test    # JUnit 5; includes spec-conformance tests
 ./gradlew build   # full verification
 
-# population run with deterministic report (schema: docs/specs/report-v1.md)
+# population run with deterministic report (schema: docs/specs/report-v2.md)
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42"
 # flags: --units N --ticks T --seed S --genes G --trace --out <file>
 ```
@@ -40,8 +40,8 @@ com.simolution
     │   ├── GeneDecoder       gene → CompiledConnection; modulo ID wrap; weight scaling
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (precompute, never per-tick)
     ├── runtime
-    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap (double-buffered); whole population in one flat array set
-    │   ├── KernelSnapshot    read view of tick + outputs + delay memory
+    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-energy (5 phases); whole population in one flat array set
+    │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + sink
     │   └── Noise             stateless counter-based RNG: sample(seed, unit, tick)
     └── logging
         └── ConsoleTableLogger renders snapshots as a per-tick trace table
@@ -50,7 +50,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
 ├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
 ├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
-└── RunReport                 byte-deterministic report-v1 text (docs/specs/report-v1.md)
+└── RunReport                 byte-deterministic report-v2 text (docs/specs/report-v2.md)
 ```
 
 Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]`. SrcType 0=sensor 1=internal; DstType 0=internal 1=action. IDs wrap modulo TYPE_COUNT, so **every random int is a legal gene**. Weight: signed int16 × (4.0 / 32767), linear, unclamped.
@@ -63,7 +63,7 @@ Binding (implementations MUST conform):
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
-- [docs/specs/report-v1.md](docs/specs/report-v1.md) — run report schema; every metric defined with formula and spec cross-reference
+- [docs/specs/report-v2.md](docs/specs/report-v2.md) — run report schema; every metric defined with formula and spec cross-reference
 
 Historical / non-binding:
 
@@ -76,7 +76,8 @@ If code and a binding spec disagree, the spec wins. If a change requires the spe
 
 - **No semantics in the kernel.** Nodes carry no meaning; the kernel never interprets, rewards, or privileges behavior. If a behavior feels "obvious" while coding, you are probably smuggling semantics.
 - **Determinism.** Fixed seed, no wall-clock, no unseeded randomness, fixed evaluation order. Same genome + seed → identical tick history, always.
-- **Tick pipeline is locked:** clear accumulators → propagate → evaluate → swap. New mechanics (energy, decay) become additional phases, never modifications of existing ones.
+- **Tick pipeline is locked:** clear accumulators → propagate → evaluate → swap → settle energy. New mechanics become additional phases, never modifications of existing ones.
+- **Energy is conserved.** Never created, only moved to the sink; charges clamp to available energy. The `energy-audit-error` line must stay ~0 (FP noise only). Death is `energy ≤ 0`, derived — never store an alive flag (contract §9).
 - **No per-tick allocation or decoding.** Genome decoding happens once in GenomeCompiler. Hot loop touches flat arrays only.
 - **Memory only via DELAY.** No instantaneous feedback; propagation reads previous-tick outputs only.
 - **Data-oriented, not OO organisms.** Flat arrays + indices + phases. No object graphs between nodes.
@@ -115,5 +116,5 @@ The owner wants autonomous implementation but full understanding. So: small sing
 
 1. ~~Multi-unit evaluation~~ done (ADR 0002, 0003)
 2. ~~True MUL semantics~~ done (ADR 0005)
-3. Energy accounting: structural decay + activity cost (contract §4, §6)
-4. Then, and only then: mutation, reproduction, environment, selection
+3. ~~Energy accounting: structural decay + activity cost~~ done (ADR 0006)
+4. Then, and only then: energy intake, mutation, reproduction, environment, selection

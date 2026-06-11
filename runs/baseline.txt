@@ -1,5 +1,5 @@
 # Simolution run report
-schema: report-v1
+schema: report-v2
 kernel: v0.1
 seed: 42
 units: 100
@@ -20,25 +20,36 @@ units-rand-wired: 86
 
 ## dynamics
 ticks-with-any-activity: 999
-signal-propagations-total: 1370073
-junk-sink-propagations: 609151
-junk-sink-propagation-fraction: 0.4446120754149596
-clamp-saturation-events: 37318
-thresh-flips-total: 17590
+signal-propagations-total: 922731
+junk-sink-propagations: 417428
+junk-sink-propagation-fraction: 0.45238319726984355
+clamp-saturation-events: 24220
+thresh-flips-total: 11801
 units-dormant-from-birth: 0
-units-dormant-at-end: 0
+units-dormant-at-end: 98
+
+## energy
+initial-energy-total: 100000.0
+final-energy-total: 0.7200000000000273
+energy-sink: 99999.2800000008
+energy-audit-error: 8.003553375601768E-10
+units-alive-at-end: 2
+units-dead-at-end: 98
+death-tick-first: 483
+death-tick-median: 677
+death-tick-last: 944
 
 ## terminal-regimes
-fixed-point: 13
-bounded: 72
+fixed-point: 85
+bounded: 0
 divergent: 15
 divergence-cutoff: 1000000.0
 
 ## action-channel
-units-final-y-nonfinite: 3
+units-final-y-nonfinite: 1
 final-abs-y-p0: 0.0
-final-abs-y-p50: 2.7059864813306858
-final-abs-y-p90: 9.010498819273359
-final-abs-y-p100: 2.0967930835521796E270
+final-abs-y-p50: 2.5995659173764394
+final-abs-y-p90: 10.366553675471918
+final-abs-y-p100: 9.206325011251272E297
 
-state-digest: 030eb2ee36504278
+state-digest: e5614db6984d0b7e
