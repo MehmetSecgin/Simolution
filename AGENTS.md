@@ -15,6 +15,9 @@ Current milestone: **Kernel v0.1** — a deterministic VM for evolving signal gr
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42"
 # flags: --units N --ticks T --seed S --genes G --trace --out <file>
 # --out also writes a per-unit <base>.units.csv sidecar
+
+# visualize a run as a self-contained HTML dashboard (stdlib python, no deps)
+python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 ```
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
