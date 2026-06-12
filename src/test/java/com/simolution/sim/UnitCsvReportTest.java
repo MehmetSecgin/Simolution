@@ -18,7 +18,7 @@ class UnitCsvReportTest {
         int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
-        Kernel kernel = new Kernel(config.units(), connections);
+        Kernel kernel = new Kernel(genomes, config.genesPerUnit());
         DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();

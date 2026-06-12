@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.KernelConfig;
 import com.simolution.kernel.genome.GeneBuilder;
-import com.simolution.kernel.genome.GenomeCompiler;
-import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 
 class EnergyTest {
@@ -40,8 +38,7 @@ class EnergyTest {
     void openSystemConservesEnergyExactly() {
         // arrange
         int[][] genomes = com.simolution.sim.GenomeFactory.random(11L, 50, 32);
-        CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        Kernel kernel = new Kernel(50, connections);
+        Kernel kernel = new Kernel(genomes, 32);
         double credited = KernelConfig.INITIAL_ENERGY * 50 + KernelConfig.RESOURCE_INITIAL;
 
         // act + assert: contract v1 §7 — initial + inflow == units + reservoir + sink
@@ -57,7 +54,7 @@ class EnergyTest {
     @Test
     void totalEnergyMonotonicallyDecreases() {
         // arrange
-        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {BUSY_GENOME}));
+        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, 32);
 
         // act + assert
         double previous = KernelConfig.INITIAL_ENERGY;
@@ -73,7 +70,7 @@ class EnergyTest {
     void unitDiesAndStaysDeadAndInert() {
         // arrange: no harvest -> basal + activity + maintenance with no intake
         // guarantees death; generous bound to outlast it
-        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {BUSY_GENOME}));
+        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, 32);
         int ticksToOutlast = 5000;
 
         // act
@@ -105,7 +102,7 @@ class EnergyTest {
     void idleUnitPaysBasalAndMaintenanceThenDies() {
         // arrange: zero connections -> no activity, but basal + storage
         // maintenance still apply (v1 §6/§6a) -> not immortal
-        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {{}}));
+        Kernel kernel = new Kernel(new int[][] {{}}, 32);
 
         // act
         kernel.tick();
@@ -142,7 +139,7 @@ class EnergyTest {
                 GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
                            .toAction(NodeLayout.Action.HARVEST).weightRaw((short) 16383).build()
         };
-        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {delayBomb}));
+        Kernel kernel = new Kernel(new int[][] {delayBomb}, 32);
 
         // act
         double prevEnergy = KernelConfig.INITIAL_ENERGY;
@@ -177,7 +174,7 @@ class EnergyTest {
     @Test
     void deductionClampsToAvailableNeverOverdraws() {
         // arrange
-        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {BUSY_GENOME}));
+        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, 32);
         double initialTotal = KernelConfig.INITIAL_ENERGY;
 
         // act + assert: energy never goes negative, sink never exceeds initial
@@ -195,8 +192,8 @@ class EnergyTest {
         // arrange: same unit alone vs beside a unit that dies early
         int[][] solo = {BUSY_GENOME};
         int[][] withDying = {BUSY_GENOME, BUSY_GENOME};
-        Kernel alone = new Kernel(1, GenomeCompiler.compileAll(solo));
-        Kernel paired = new Kernel(2, GenomeCompiler.compileAll(withDying));
+        Kernel alone = new Kernel(solo, 32);
+        Kernel paired = new Kernel(withDying, 32);
 
         // act + assert
         for (int i = 0; i < 200; i++) {

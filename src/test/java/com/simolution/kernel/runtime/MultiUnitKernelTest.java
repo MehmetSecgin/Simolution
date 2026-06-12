@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.genome.GeneBuilder;
-import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.NodeLayout;
 
 class MultiUnitKernelTest {
@@ -35,8 +34,8 @@ class MultiUnitKernelTest {
     @Test
     void unitsDoNotLeakSignalsIntoEachOther() {
         // arrange
-        Kernel kernel = new Kernel(3, GenomeCompiler.compileAll(
-                new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}));
+        Kernel kernel = new Kernel(
+                new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 32);
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
 
@@ -59,10 +58,10 @@ class MultiUnitKernelTest {
     @Test
     void unitZeroIsInvariantUnderPopulationSize() {
         // arrange
-        Kernel alone = new Kernel(1, GenomeCompiler.compileAll(
-                new int[][] {FEEDBACK_GENOME}));
-        Kernel crowded = new Kernel(5, GenomeCompiler.compileAll(
-                new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}));
+        Kernel alone = new Kernel(
+                new int[][] {FEEDBACK_GENOME}, 32);
+        Kernel crowded = new Kernel(
+                new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 32);
 
         // act + assert
         for (int tick = 0; tick < 20; tick++) {
@@ -79,8 +78,8 @@ class MultiUnitKernelTest {
     @Test
     void unitsReceiveDistinctRandStreams() {
         // arrange
-        Kernel kernel = new Kernel(2, GenomeCompiler.compileAll(
-                new int[][] {EMPTY_GENOME, EMPTY_GENOME}));
+        Kernel kernel = new Kernel(
+                new int[][] {EMPTY_GENOME, EMPTY_GENOME}, 32);
         int randIdx = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
 
         // act

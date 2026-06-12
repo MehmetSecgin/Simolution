@@ -3,6 +3,7 @@ package com.simolution.kernel.runtime;
 import java.util.Arrays;
 
 import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 
@@ -13,12 +14,15 @@ public final class Kernel {
     private final double[] accumulators;
     private final double[] delayMemory;
 
-    private final CompiledConnection[] sumConnections;
-    private final CompiledConnection[] mulConnections;
+    private final CompiledConnection[] connections;
     private final int[] sumStart;
     private final int[] sumEnd;
     private final int[] mulStart;
     private final int[] mulEnd;
+
+    private final int[] genes;
+    private final int[] geneCount;
+    private final int maxGenes;
 
     private final double[] mulTop1;
     private final double[] mulTop2;
@@ -37,19 +41,28 @@ public final class Kernel {
     private int tick = 0;
 
     /**
-     * Structure is split once at construction (a structure-only precompute,
-     * allowed by the cache spec):
-     * <ul>
-     *   <li>MUL needs its two strongest individual inputs, which the summing
-     *       accumulator destroys, so MUL-destined connections run a separate
-     *       top-2 loop (ADR 0005).</li>
-     *   <li>connections arrive grouped by unit (GenomeCompiler.compileAll), so
-     *       per-unit [start, end) ranges let a dead unit's whole range be
-     *       skipped with one branch instead of one branch per connection
-     *       (ADR 0006).</li>
-     * </ul>
+     * The substrate is a fixed pool of {@code genomes.length} slots; a slot is
+     * alive iff its energy is &gt; 0 (contract v2 §5/§6, death is derived). Each
+     * slot owns a fixed region {@code [slot·maxGenes, slot·maxGenes + maxGenes)}
+     * of the flat connection array and an equal region of the raw {@code genes}
+     * array, both rewritten in place when the slot is reused by a birth — no
+     * growth, no per-birth heap allocation beyond decoding (contract v2 §12).
+     * {@code maxGenes} is the per-slot gene capacity (headroom for genome growth,
+     * §16); the live extent is {@code geneCount[slot]}.
+     * <p>
+     * Within a slot's region the compile lays out sum-destined connections first
+     * (in gene order) then mul-destined ones (in gene order). MUL needs its two
+     * strongest individual inputs, which the summing accumulator destroys, so it
+     * runs a separate top-2 loop (ADR 0005); the contiguous per-slot ranges let a
+     * dead slot be skipped with one branch (ADR 0006). Both arrays are sized to
+     * the pool's full capacity {@code unitCount · maxGenes} up front (contract v2
+     * §12 footprint note).
      */
-    public Kernel(final int unitCount, final CompiledConnection[] connections) {
+    public Kernel(final int[][] genomes, final int maxGenes) {
+
+        final int unitCount = genomes.length;
+        this.unitCount = unitCount;
+        this.maxGenes = maxGenes;
 
         final int totalNodes = unitCount * NodeLayout.TOTAL;
 
@@ -58,7 +71,6 @@ public final class Kernel {
         this.accumulators = new double[totalNodes];
         this.delayMemory = new double[totalNodes];
 
-        this.unitCount = unitCount;
         this.mulTop1 = new double[unitCount];
         this.mulTop2 = new double[unitCount];
         this.mulInDegree = new int[unitCount];
@@ -71,49 +83,72 @@ public final class Kernel {
         this.reservoir = KernelConfig.RESOURCE_INITIAL;
         this.cumulativeInflow = 0.0;
 
-        int mulCount = 0;
-        for (final CompiledConnection connection : connections) {
-            if (isMulDestination(connection)) {
-                mulCount++;
-            }
-        }
-
-        this.sumConnections = new CompiledConnection[connections.length - mulCount];
-        this.mulConnections = new CompiledConnection[mulCount];
+        final int capacity = unitCount * maxGenes;
+        this.connections = new CompiledConnection[capacity];
+        this.genes = new int[capacity];
+        this.geneCount = new int[unitCount];
         this.sumStart = new int[unitCount];
         this.sumEnd = new int[unitCount];
         this.mulStart = new int[unitCount];
         this.mulEnd = new int[unitCount];
 
-        int sumCursor = 0;
-        int mulCursor = 0;
-        for (final CompiledConnection connection : connections) {
-            final int unit = connection.sourceAbsoluteIndex / NodeLayout.TOTAL;
-            if (isHarvestTransporter(connection)) {
-                harvestConnCount[unit]++;
+        for (int unit = 0; unit < unitCount; unit++) {
+            final int[] genome = genomes[unit];
+            if (genome.length > maxGenes) {
+                throw new IllegalArgumentException(
+                        "unit " + unit + " genome has " + genome.length
+                        + " genes, exceeds maxGenes " + maxGenes);
             }
-            if (isMulDestination(connection)) {
-                mulConnections[mulCursor++] = connection;
-                mulInDegree[unit] = Math.min(2, mulInDegree[unit] + 1);
-            } else {
-                sumConnections[sumCursor++] = connection;
-            }
+            System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
+            geneCount[unit] = genome.length;
+            compileSlot(unit);
         }
-
-        computeRanges(sumConnections, sumStart, sumEnd);
-        computeRanges(mulConnections, mulStart, mulEnd);
     }
 
-    private void computeRanges(final CompiledConnection[] grouped, final int[] start, final int[] end) {
-        int cursor = 0;
-        for (int unit = 0; unit < unitCount; unit++) {
-            start[unit] = cursor;
-            while (cursor < grouped.length
-                   && grouped[cursor].sourceAbsoluteIndex / NodeLayout.TOTAL == unit) {
-                cursor++;
+    /**
+     * Decode a slot's live genes into its connection region and recompute the
+     * structure-derived per-slot data (ranges, harvest transporter count, MUL
+     * in-degree). Runs once per slot at construction and again at every birth
+     * (contract v2 §6/§12) — off the hot path, never per tick. Two decode passes
+     * place sum-destined connections (in gene order) then mul-destined ones (in
+     * gene order) contiguously without a scratch buffer; this is the same
+     * per-unit ordering the old global packed array produced, so results stay
+     * bit-identical across the storage rework.
+     */
+    private void compileSlot(final int unit) {
+        final int base = unit * maxGenes;
+        final int unitOffset = unit * NodeLayout.TOTAL;
+        final int count = geneCount[unit];
+
+        int cursor = base;
+        int harvest = 0;
+        for (int g = 0; g < count; g++) {
+            final CompiledConnection c = GeneDecoder.decode(genes[base + g], unitOffset);
+            if (c == null || isMulDestination(c)) {
+                continue;
             }
-            end[unit] = cursor;
+            connections[cursor++] = c;
+            if (isHarvestTransporter(c)) {
+                harvest++;
+            }
         }
+        sumStart[unit] = base;
+        sumEnd[unit] = cursor;
+
+        mulStart[unit] = cursor;
+        int mulDegree = 0;
+        for (int g = 0; g < count; g++) {
+            final CompiledConnection c = GeneDecoder.decode(genes[base + g], unitOffset);
+            if (c == null || !isMulDestination(c)) {
+                continue;
+            }
+            connections[cursor++] = c;
+            mulDegree = Math.min(2, mulDegree + 1);
+        }
+        mulEnd[unit] = cursor;
+
+        harvestConnCount[unit] = harvest;
+        mulInDegree[unit] = mulDegree;
     }
 
     private static boolean isMulDestination(final CompiledConnection connection) {
@@ -177,7 +212,7 @@ public final class Kernel {
             int active = 0;
 
             for (int i = sumStart[unit]; i < sumEnd[unit]; i++) {
-                final CompiledConnection c = sumConnections[i];
+                final CompiledConnection c = connections[i];
                 final double signal = outputsPrev[c.sourceAbsoluteIndex] * c.weight;
                 accumulators[c.destinationAbsoluteIndex] += signal;
                 if (signal != 0.0) {
@@ -186,7 +221,7 @@ public final class Kernel {
             }
 
             for (int i = mulStart[unit]; i < mulEnd[unit]; i++) {
-                final CompiledConnection c = mulConnections[i];
+                final CompiledConnection c = connections[i];
                 final double signal = outputsPrev[c.sourceAbsoluteIndex] * c.weight;
                 if (Math.abs(signal) > Math.abs(mulTop1[unit])) {
                     mulTop2[unit] = mulTop1[unit];

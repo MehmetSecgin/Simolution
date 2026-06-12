@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.KernelConfig;
 import com.simolution.kernel.genome.GeneBuilder;
-import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.NodeLayout;
 
 class MulNodeTest {
@@ -26,7 +25,7 @@ class MulNodeTest {
     }
 
     private static double mulOutputAfterTwoTicks(int... genome) {
-        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {genome}));
+        Kernel kernel = new Kernel(new int[][] {genome}, 32);
         kernel.tick();
         kernel.tick();
         return kernel.snapshot().outputs[MUL_IDX];
@@ -121,7 +120,7 @@ class MulNodeTest {
                            .weightRaw(unit)
                            .build()
         };
-        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {specSliceGenome}));
+        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, 32);
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
 
         // act
