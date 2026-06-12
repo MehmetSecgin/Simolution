@@ -71,10 +71,10 @@ class EnergyTest {
 
     @Test
     void unitDiesAndStaysDeadAndInert() {
-        // arrange: tiny budget so death comes fast
+        // arrange: no harvest -> basal + activity + maintenance with no intake
+        // guarantees death; generous bound to outlast it
         Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {BUSY_GENOME}));
-        int ticksToOutlast = (int) Math.ceil(KernelConfig.INITIAL_ENERGY
-                / (BUSY_GENOME.length * KernelConfig.DECAY_PER_CONNECTION)) + 50;
+        int ticksToOutlast = 5000;
 
         // act
         double[] frozenOutputs = null;
@@ -102,27 +102,31 @@ class EnergyTest {
     }
 
     @Test
-    void idleUnitLeaksProportionally() {
-        // arrange: zero connections -> no structural decay, but storage
-        // maintenance (leak proportional to energy) still applies (v1 §6a)
+    void idleUnitPaysBasalAndMaintenanceThenDies() {
+        // arrange: zero connections -> no activity, but basal + storage
+        // maintenance still apply (v1 §6/§6a) -> not immortal
         Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {{}}));
 
         // act
         kernel.tick();
         double afterOne = kernel.snapshot().energy[0];
 
-        // assert: exactly one leak charge of energy * STORAGE_LEAK_RATE
-        assertEquals(KernelConfig.INITIAL_ENERGY * (1.0 - KernelConfig.STORAGE_LEAK_RATE),
-                afterOne, 1.0e-9, "one tick of proportional storage leak");
+        // assert: one tick = basal floor + proportional maintenance
+        double expected = KernelConfig.INITIAL_ENERGY
+                - KernelConfig.BASAL_COST
+                - KernelConfig.INITIAL_ENERGY * KernelConfig.STORAGE_LEAK_RATE;
+        assertEquals(expected, afterOne, 1.0e-9, "basal + proportional maintenance");
 
-        double previous = afterOne;
-        for (int i = 0; i < 200; i++) {
+        // the fixed basal floor (unlike a purely proportional leak) drives energy
+        // across zero: even a connectionless idle unit eventually dies
+        boolean died = false;
+        for (int i = 0; i < 100_000 && !died; i++) {
             kernel.tick();
-            double now = kernel.snapshot().energy[0];
-            assertTrue(now < previous, "idle store must keep leaking, not stay immortal");
-            previous = now;
+            if (kernel.snapshot().energy[0] <= 0.0) {
+                died = true;
+            }
         }
-        assertTrue(previous < KernelConfig.INITIAL_ENERGY, "no costless persistence");
+        assertTrue(died, "no costless persistence: an idle unit must eventually die");
     }
 
     @Test

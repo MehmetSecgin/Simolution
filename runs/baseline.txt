@@ -20,52 +20,52 @@ units-rand-wired: 91
 
 ## dynamics
 ticks-with-any-activity: 999
-signal-propagations-total: 1066394
-junk-sink-propagations: 352972
-junk-sink-propagation-fraction: 0.33099586081692134
-clamp-saturation-events: 25247
-thresh-flips-total: 11225
+signal-propagations-total: 1106286
+junk-sink-propagations: 367140
+junk-sink-propagation-fraction: 0.3318671663566203
+clamp-saturation-events: 26469
+thresh-flips-total: 11691
 units-dormant-from-birth: 0
-units-dormant-at-end: 66
+units-dormant-at-end: 61
 
 ## energy
 initial-energy-total: 100000.0
-final-energy-total: 33785.54278070465
-energy-sink: 205717.888135679
+final-energy-total: 36004.011203447924
+energy-sink: 204569.80649221496
 initial-reservoir: 100000.0
-final-reservoir: 10446.569083615123
+final-reservoir: 9376.182304335971
 cumulative-inflow: 49950.0
-intake-total: 139503.43091638488
-energy-audit-error: 1.2223608791828156E-9
-units-alive-at-end: 34
-units-dead-at-end: 66
-death-tick-first: 324
-death-tick-median: 417
-death-tick-last: 981
+intake-total: 140573.81769566404
+energy-audit-error: 1.1350493878126144E-9
+units-alive-at-end: 39
+units-dead-at-end: 61
+death-tick-first: 340
+death-tick-median: 444
+death-tick-last: 972
 
 ## intake
 units-ever-harvested: 66
-harvest-active-ticks-total: 34458
+harvest-active-ticks-total: 35160
 
 ## burn-rate
-mean-burn-rate-p0: -3.272365044613984
-mean-burn-rate-p50: 1.6835016835016836
-mean-burn-rate-p90: 2.6525198938992043
-mean-burn-rate-p100: 3.0864197530864197
+mean-burn-rate-p0: -3.3307924613573596
+mean-burn-rate-p50: 1.5337423312883436
+mean-burn-rate-p90: 2.506265664160401
+mean-burn-rate-p100: 2.9411764705882355
 
 ## terminal-regimes
-fixed-point: 52
-bounded: 32
+fixed-point: 48
+bounded: 36
 divergent: 16
 divergence-cutoff: 1000000.0
 
 ## action-channel
 units-final-y-nonfinite: 1
 final-abs-y-p0: 0.0
-final-abs-y-p50: 1.980273336645247
-final-abs-y-p90: 8.587927578728406
-final-abs-y-p100: 1.3352342432482126E139
+final-abs-y-p50: 1.9167353405999208
+final-abs-y-p90: 8.534079464701328
+final-abs-y-p100: 4.48983972624915E144
 
 per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v5.md)
 per-unit-wiring: 3200 connections in the .wiring.csv sidecar (see docs/specs/report-v5.md)
-state-digest: 1edef886dbba0943
+state-digest: 2d03661bcdadb9bc

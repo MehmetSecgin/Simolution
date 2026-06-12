@@ -25,7 +25,6 @@ public final class Kernel {
     private final int[] mulInDegree;
 
     private final double[] energy;
-    private final int[] connectionCount;
     private final int[] harvestConnCount;
     private final int[] activeThisTick;
     private double energySink;
@@ -66,7 +65,6 @@ public final class Kernel {
 
         this.energy = new double[unitCount];
         Arrays.fill(energy, KernelConfig.INITIAL_ENERGY);
-        this.connectionCount = new int[unitCount];
         this.harvestConnCount = new int[unitCount];
         this.activeThisTick = new int[unitCount];
 
@@ -91,7 +89,6 @@ public final class Kernel {
         int mulCursor = 0;
         for (final CompiledConnection connection : connections) {
             final int unit = connection.sourceAbsoluteIndex / NodeLayout.TOTAL;
-            connectionCount[unit]++;
             if (isHarvestTransporter(connection)) {
                 harvestConnCount[unit]++;
             }
@@ -371,23 +368,33 @@ public final class Kernel {
      * unit's net energy change this tick is {@code intake − charge}: a strong
      * harvester reaches steady state, a poor one still decays to death.
      * <p>
-     * The charge has three terms: structural decay (∝ connections), activity
-     * cost (∝ propagations), and <b>storage maintenance</b> (∝ energy held,
-     * contract v1 §6a, ADR 0011) — basal metabolism / entropy on the hoard. The
-     * maintenance term means there is no costless persistence: idle units leak
-     * to death, and because intake saturates, a hoard above the equilibrium
-     * {@code E* = (intakeMax − baseCost)/LEAK_RATE} cannot be sustained — it
-     * implodes back. "Eat everything forever" is thermodynamically impossible.
+     * The charge is the cell's metabolic bill (contract v1 §6/§6a, ADR 0013),
+     * modelled on real maintenance energy (Pirt) rather than a per-gene tax:
+     * <ul>
+     *   <li><b>basal</b> ({@code BASAL_COST}) — the fixed, irreducible cost of
+     *       staying organized (membrane upkeep). Charged to every living unit
+     *       regardless of size or activity; this floor is what makes a dormant
+     *       unit actually die instead of decaying asymptotically.</li>
+     *   <li><b>activity</b> (∝ propagations) — the cost of running/expressing
+     *       machinery: you pay for signal you move, not for wiring you merely
+     *       carry (so silent/junk structure is nearly free, as in biology).</li>
+     *   <li><b>maintenance</b> (∝ energy held) — upkeep proportional to size
+     *       (energy proxies biomass). Makes a hoard above the equilibrium
+     *       {@code E* = (capacity − basal)/LEAK_RATE} unsustainable — it implodes.</li>
+     * </ul>
+     * No term scales with connection count: cost lives on what a unit does and
+     * holds, not on what it has. Charge clamps to available energy so a unit
+     * never overdraws; crossing to zero makes phases 2–3 skip it next tick.
      */
     private void settleCost() {
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 continue;
             }
-            final double decay = connectionCount[unit] * KernelConfig.DECAY_PER_CONNECTION;
             final double activity = activeThisTick[unit] * KernelConfig.COST_PER_PROPAGATION;
             final double maintenance = energy[unit] * KernelConfig.STORAGE_LEAK_RATE;
-            final double charge = Math.min(decay + activity + maintenance, energy[unit]);
+            final double charge = Math.min(
+                    KernelConfig.BASAL_COST + activity + maintenance, energy[unit]);
             energy[unit] -= charge;
             energySink += charge;
         }
