@@ -84,20 +84,30 @@ milestone that turns every global scalar into a local field.
   output to an energy *demand* via a fixed, uniform, **saturating** law, then
   draws the granted intake from the resource pool:
 
-  `demand = INTAKE_MAX × harvest / (HALF_SATURATION + harvest)`, for `harvest = max(0, harvestOutput)`
+  `capacity = CAPACITY_PER_CONNECTION × transporterCount`
+  `demand = capacity × harvest / (HALF_SATURATION + harvest)`, for `harvest = max(0, harvestOutput)`
   `intake = demand × f(resourceAvailable)`
 
 * `max(0, …)`: you cannot un-eat. The genome must drive the channel positive to
   feed itself.
 * **Uptake saturates (Michaelis–Menten).** Demand rises with harvest output but
-  never past `INTAKE_MAX` — the transporter ceiling. *You cannot eat infinitely
-  fast.* This is the central anti-degeneracy law: a runaway/divergent signal
-  buys no extra intake, so there is no incentive to explode a feedback loop into
-  the mouth, and the population demand total stays bounded (the shared
-  denominator can never overflow). Realised intake still differs per unit only
-  by how much harvest behaviour each genome produces — up to the ceiling.
-* `INTAKE_MAX` and `HALF_SATURATION` are **single global constants** — the same
-  conversion law for everyone (they replace the earlier linear `EFFICIENCY`).
+  never past the unit's `capacity` ceiling. *You cannot eat infinitely fast.*
+  This is the central anti-degeneracy law: a runaway/divergent signal buys no
+  extra intake, so there is no incentive to explode a feedback loop into the
+  mouth, and the demand total stays bounded (the shared denominator can never
+  overflow).
+* **The ceiling is emergent, not granted.** `transporterCount` is the number of
+  connections feeding the HARVEST node from a meaningful source — the genome's
+  structural investment in eating machinery, paid for through ordinary
+  per-connection decay (§6, same mechanism as sensory acuity). A unit that wants
+  to eat more must wire more transporters and carry their decay; capacity is thus
+  a **heritable, evolvable genome trait**, bounded by genome size so it cannot
+  diverge. The kernel grants no fixed per-unit eating rate. `CAPACITY_PER_CONNECTION`
+  and `HALF_SATURATION` are the only global constants here — a uniform
+  conversion/scale, identical for everyone, not a per-unit talent.
+* If total demand exceeds the pool (finite-pool competition), allocation is
+  **proportional to demand** and computed from the population total — a
+  deterministic, order-independent division. `f(resourceAvailable) = min(1, R/ΣD)`.
 * If total demand exceeds the pool (finite-pool competition), allocation is
   **proportional to demand** and computed from the population total — a
   deterministic, order-independent division. `f(resourceAvailable) = min(1, R/ΣD)`.
@@ -214,3 +224,48 @@ Reproduction, mutation (next milestone); CROWDING / EMIT and quorum sensing;
 perceptual fidelity/noise; genome-encoded efficiency traits; and space (which
 turns every global scalar into a local field). Each arrives as its own additive
 milestone with its own ADR.
+
+---
+
+## 12. Physics is set once; outcomes emerge — the tuning discipline
+
+Smuggling semantics through *constants* is as forbidden as smuggling them through
+*code*. Tuning the kernel until "the population looks nice" injects a designer's
+intent exactly where emergence is supposed to live. So every constant is sorted
+into one of three kinds, and only one kind may ever be touched after it is set:
+
+* **Scale anchors** — arbitrary units (`INITIAL_ENERGY`, one tick, the weight
+  scale `±4`). Like choosing metres over feet; meaningless alone. Set once, never
+  revisited.
+* **World-harshness parameters** — how hard the world is, like the strength of
+  gravity (`STORAGE_LEAK_RATE`, `RESOURCE_INFLOW`/`CAPACITY`, `DECAY_PER_CONNECTION`,
+  `COST_PER_PROPAGATION`, `HARVEST_CAPACITY_PER_CONNECTION`, `HALF_SATURATION`).
+  They define the world, not its inhabitants. Set once to make a *livable*
+  world; a harsher world breeds leaner survivors, but the survivors are still
+  self-organised.
+* **Outcome targets** — survivor count, lifespan, equilibrium energy `E*`,
+  population size. These **MUST NEVER be tuned.** They are *results*, and they
+  must fall out of physics + environment + evolution. Tuning a constant to hit
+  one of these is the failure this section exists to forbid.
+
+Consequences that keep the discipline real:
+
+1. **Macro outcomes are emergent by construction.** Per-unit carrying capacity is
+   `E* = (capacity − baseCost)/LEAK` (per-unit, from its own genome). Population
+   carrying capacity is `inflow ÷ per-capita need` (from the environment). Neither
+   is a knob.
+2. **Features must be additive and self-paying.** A new sensor, node type, or
+   extra genes only *expands the genome's strategy space*; each new connection
+   pays the same per-connection decay and survives only if it earns its keep.
+   Such additions change **no existing constant** — adding RESOURCE + HARVEST did
+   not touch decay or activity cost, and must not in future. If a feature can only
+   stay viable by re-tuning existing physics, the *feature* is mis-designed, not
+   the constants.
+3. **Paradigm shifts are rare and deliberate.** Opening the system (intake) and,
+   later, going spatial (global scalar → local field) genuinely extend the
+   physics. Each is one ADR defining new physics *once*, expressed in scale-free
+   ratios — not an ongoing tuning treadmill.
+
+The test of success: once reproduction exists, the population finds its own viable
+strategies and size under *whatever* livable constants we fixed. We tune the world
+to be alive-capable, once; we never tune which life appears or how much of it.
