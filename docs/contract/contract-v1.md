@@ -81,19 +81,26 @@ milestone that turns every global scalar into a local field.
 ## 5. HARVEST (the first effector) and intake
 
 * The world reads one designated **harvest action channel** and converts its
-  output to energy intake via a fixed, uniform law, drawn from the resource
-  pool:
+  output to an energy *demand* via a fixed, uniform, **saturating** law, then
+  draws the granted intake from the resource pool:
 
-  `intake = EFFICIENCY × max(0, harvestOutput) × f(resourceAvailable)`
+  `demand = INTAKE_MAX × harvest / (HALF_SATURATION + harvest)`, for `harvest = max(0, harvestOutput)`
+  `intake = demand × f(resourceAvailable)`
 
 * `max(0, …)`: you cannot un-eat. The genome must drive the channel positive to
   feed itself.
-* `EFFICIENCY` is a **single global constant** — the same conversion law for
-  everyone. Differences in realised intake come only from how much harvest
-  behaviour each genome produces.
+* **Uptake saturates (Michaelis–Menten).** Demand rises with harvest output but
+  never past `INTAKE_MAX` — the transporter ceiling. *You cannot eat infinitely
+  fast.* This is the central anti-degeneracy law: a runaway/divergent signal
+  buys no extra intake, so there is no incentive to explode a feedback loop into
+  the mouth, and the population demand total stays bounded (the shared
+  denominator can never overflow). Realised intake still differs per unit only
+  by how much harvest behaviour each genome produces — up to the ceiling.
+* `INTAKE_MAX` and `HALF_SATURATION` are **single global constants** — the same
+  conversion law for everyone (they replace the earlier linear `EFFICIENCY`).
 * If total demand exceeds the pool (finite-pool competition), allocation is
   **proportional to demand** and computed from the population total — a
-  deterministic, order-independent division.
+  deterministic, order-independent division. `f(resourceAvailable) = min(1, R/ΣD)`.
 
 ---
 
@@ -114,6 +121,40 @@ milestone that turns every global scalar into a local field.
   express) is a genuine separate axis and a **documented FUTURE option** — not
   in v1. If ever added, prefer making it emergent from wiring investment over a
   coded per-unit value.
+
+---
+
+## 6a. Storage maintenance — no costless persistence
+
+Saturating uptake caps the *rate* of eating; this law caps the *worth of
+hoarding*. Together they make "eat everything, live forever" thermodynamically
+impossible.
+
+* Every living unit pays a **maintenance cost proportional to the energy it
+  holds**: `maintenance = STORAGE_LEAK_RATE × energy`, charged to the sink each
+  tick alongside structural decay and activity cost. It is basal metabolism /
+  entropy on the hoard — bigger store, bigger upkeep.
+* This is a **uniform thermodynamic law**, not a goal: it applies identically to
+  every unit and privileges no behaviour (same standing as structural decay,
+  contract v0 §6). The kernel still interprets nothing.
+* **Emergent carrying capacity.** Because intake saturates at `INTAKE_MAX` and
+  upkeep grows with the hoard, there is a stable equilibrium energy
+  `E* = (INTAKE_MAX − baseCost) / STORAGE_LEAK_RATE`. Above it, upkeep exceeds
+  the most a unit could ever eat, so the hoard **implodes** back toward `E*`. A
+  unit cannot accumulate without bound; a gluttonous diverger starves on its own
+  bulk. `E*` is per-unit and emergent (it falls out of the genome's costs), not
+  coded.
+* **Persistence now requires intake** (supersedes contract v0's "degenerate
+  immortality" note in §6/§9). Any wired unit that stops eating dies: its fixed
+  structural-decay floor plus the leak drive energy across zero in finite time.
+  A connectionless husk has no fixed floor, so its purely-proportional leak only
+  decays its store asymptotically toward zero — it never crosses ≤ 0, but bleeds
+  to negligible energy and loses all competitive standing. Either way there is no
+  costless persistence: staying meaningfully alive means eating at least as fast
+  as you leak. This is the real consequence of opening the system — survival is
+  earned, not free.
+* Conservation is unaffected: maintenance flows unit → sink, so the audit of §7
+  still balances exactly.
 
 ---
 
