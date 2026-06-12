@@ -102,17 +102,68 @@ class EnergyTest {
     }
 
     @Test
-    void emptyStructureNeverDecays() {
-        // arrange: zero connections -> zero structural decay -> immortal
+    void idleUnitLeaksProportionally() {
+        // arrange: zero connections -> no structural decay, but storage
+        // maintenance (leak proportional to energy) still applies (v1 §6a)
         Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {{}}));
 
         // act
-        for (int i = 0; i < 1000; i++) {
+        kernel.tick();
+        double afterOne = kernel.snapshot().energy[0];
+
+        // assert: exactly one leak charge of energy * STORAGE_LEAK_RATE
+        assertEquals(KernelConfig.INITIAL_ENERGY * (1.0 - KernelConfig.STORAGE_LEAK_RATE),
+                afterOne, 1.0e-9, "one tick of proportional storage leak");
+
+        double previous = afterOne;
+        for (int i = 0; i < 200; i++) {
             kernel.tick();
+            double now = kernel.snapshot().energy[0];
+            assertTrue(now < previous, "idle store must keep leaking, not stay immortal");
+            previous = now;
+        }
+        assertTrue(previous < KernelConfig.INITIAL_ENERGY, "no costless persistence");
+    }
+
+    @Test
+    void intakeSaturatesAndDivergentHarvesterImplodes() {
+        // arrange: a DELAY self-loop (gain ~2) feeding HARVEST — the runaway
+        // "eat everything" strategy. Saturating uptake must cap its per-tick
+        // intake at INTAKE_MAX, and storage leak must stop it hoarding.
+        int[] delayBomb = {
+                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
+                           .toInternal(NodeLayout.Internal.DELAY).weightRaw((short) 8192).build(),
+                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
+                           .toInternal(NodeLayout.Internal.DELAY).weightRaw((short) 16383).build(),
+                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
+                           .toAction(NodeLayout.Action.HARVEST).weightRaw((short) 16383).build()
+        };
+        Kernel kernel = new Kernel(1, GenomeCompiler.compileAll(new int[][] {delayBomb}));
+
+        // act
+        double prevEnergy = KernelConfig.INITIAL_ENERGY;
+        double maxEnergy = prevEnergy;
+        double maxGain = 0.0;
+        boolean died = false;
+        for (int i = 0; i < 4000; i++) {
+            kernel.tick();
+            double e = kernel.snapshot().energy[0];
+            maxGain = Math.max(maxGain, e - prevEnergy);
+            maxEnergy = Math.max(maxEnergy, e);
+            if (e <= 0.0) {
+                died = true;
+            }
+            prevEnergy = e;
         }
 
         // assert
-        assertEquals(KernelConfig.INITIAL_ENERGY, kernel.snapshot().energy[0], 0.0);
+        assertTrue(maxGain <= KernelConfig.HARVEST_INTAKE_MAX + 1.0e-9,
+                "per-tick intake must not exceed the saturation ceiling, got " + maxGain);
+        double ceiling = KernelConfig.HARVEST_INTAKE_MAX / KernelConfig.STORAGE_LEAK_RATE;
+        assertTrue(maxEnergy < ceiling,
+                "a saturated harvester cannot hoard past its carrying capacity " + ceiling
+                        + ", reached " + maxEnergy);
+        assertTrue(died, "the diverger implodes: once its signal overflows, intake stops and leak kills it");
     }
 
     @Test

@@ -301,19 +301,29 @@ public final class Kernel {
     }
 
     /**
-     * A divergent unit's HARVEST output overflows IEEE doubles to ±Infinity/NaN
-     * (the substrate never clamps). A non-finite signal is not a readable harvest
-     * demand, so it contributes nothing — otherwise {@code Inf × min(1, R/Inf)}
-     * would be {@code Inf × 0 = NaN} and poison the shared reservoir. This guards
-     * numerical pathology, not behaviour: the kernel still privileges no strategy
-     * (ADR 0010). Finite-but-huge demands are fine — proportional allocation just
-     * hands such a unit almost the whole pool.
+     * Saturating uptake (contract v1 §5, ADR 0011): demand is a saturating
+     * (Michaelis–Menten) function of harvest output —
+     * {@code INTAKE_MAX · h / (HALF_SATURATION + h)} — so it rises with harvest
+     * but never past {@code INTAKE_MAX}, the transporter ceiling. You cannot eat
+     * infinitely fast: a runaway signal buys no extra intake, which removes the
+     * incentive to explode a feedback loop into the mouth and keeps the demand
+     * total bounded (no overflow of the shared denominator).
+     * <p>
+     * A non-finite output (a divergent unit) is unreadable garbage, not a harvest
+     * action, so it demands nothing — {@code max(0, …)} also means you cannot
+     * un-eat.
      */
     private double harvestDemand(final int unit) {
         final int harvestIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
                 + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
         final double output = outputsPrev[harvestIdx];
-        return Double.isFinite(output) ? KernelConfig.HARVEST_EFFICIENCY * Math.max(0.0, output) : 0.0;
+        if (!Double.isFinite(output) || output <= 0.0) {
+            return 0.0;
+        }
+        // INTAKE_MAX·output/(HALF+output), rearranged to avoid the overflow of
+        // INTAKE_MAX·output when output is a huge (divergent) finite value.
+        return KernelConfig.HARVEST_INTAKE_MAX
+                / (1.0 + KernelConfig.HARVEST_HALF_SATURATION / output);
     }
 
     /**
@@ -328,6 +338,14 @@ public final class Kernel {
      * so death takes effect next tick. Because intake (phase 5) ran first, a
      * unit's net energy change this tick is {@code intake − charge}: a strong
      * harvester reaches steady state, a poor one still decays to death.
+     * <p>
+     * The charge has three terms: structural decay (∝ connections), activity
+     * cost (∝ propagations), and <b>storage maintenance</b> (∝ energy held,
+     * contract v1 §6a, ADR 0011) — basal metabolism / entropy on the hoard. The
+     * maintenance term means there is no costless persistence: idle units leak
+     * to death, and because intake saturates, a hoard above the equilibrium
+     * {@code E* = (intakeMax − baseCost)/LEAK_RATE} cannot be sustained — it
+     * implodes back. "Eat everything forever" is thermodynamically impossible.
      */
     private void settleCost() {
         for (int unit = 0; unit < unitCount; unit++) {
@@ -336,7 +354,8 @@ public final class Kernel {
             }
             final double decay = connectionCount[unit] * KernelConfig.DECAY_PER_CONNECTION;
             final double activity = activeThisTick[unit] * KernelConfig.COST_PER_PROPAGATION;
-            final double charge = Math.min(decay + activity, energy[unit]);
+            final double maintenance = energy[unit] * KernelConfig.STORAGE_LEAK_RATE;
+            final double charge = Math.min(decay + activity + maintenance, energy[unit]);
             energy[unit] -= charge;
             energySink += charge;
         }
