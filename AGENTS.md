@@ -120,6 +120,10 @@ The owner wants autonomous implementation but full understanding. So: small sing
 - Tests mirror main package layout; spec-conformance tests compare kernel output against an independent reference model (see KernelVerticalSliceTest).
 - No known deviations from binding specs. MUL semantics (in-degree 0 → 0, 1 → pass-through, ≥2 → product of two strongest) per ADR 0005.
 
+## Branching
+
+Solo local repo: no remote, no `main` trunk, no PR flow. One long-lived branch **per milestone**, named after it (`kernel-v0.1`, `kernel-v1-energy-intake`, …). Start each new milestone branch off the previous milestone's tip; leave the old branch frozen as a marker of that finished slice. Do not create `main` or open PRs unless a remote is added later.
+
 ## Roadmap (from specs, in order)
 
 1. ~~Multi-unit evaluation~~ done (ADR 0002, 0003)
