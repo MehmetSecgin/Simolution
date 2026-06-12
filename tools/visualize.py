@@ -192,10 +192,10 @@ _TEMPLATE = r"""<!doctype html>
 
 <div class="sectit">Per-unit signature</div>
 <div class="grid">
-  <div class="panel" style="grid-column: 1 / -1;"><h2>Unit circuit — pruned signal flow</h2>
-    <div class="desc">Only nodes this unit actually wires are drawn. Signal flows left→right: sensors → internals → actions.
-      Edge colour = weight sign (green +, red −), thickness = magnitude. <b>Feedback edges</b> (DELAY loops, cycles) route below, dashed.
-      The <b class="b">live circuit</b> — the sensor→action core actually doing work — is bright; dead wiring is faded.</div>
+  <div class="panel" style="grid-column: 1 / -1;"><h2>Unit circuit — signal flow</h2>
+    <div class="desc">Only nodes this unit actually wires are drawn, placed by <b>signal depth</b> (distance from the sensors), not by node category —
+      so position follows the flow. Colour still marks sensor/internal/action. Edge colour = weight sign (green +, red −), thickness = magnitude.
+      <b>Feedback edges</b> (DELAY loops, cycles) route below, dashed. The <b class="b">live circuit</b> — the sensor→action core doing work — is bright; dead wiring faded.</div>
     <div style="display:flex; gap:14px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
       <label>unit <select id="usel"></select></label>
       <button id="prev">‹</button><button id="next">›</button>
@@ -446,40 +446,68 @@ scatter("wirescatter", u=>u.mc, "meaningful connections", 0, Math.max(...U.map(u
   });
 })();
 
-// ---- unit circuit: pruned signal-flow ----
+// ---- unit circuit: signal-flow by depth (no fixed categories) ----
 const WIRING = DATA.wiring || {};
 const NS="http://www.w3.org/2000/svg";
 const NFILL={s:"#7f77dd",i:"#378add",a:"#1d9e75"};
 const LBL={ACTION_Y:"ACT",HARVEST:"HARV",RESOURCE:"RES"};
 const ORDER=["CONST","RAND","RESOURCE","ADD","MUL","CLAMP","DELAY","THRESH","ACTION_Y","HARVEST"];
 const SENSORS=new Set(["CONST","RAND","RESOURCE"]), ACTIONS=new Set(["ACTION_Y","HARVEST"]);
-const VW=720, VH=300, COLX=[90,360,630], TOP=34, BOT=262;
+const VW=720, VH=300, LPAD=70, RPAD=70, TOP=40, BOT=262;
 
 function role(name){
-  if(name.startsWith("JUNK-S")) return {layer:0,kind:"s",junk:true};
-  if(name.startsWith("JUNK-I")) return {layer:1,kind:"i",junk:true};
-  if(name.startsWith("JUNK-A")) return {layer:2,kind:"a",junk:true};
-  if(SENSORS.has(name)) return {layer:0,kind:"s",junk:false};
-  if(ACTIONS.has(name)) return {layer:2,kind:"a",junk:false};
-  return {layer:1,kind:"i",junk:false};
+  if(name.startsWith("JUNK-S")) return {kind:"s",junk:true};
+  if(name.startsWith("JUNK-I")) return {kind:"i",junk:true};
+  if(name.startsWith("JUNK-A")) return {kind:"a",junk:true};
+  if(SENSORS.has(name)) return {kind:"s",junk:false};
+  if(ACTIONS.has(name)) return {kind:"a",junk:false};
+  return {kind:"i",junk:false};
 }
 function orderKey(name){ const i=ORDER.indexOf(name); return i<0 ? 100+(parseInt(name.replace(/\D/g,""))||0) : i; }
+function srcRank(name){ return SENSORS.has(name)?0:1; } // sensors seed the DFS first
 function el(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;}
 
-// deterministic layout: type columns, internal column ordered by neighbour barycenter
+// layer nodes by signal depth (longest path from sources). Cycles broken via
+// DFS back-edge detection so DELAY loops don't wreck the layering; the broken
+// edges come back as the dashed feedback arcs. Fully deterministic.
+function buildLayers(nodes, edges){
+  const dir=new Set(); edges.forEach(([s,d])=>{ if(s!==d) dir.add(s+">"+d); });
+  const adj={}; nodes.forEach(n=>adj[n]=[]);
+  dir.forEach(k=>{ const i=k.indexOf(">"); adj[k.slice(0,i)].push(k.slice(i+1)); });
+  nodes.forEach(n=>adj[n].sort((a,b)=>orderKey(a)-orderKey(b)));
+  const order=[...nodes].sort((a,b)=> srcRank(a)-srcRank(b) || orderKey(a)-orderKey(b));
+  const state={}, back=new Set();
+  (function(){ const stack=[];
+    function dfs(v){ state[v]=1; stack.push(v);
+      for(const w of adj[v]){ if(state[w]===1) back.add(v+">"+w); else if(!state[w]) dfs(w); }
+      state[v]=2; stack.pop(); }
+    order.forEach(v=>{ if(!state[v]) dfs(v); });
+  })();
+  const fEdges=[]; dir.forEach(k=>{ if(!back.has(k)){ const i=k.indexOf(">"); fEdges.push([k.slice(0,i),k.slice(i+1)]); } });
+  const ind={}; nodes.forEach(n=>ind[n]=0); fEdges.forEach(([,d])=>ind[d]++);
+  const layer={}; nodes.forEach(n=>layer[n]=0);
+  const q=order.filter(n=>ind[n]===0), topo=[];
+  while(q.length){ const v=q.shift(); topo.push(v); for(const [s,d] of fEdges) if(s===v && --ind[d]===0) q.push(d); }
+  for(const v of topo) for(const [s,d] of fEdges) if(s===v) layer[d]=Math.max(layer[d],layer[v]+1);
+  return {layer, back};
+}
+
 function layout(nodes, edges){
-  const cols=[[],[],[]];
-  nodes.forEach(n=>cols[role(n).layer].push(n));
-  cols.forEach(c=>c.sort((a,b)=>orderKey(a)-orderKey(b)));
+  const {layer, back}=buildLayers(nodes, edges);
+  const maxL=Math.max(0,...nodes.size?[...nodes].map(n=>layer[n]):[0]);
+  const byLayer={}; [...nodes].forEach(n=>{ (byLayer[layer[n]]=byLayer[layer[n]]||[]).push(n); });
+  Object.values(byLayer).forEach(c=>c.sort((a,b)=>orderKey(a)-orderKey(b)));
   const pos={};
-  const place=()=>{ for(let L=0;L<3;L++){ const c=cols[L];
-    c.forEach((n,i)=>{ pos[n]={x:COLX[L], y: c.length>1 ? TOP+(BOT-TOP)*i/(c.length-1) : (TOP+BOT)/2, kind:role(n).kind, junk:role(n).junk}; }); } };
-  const nbr={}; nodes.forEach(n=>nbr[n]=[]);
+  const X=l=> LPAD + (maxL ? (VW-LPAD-RPAD)*l/maxL : (VW-LPAD-RPAD)/2);
+  const place=()=>{ for(const l in byLayer){ const c=byLayer[l];
+    c.forEach((n,i)=>{ pos[n]={x:X(+l), y:c.length>1?TOP+(BOT-TOP)*i/(c.length-1):(TOP+BOT)/2,
+      kind:role(n).kind, junk:role(n).junk, layer:+l}; }); } };
+  const nbr={}; [...nodes].forEach(n=>nbr[n]=[]);
   edges.forEach(([s,d])=>{ if(s!==d){ if(nbr[s])nbr[s].push(d); if(nbr[d])nbr[d].push(s); } });
   place();
   const bary=n=>{ const ns=nbr[n]; if(!ns.length) return pos[n].y; let s=0; for(const m of ns) s+=pos[m].y; return s/ns.length; };
-  for(let pass=0;pass<4;pass++){ cols[1].sort((a,b)=> (bary(a)-bary(b)) || (orderKey(a)-orderKey(b))); place(); }
-  return pos;
+  for(let pass=0;pass<4;pass++){ for(const l in byLayer){ byLayer[l].sort((a,b)=>(bary(a)-bary(b))||(orderKey(a)-orderKey(b))); } place(); }
+  return {pos, back, maxL};
 }
 
 // forward/backward reachability over MEANINGFUL edges → the live core
@@ -511,7 +539,7 @@ function drawWiring(){
   const core=new Set([...fwd].filter(n=>bwd.has(n)));
   const isCoreEdge=(s,d,m)=> m===1 && core.has(s) && core.has(d);
 
-  const pos=layout(nodes, edges);
+  const {pos, back, maxL}=layout(nodes, edges);
 
   const defs=el("defs",{});
   for(const[c,id]of[["#3fb950","ap"],["#f85149","an"],["#484f58","aj"]]){
@@ -520,11 +548,10 @@ function drawWiring(){
   }
   svg.appendChild(defs);
 
-  // column headers
-  ["sensors","internals","actions"].forEach((t,i)=>{
-    const h=el("text",{x:COLX[i],y:18,"text-anchor":"middle","font-size":10,fill:"#586069","font-family":"ui-monospace,monospace"});
-    h.textContent=t; svg.appendChild(h);
-  });
+  // faint depth ticks
+  for(let l=0;l<=maxL;l++){ const x=LPAD+(maxL?(VW-LPAD-RPAD)*l/maxL:(VW-LPAD-RPAD)/2);
+    const h=el("text",{x,y:20,"text-anchor":"middle","font-size":9,fill:"#586069","font-family":"ui-monospace,monospace"});
+    h.textContent=l===0?"depth 0":l; svg.appendChild(h); }
 
   const R=16;
   let feedbackCount=0;
@@ -534,21 +561,20 @@ function drawWiring(){
     const op=junk?0.22:(coreEdge?0.95:0.32);
     const sw=junk?0.6:Math.min(5,(0.8+Math.abs(w)*0.7));
     const p1=pos[s], p2=pos[d];
-    const back = role(s).layer>=role(d).layer; // same or backward layer = feedback
-    if(s!==d && back) feedbackCount++;
+    const isBack = (s!==d) && (back.has(s+">"+d) || p2.layer < p1.layer);
     let path;
     if(s===d){
       feedbackCount++;
       const x=p1.x,y=p1.y;
       path=el("path",{d:`M${x-6},${y-R+2} C${x-40},${y-R-30} ${x+40},${y-R-30} ${x+6},${y-R+2}`,
         fill:"none",stroke:col,"stroke-width":sw,"marker-end":`url(#${mk})`,opacity:op,"stroke-dasharray":"4 3"});
-    } else if(back){
-      // feedback: bulge below, dashed
+    } else if(isBack){
+      feedbackCount++;
       const mx=(p1.x+p2.x)/2, my=Math.max(p1.y,p2.y)+46;
       path=el("path",{d:`M${p1.x},${p1.y+R-3} Q${mx},${my} ${p2.x},${p2.y+R-3}`,
         fill:"none",stroke:col,"stroke-width":sw,"marker-end":`url(#${mk})`,opacity:op,"stroke-dasharray":"5 4"});
     } else {
-      const mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2-18;
+      const mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2 - (Math.abs(p2.layer-p1.layer)>1?28:16);
       path=el("path",{d:`M${p1.x+R-2},${p1.y} Q${mx},${my} ${p2.x-R+1},${p2.y}`,
         fill:"none",stroke:col,"stroke-width":sw,"marker-end":`url(#${mk})`,opacity:op});
     }
@@ -570,7 +596,7 @@ function drawWiring(){
   const drivesHarvest=core.has("HARVEST");
   const yn=(b,t,c)=> `<b class="${b?(c||'g'):'r'}">${b?'✓':'✗'}</b> ${t}`;
   document.getElementById("uinfo").innerHTML =
-    `unit ${u} · ${ud.mc} meaningful / ${all.length} total edges · ${nodes.size} nodes drawn · `+
+    `unit ${u} · ${ud.mc} meaningful / ${all.length} total edges · ${nodes.size} nodes · depth ${maxL} · `+
     `lifespan <b>${ud.ls}</b> · ${ud.rg}` + (ud.ht>0?` · fed <b class="a">${ud.ht}</b> ticks`:` · never fed`) + ` &nbsp;|&nbsp; `+
     yn(hasPath,"sensor→action path") + ` · ` +
     yn(feedbackCount>0,"feedback / memory","b") + ` · ` +
