@@ -121,9 +121,12 @@ milestone that turns every global scalar into a local field.
 * Acuity is therefore **already per-unit, heritable, and evolvable** through
   connection weights. Different sensory strategies (good "eyes" vs reliance on
   other senses) emerge from which sensors a genome wires strongly.
-* The **decay budget forces specialization**: a unit cannot afford to wire every
-  sensor strongly (more connections = more structural decay), so it must invest
-  its budget — acute vision *or* acute internal sense, rarely both.
+* **Scarcity forces specialization** (no longer a per-connection tax — ADR 0013).
+  Wiring is cheap to *carry*; it costs when *used* (activity ∝ signal traffic) and
+  energy is finite (basal + maintenance must be earned back by harvest). A unit
+  that drives many sensors strongly pays for all that traffic and must out-harvest
+  it, so investing everything everywhere does not pay — acute vision *or* acute
+  internal sense tends to win, but the pressure is energetic, not a wire count.
 * The kernel MUST NOT carry a per-unit, per-sensor efficiency value. That would
   be redundant with connection weights and would have the kernel assigning
   talent the genome did not earn.
@@ -140,29 +143,31 @@ Saturating uptake caps the *rate* of eating; this law caps the *worth of
 hoarding*. Together they make "eat everything, live forever" thermodynamically
 impossible.
 
-* Every living unit pays a **maintenance cost proportional to the energy it
-  holds**: `maintenance = STORAGE_LEAK_RATE × energy`, charged to the sink each
-  tick alongside structural decay and activity cost. It is basal metabolism /
-  entropy on the hoard — bigger store, bigger upkeep.
-* This is a **uniform thermodynamic law**, not a goal: it applies identically to
-  every unit and privileges no behaviour (same standing as structural decay,
-  contract v0 §6). The kernel still interprets nothing.
-* **Emergent carrying capacity.** Because intake saturates at `INTAKE_MAX` and
-  upkeep grows with the hoard, there is a stable equilibrium energy
-  `E* = (INTAKE_MAX − baseCost) / STORAGE_LEAK_RATE`. Above it, upkeep exceeds
+* The metabolic bill has three terms (modelled on real maintenance energy /
+  Pirt, ADR 0013), none scaling with connection count:
+  * **basal** (`BASAL_COST`) — fixed cost of staying organized, charged to every
+    living unit. This floor is what drives a dormant unit across `energy ≤ 0`;
+    a purely proportional leak would only decay it asymptotically.
+  * **activity** (`propagations × COST_PER_PROPAGATION`) — the cost of running
+    machinery; you pay for signal moved, not wiring merely carried, so silent /
+    junk structure is nearly free (as in biology).
+  * **maintenance** (`STORAGE_LEAK_RATE × energy`) — upkeep proportional to size
+    (energy proxies biomass); entropy on the hoard.
+* These are **uniform thermodynamic laws**, not goals: identical for every unit,
+  privileging no behaviour. The kernel still interprets nothing.
+* **Emergent carrying capacity.** Because intake saturates at the unit's
+  `capacity` (§5) and upkeep grows with the hoard, there is a stable equilibrium
+  energy `E* = (capacity − basal) / STORAGE_LEAK_RATE`. Above it, upkeep exceeds
   the most a unit could ever eat, so the hoard **implodes** back toward `E*`. A
   unit cannot accumulate without bound; a gluttonous diverger starves on its own
-  bulk. `E*` is per-unit and emergent (it falls out of the genome's costs), not
-  coded.
+  bulk. `E*` is per-unit and emergent (it falls out of the genome's own capacity
+  and costs), not coded.
 * **Persistence now requires intake** (supersedes contract v0's "degenerate
-  immortality" note in §6/§9). Any wired unit that stops eating dies: its fixed
-  structural-decay floor plus the leak drive energy across zero in finite time.
-  A connectionless husk has no fixed floor, so its purely-proportional leak only
-  decays its store asymptotically toward zero — it never crosses ≤ 0, but bleeds
-  to negligible energy and loses all competitive standing. Either way there is no
-  costless persistence: staying meaningfully alive means eating at least as fast
-  as you leak. This is the real consequence of opening the system — survival is
-  earned, not free.
+  immortality" note in §6/§9). Every living unit pays the fixed basal floor, so
+  any unit that stops eating — wired or a connectionless husk — is driven across
+  `energy ≤ 0` in finite time and dies. There is no costless persistence: staying
+  alive means harvesting at least as fast as you spend. This is the real
+  consequence of opening the system — survival is earned, not free.
 * Conservation is unaffected: maintenance flows unit → sink, so the audit of §7
   still balances exactly.
 
@@ -238,7 +243,7 @@ into one of three kinds, and only one kind may ever be touched after it is set:
   scale `±4`). Like choosing metres over feet; meaningless alone. Set once, never
   revisited.
 * **World-harshness parameters** — how hard the world is, like the strength of
-  gravity (`STORAGE_LEAK_RATE`, `RESOURCE_INFLOW`/`CAPACITY`, `DECAY_PER_CONNECTION`,
+  gravity (`BASAL_COST`, `STORAGE_LEAK_RATE`, `RESOURCE_INFLOW`/`CAPACITY`,
   `COST_PER_PROPAGATION`, `HARVEST_CAPACITY_PER_CONNECTION`, `HALF_SATURATION`).
   They define the world, not its inhabitants. Set once to make a *livable*
   world; a harsher world breeds leaner survivors, but the survivors are still
