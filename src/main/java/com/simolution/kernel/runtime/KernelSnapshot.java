@@ -6,12 +6,17 @@ public final class KernelSnapshot {
     public final double[] delayMemory;
     public final double[] energy;
     public final double energySink;
+    public final double reservoir;
+    public final double cumulativeInflow;
 
-    public KernelSnapshot(int tick, double[] outputs, double[] delayMemory, double[] energy, double energySink) {
+    public KernelSnapshot(int tick, double[] outputs, double[] delayMemory, double[] energy,
+                          double energySink, double reservoir, double cumulativeInflow) {
         this.tick = tick;
         this.outputs = outputs;
         this.delayMemory = delayMemory;
         this.energy = energy;
         this.energySink = energySink;
+        this.reservoir = reservoir;
+        this.cumulativeInflow = cumulativeInflow;
     }
 }

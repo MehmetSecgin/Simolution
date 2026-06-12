@@ -3,8 +3,8 @@ package com.simolution.sim;
 import java.util.Arrays;
 
 /**
- * Renders a run into the report-v4 text format
- * (docs/specs/report-v4.md). Every value is deterministic: same code +
+ * Renders a run into the report-v5 text format
+ * (docs/specs/report-v5.md). Every value is deterministic: same code +
  * same config produce a byte-identical file. No wall-clock data belongs
  * here — timing goes to the console, never the report. Per-unit detail
  * lives in the .units.csv sidecar (UnitCsvReport); per-unit wiring in the
@@ -12,7 +12,7 @@ import java.util.Arrays;
  */
 public final class RunReport {
 
-    public static final String SCHEMA = "report-v4";
+    public static final String SCHEMA = "report-v5";
 
     private RunReport() {}
 
@@ -22,7 +22,7 @@ public final class RunReport {
 
         out.append("# Simolution run report\n");
         out.append("schema: ").append(SCHEMA).append('\n');
-        out.append("kernel: v0.1\n");
+        out.append("kernel: v1\n");
         out.append("seed: ").append(config.seed()).append('\n');
         out.append("units: ").append(units).append('\n');
         out.append("ticks: ").append(config.ticks()).append('\n');
@@ -55,6 +55,10 @@ public final class RunReport {
         out.append("initial-energy-total: ").append(dynamics.initialEnergyTotal()).append('\n');
         out.append("final-energy-total: ").append(dynamics.finalEnergyTotal()).append('\n');
         out.append("energy-sink: ").append(dynamics.finalEnergySink()).append('\n');
+        out.append("initial-reservoir: ").append(dynamics.initialReservoir()).append('\n');
+        out.append("final-reservoir: ").append(dynamics.finalReservoir()).append('\n');
+        out.append("cumulative-inflow: ").append(dynamics.cumulativeInflow()).append('\n');
+        out.append("intake-total: ").append(dynamics.intakeTotal()).append('\n');
         out.append("energy-audit-error: ").append(dynamics.energyAuditError()).append('\n');
         out.append("units-alive-at-end: ").append(dynamics.countAliveAtEnd()).append('\n');
         out.append("units-dead-at-end: ").append(units - dynamics.countAliveAtEnd()).append('\n');
@@ -64,6 +68,10 @@ public final class RunReport {
            .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length / 2]).append('\n');
         out.append("death-tick-last: ")
            .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length - 1]).append('\n');
+
+        out.append("\n## intake\n");
+        out.append("units-ever-harvested: ").append(dynamics.countEverHarvested()).append('\n');
+        out.append("harvest-active-ticks-total: ").append(dynamics.harvestActiveTicksTotal()).append('\n');
 
         out.append("\n## burn-rate\n");
         final double[] burnRates = dynamics.meanBurnRates().clone();
@@ -92,10 +100,10 @@ public final class RunReport {
         out.append("final-abs-y-p100: ").append(quantile(finiteFinalY, 100)).append('\n');
 
         out.append("\nper-unit-detail: ")
-           .append(units).append(" rows in the .units.csv sidecar (see docs/specs/report-v4.md)\n");
+           .append(units).append(" rows in the .units.csv sidecar (see docs/specs/report-v5.md)\n");
         out.append("per-unit-wiring: ")
            .append(structure.connectionsCompiled())
-           .append(" connections in the .wiring.csv sidecar (see docs/specs/report-v4.md)\n");
+           .append(" connections in the .wiring.csv sidecar (see docs/specs/report-v5.md)\n");
 
         out.append("state-digest: ").append(String.format("%016x", dynamics.stateDigest())).append('\n');
         return out.toString();

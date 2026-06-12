@@ -2,7 +2,7 @@
 
 Artificial-life experiment: emergent survival under honest thermodynamics. The kernel defines physical laws (energy, decay, signal propagation) and never meanings, goals, or fitness. Lifelike strategies must emerge from evolution, never be coded in.
 
-Current milestone: **Kernel v0.1** — a deterministic VM for evolving signal graphs. Genome = list of 32-bit genes, one gene = one weighted connection between nodes of a fixed substrate. No energy, mutation, reproduction, or environment yet; those arrive as additive phases later.
+Current milestone: **Kernel v1** — a deterministic VM for evolving signal graphs, now an open system. Genome = list of 32-bit genes, one gene = one weighted connection between nodes of a fixed substrate. Energy accounting (decay, activity cost, death) and energy intake (RESOURCE pool + HARVEST) exist; mutation and reproduction do not yet — those arrive as additive phases next.
 
 ## Commands
 
@@ -11,7 +11,7 @@ Current milestone: **Kernel v0.1** — a deterministic VM for evolving signal gr
 ./gradlew test    # JUnit 5; includes spec-conformance tests
 ./gradlew build   # full verification
 
-# population run with deterministic report (schema: docs/specs/report-v4.md)
+# population run with deterministic report (schema: docs/specs/report-v5.md)
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42"
 # flags: --units N --ticks T --seed S --genes G --trace --out <file>
 # --out also writes <base>.units.csv (per-unit metrics) and <base>.wiring.csv (per-unit signature)
@@ -45,7 +45,7 @@ com.simolution
     │   ├── GeneDecoder       gene → CompiledConnection; modulo ID wrap; weight scaling
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (precompute, never per-tick)
     ├── runtime
-    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-energy (5 phases); whole population in one flat array set
+    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-intake → settle-cost (6 phases); whole population in one flat array set
     │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + sink
     │   └── Noise             stateless counter-based RNG: sample(seed, unit, tick)
     └── logging
@@ -55,9 +55,9 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
 ├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
 ├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
-├── RunReport                 byte-deterministic report-v4 text (aggregates + distributions)
+├── RunReport                 byte-deterministic report-v5 text (aggregates + distributions)
 ├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
-└── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v4.md)
+└── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
 ```
 
 Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]`. SrcType 0=sensor 1=internal; DstType 0=internal 1=action. IDs wrap modulo TYPE_COUNT, so **every random int is a legal gene**. Weight: signed int16 × (4.0 / 32767), linear, unclamped.
@@ -71,7 +71,7 @@ Binding (implementations MUST conform):
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
-- [docs/specs/report-v4.md](docs/specs/report-v4.md) — run report + per-unit CSV + wiring CSV schema; every metric defined with formula and spec cross-reference
+- [docs/specs/report-v5.md](docs/specs/report-v5.md) — current run report + per-unit CSV + wiring CSV schema (open-system: reservoir, intake, harvest participation); delta over [report-v4.md](docs/specs/report-v4.md)
 
 Historical / non-binding:
 
@@ -84,7 +84,7 @@ If code and a binding spec disagree, the spec wins. If a change requires the spe
 
 - **No semantics in the kernel.** Nodes carry no meaning; the kernel never interprets, rewards, or privileges behavior. If a behavior feels "obvious" while coding, you are probably smuggling semantics.
 - **Determinism.** Fixed seed, no wall-clock, no unseeded randomness, fixed evaluation order. Same genome + seed → identical tick history, always.
-- **Tick pipeline is locked:** clear accumulators → propagate → evaluate → swap → settle energy. New mechanics become additional phases, never modifications of existing ones.
+- **Tick pipeline is locked:** clear accumulators → propagate → evaluate → swap → settle intake → settle cost. New mechanics become additional phases, never modifications of existing ones.
 - **Energy is conserved.** Never created, only moved to the sink; charges clamp to available energy. The `energy-audit-error` line must stay ~0 (FP noise only). Death is `energy ≤ 0`, derived — never store an alive flag (contract §9).
 - **No per-tick allocation or decoding.** Genome decoding happens once in GenomeCompiler. Hot loop touches flat arrays only.
 - **Memory only via DELAY.** No instantaneous feedback; propagation reads previous-tick outputs only.
@@ -129,6 +129,6 @@ Solo local repo: no remote, no `main` trunk, no PR flow. One long-lived branch *
 1. ~~Multi-unit evaluation~~ done (ADR 0002, 0003)
 2. ~~True MUL semantics~~ done (ADR 0005)
 3. ~~Energy accounting: structural decay + activity cost~~ done (ADR 0006)
-4. **Energy intake** — next build target; design locked in contract-v1 + ADR 0009 (RESOURCE depletable global pool + HARVEST, uniform transduction, acuity emergent from weights, well-mixed/location-free)
-5. Reproduction + mutation (evolution proper) — only after intake
+4. ~~Energy intake~~ done (ADR 0009 design, ADR 0010 implementation): RESOURCE depletable global pool + HARVEST action, intake before cost, emergent acuity, open-system audit (reservoir + units + sink + inflow)
+5. **Reproduction + mutation (evolution proper)** — next build target; only after intake
 6. Later: CROWDING/EMIT + quorum, perceptual fidelity, space

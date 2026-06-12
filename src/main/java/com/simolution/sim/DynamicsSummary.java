@@ -20,10 +20,15 @@ public record DynamicsSummary(
         int[] ticksActiveByUnit,
         long[] clampByUnit,
         long[] threshFlipsByUnit,
+        int[] harvestTicksByUnit,
         double finalEnergyTotal,
         double finalEnergySink,
         double initialEnergyTotal,
         double initialEnergyPerUnit,
+        double initialReservoir,
+        double finalReservoir,
+        double cumulativeInflow,
+        long harvestActiveTicksTotal,
         long stateDigest
 ) {
 
@@ -109,12 +114,31 @@ public record DynamicsSummary(
     }
 
     /**
-     * Closed-system audit (contract v0 §3): energy is never created, only
-     * moved to the sink. Remaining live energy plus the sink must equal the
-     * energy the system started with, to floating-point exactness.
+     * Open-system audit (contract v1 §7): energy flows reservoir → units →
+     * sink, and a fixed inflow tops up the reservoir. Inflow is the accounted
+     * source, so the closed-system balance generalises: starting energy plus
+     * everything admitted by inflow must equal live energy + reservoir + sink,
+     * to floating-point exactness.
      */
     public double energyAuditError() {
-        return Math.abs(initialEnergyTotal - (finalEnergyTotal + finalEnergySink));
+        final double credited = initialEnergyTotal + initialReservoir + cumulativeInflow;
+        final double held = finalEnergyTotal + finalReservoir + finalEnergySink;
+        return Math.abs(credited - held);
+    }
+
+    /** Energy drawn out of the reservoir into units over the whole run. */
+    public double intakeTotal() {
+        return initialReservoir + cumulativeInflow - finalReservoir;
+    }
+
+    public int countEverHarvested() {
+        int n = 0;
+        for (int ticks : harvestTicksByUnit) {
+            if (ticks > 0) {
+                n++;
+            }
+        }
+        return n;
     }
 
     /**

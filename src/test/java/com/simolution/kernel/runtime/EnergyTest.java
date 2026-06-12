@@ -37,19 +37,20 @@ class EnergyTest {
     }
 
     @Test
-    void closedSystemConservesEnergyExactly() {
+    void openSystemConservesEnergyExactly() {
         // arrange
         int[][] genomes = com.simolution.sim.GenomeFactory.random(11L, 50, 32);
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         Kernel kernel = new Kernel(50, connections);
-        double initialTotal = KernelConfig.INITIAL_ENERGY * 50;
+        double credited = KernelConfig.INITIAL_ENERGY * 50 + KernelConfig.RESOURCE_INITIAL;
 
-        // act + assert
+        // act + assert: contract v1 §7 — initial + inflow == units + reservoir + sink
         for (int i = 0; i < 500; i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
-            assertEquals(initialTotal, totalEnergy(snapshot) + snapshot.energySink, 1.0e-6,
-                    "energy + sink must equal initial at tick " + snapshot.tick);
+            double held = totalEnergy(snapshot) + snapshot.reservoir + snapshot.energySink;
+            assertEquals(credited + snapshot.cumulativeInflow, held, 1.0e-3,
+                    "units + reservoir + sink must equal initial + inflow at tick " + snapshot.tick);
         }
     }
 

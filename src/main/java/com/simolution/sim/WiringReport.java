@@ -7,7 +7,7 @@ import com.simolution.kernel.layout.NodeLayout;
  * A unit's signature: its decoded wiring, one row per connection. This is the
  * raw structure behind every other per-unit metric — what the genome actually
  * built. Deterministic, fixed order (units ascending, connections in genome
- * order), so it diffs cleanly. Columns documented in docs/specs/report-v4.md.
+ * order), so it diffs cleanly. Columns documented in docs/specs/report-v5.md.
  * <p>
  * Bounded by total connections (units × genes), constant in ticks — memory
  * discipline holds.

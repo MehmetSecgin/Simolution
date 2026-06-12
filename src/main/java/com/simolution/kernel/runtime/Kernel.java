@@ -29,6 +29,9 @@ public final class Kernel {
     private final int[] activeThisTick;
     private double energySink;
 
+    private double reservoir;
+    private double cumulativeInflow;
+
     private final int unitCount;
 
     private int tick = 0;
@@ -64,6 +67,9 @@ public final class Kernel {
         Arrays.fill(energy, KernelConfig.INITIAL_ENERGY);
         this.connectionCount = new int[unitCount];
         this.activeThisTick = new int[unitCount];
+
+        this.reservoir = KernelConfig.RESOURCE_INITIAL;
+        this.cumulativeInflow = 0.0;
 
         int mulCount = 0;
         for (final CompiledConnection connection : connections) {
@@ -123,7 +129,9 @@ public final class Kernel {
         // Phase 4
         swapBuffers();
         // Phase 5
-        settleEnergy();
+        settleIntake();
+        // Phase 6
+        settleCost();
 
         tick++;
     }
@@ -204,8 +212,11 @@ public final class Kernel {
         final int constIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.CONST * NodeLayout.Sensor.INSTANCES_PER_TYPE);
         final int randIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.RAND * NodeLayout.Sensor.INSTANCES_PER_TYPE);
 
+        final int resourceIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.RESOURCE * NodeLayout.Sensor.INSTANCES_PER_TYPE);
+
         outputsNext[constIdx] = 1.0;
         outputsNext[randIdx] = Noise.sample(KernelConfig.RANDOM_SEED, unit, tick);
+        outputsNext[resourceIdx] = reservoir / KernelConfig.RESOURCE_CAPACITY;
 
         final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[addIdx] = accumulators[addIdx];
@@ -234,6 +245,9 @@ public final class Kernel {
 
         final int actionIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.Y * NodeLayout.Action.INSTANCES_PER_TYPE);
         outputsNext[actionIdx] = accumulators[actionIdx];
+
+        final int harvestIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
+        outputsNext[harvestIdx] = accumulators[harvestIdx];
     }
 
     private void swapBuffers() {
@@ -243,18 +257,79 @@ public final class Kernel {
     }
 
     /**
-     * Phase 5 — the entropy law (contract v0 §3, §4, §6). Each unit that was
+     * Phase 5 — energy intake (contract v1 §4–§5). Each alive unit demands
+     * {@code EFFICIENCY × max(0, harvestOutput)} from the shared reservoir; the
+     * {@code max(0, …)} means you cannot un-eat. When total demand exceeds the
+     * pool, every unit is scaled by the same {@code min(1, reservoir/demandTotal)}
+     * — the contract's {@code f(resourceAvailable)} and its proportional-to-demand
+     * allocation are one order-independent factor (ADR 0010). The reservoir is
+     * drawn down by exactly what units received, then topped up by a fixed inflow
+     * admitted only up to capacity; the admitted amount is the sole energy the
+     * audit treats as entering the system (cumulativeInflow), so
+     * {@code INITIAL_total + cumulativeInflow == sum(energy) + reservoir + sink}
+     * stays exact. Intake runs before cost so a unit can pay this tick's
+     * metabolism with this tick's harvest (persistence becomes possible);
+     * harvest output is read from outputsPrev, the just-swapped current tick.
+     */
+    private void settleIntake() {
+        double demandTotal = 0.0;
+        for (int unit = 0; unit < unitCount; unit++) {
+            if (energy[unit] <= 0.0) {
+                continue;
+            }
+            demandTotal += harvestDemand(unit);
+        }
+
+        if (demandTotal > 0.0) {
+            final double factor = Math.min(1.0, reservoir / demandTotal);
+            double drawn = 0.0;
+            for (int unit = 0; unit < unitCount; unit++) {
+                if (energy[unit] <= 0.0) {
+                    continue;
+                }
+                final double intake = harvestDemand(unit) * factor;
+                energy[unit] += intake;
+                drawn += intake;
+            }
+            reservoir -= drawn;
+        }
+
+        final double admitted = Math.min(KernelConfig.RESOURCE_INFLOW,
+                Math.max(0.0, KernelConfig.RESOURCE_CAPACITY - reservoir));
+        reservoir += admitted;
+        cumulativeInflow += admitted;
+    }
+
+    /**
+     * A divergent unit's HARVEST output overflows IEEE doubles to ±Infinity/NaN
+     * (the substrate never clamps). A non-finite signal is not a readable harvest
+     * demand, so it contributes nothing — otherwise {@code Inf × min(1, R/Inf)}
+     * would be {@code Inf × 0 = NaN} and poison the shared reservoir. This guards
+     * numerical pathology, not behaviour: the kernel still privileges no strategy
+     * (ADR 0010). Finite-but-huge demands are fine — proportional allocation just
+     * hands such a unit almost the whole pool.
+     */
+    private double harvestDemand(final int unit) {
+        final int harvestIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
+                + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
+        final double output = outputsPrev[harvestIdx];
+        return Double.isFinite(output) ? KernelConfig.HARVEST_EFFICIENCY * Math.max(0.0, output) : 0.0;
+    }
+
+    /**
+     * Phase 6 — the entropy law (contract v0 §3, §4, §6). Each unit that was
      * alive this tick pays structural decay (∝ its connection count, charged
      * regardless of activity) plus activity cost (∝ non-zero propagations).
      * The charge is clamped to available energy so a unit can never overdraw:
-     * the sink receives exactly what existed, keeping the audit invariant
-     * {@code INITIAL_ENERGY * unitCount == sum(energy) + sink} exact.
+     * the sink receives exactly what existed, keeping the audit invariant exact.
      * <p>
      * A unit alive at tick start computes the full tick and pays for it;
      * crossing to zero here makes phases 2–3 skip it from the next tick on,
-     * so death takes effect next tick.
+     * so death takes effect next tick. Because intake (phase 5) ran first, a
+     * unit's net energy change this tick is {@code intake − charge}: a strong
+     * harvester reaches steady state, a poor one still decays to death.
      */
-    private void settleEnergy() {
+    private void settleCost() {
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 continue;
@@ -268,6 +343,6 @@ public final class Kernel {
     }
 
     public KernelSnapshot snapshot() {
-        return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, energySink);
+        return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, energySink, reservoir, cumulativeInflow);
     }
 }

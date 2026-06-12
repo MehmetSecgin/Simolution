@@ -8,8 +8,9 @@ public final class NodeLayout {
 
         public static final int CONST = 0;
         public static final int RAND = 1;
+        public static final int RESOURCE = 2;
 
-        public static final int MEANINGFUL_COUNT = 2;
+        public static final int MEANINGFUL_COUNT = 3;
 
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + KernelConfig.SENSOR_JUNK_COUNT;
@@ -40,8 +41,9 @@ public final class NodeLayout {
     public static final class Action {
 
         public static final int Y = 0;
+        public static final int HARVEST = 1;
 
-        public static final int MEANINGFUL_COUNT = 1;
+        public static final int MEANINGFUL_COUNT = 2;
 
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + KernelConfig.ACTION_JUNK_COUNT;
@@ -84,6 +86,7 @@ public final class NodeLayout {
             return switch (s) {
                 case Sensor.CONST -> "CONST";
                 case Sensor.RAND -> "RAND";
+                case Sensor.RESOURCE -> "RESOURCE";
                 default -> "JUNK-S" + s;
             };
         }
@@ -99,7 +102,11 @@ public final class NodeLayout {
             };
         }
         final int a = localIndex - ACTION_OFFSET;
-        return a == Action.Y ? "ACTION_Y" : "JUNK-A" + a;
+        return switch (a) {
+            case Action.Y -> "ACTION_Y";
+            case Action.HARVEST -> "HARVEST";
+            default -> "JUNK-A" + a;
+        };
     }
 
     private NodeLayout() {}

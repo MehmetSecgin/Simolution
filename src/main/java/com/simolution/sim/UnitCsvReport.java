@@ -5,7 +5,7 @@ package com.simolution.sim;
  * the same config produce a byte-identical file (diffable like the report).
  * This is the per-unit companion to the aggregate report; it scales to any
  * unit count because it is bounded by units, not ticks (memory discipline).
- * Columns are documented in docs/specs/report-v4.md.
+ * Columns are documented in docs/specs/report-v5.md.
  */
 public final class UnitCsvReport {
 
@@ -14,7 +14,7 @@ public final class UnitCsvReport {
             + "first_activity_tick,death_tick,lifespan,alive,"
             + "energy_consumed,final_energy,mean_burn_rate,peak_burn,"
             + "total_propagations,ticks_active,clamp_saturations,thresh_flips,"
-            + "regime,final_abs_y,max_abs_output";
+            + "harvest_ticks,regime,final_abs_y,max_abs_output";
 
     private UnitCsvReport() {}
 
@@ -41,6 +41,7 @@ public final class UnitCsvReport {
                .append(',').append(dynamics.ticksActiveByUnit()[unit])
                .append(',').append(dynamics.clampByUnit()[unit])
                .append(',').append(dynamics.threshFlipsByUnit()[unit])
+               .append(',').append(dynamics.harvestTicksByUnit()[unit])
                .append(',').append(regimeName(dynamics.regime(unit)))
                .append(',').append(dynamics.finalAbsAction()[unit])
                .append(',').append(dynamics.maxAbsOutput()[unit])

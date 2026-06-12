@@ -42,6 +42,7 @@ public final class DynamicsObserver {
     private final int[] ticksActiveByUnit;
     private final long[] clampByUnit;
     private final long[] threshFlipsByUnit;
+    private final int[] harvestTicksByUnit;
 
     private long ticksWithAnyActivity;
     private long propagationsTotal;
@@ -50,9 +51,12 @@ public final class DynamicsObserver {
     private long threshFlipsTotal;
     private long stateDigest;
     private int ticksObserved;
+    private long harvestActiveTicksTotal;
 
     private double finalEnergyTotal;
     private double finalEnergySink;
+    private double finalReservoir;
+    private double cumulativeInflow;
 
     public DynamicsObserver(final int unitCount, final CompiledConnection[] connections) {
         this.unitCount = unitCount;
@@ -82,6 +86,7 @@ public final class DynamicsObserver {
         this.ticksActiveByUnit = new int[unitCount];
         this.clampByUnit = new long[unitCount];
         this.threshFlipsByUnit = new long[unitCount];
+        this.harvestTicksByUnit = new int[unitCount];
     }
 
     /**
@@ -147,6 +152,12 @@ public final class DynamicsObserver {
                 ticksActiveByUnit[unit]++;
             }
 
+            final int harvestIdx = base + NodeLayout.ACTION_OFFSET + NodeLayout.Action.HARVEST;
+            if (prevEnergy[unit] > 0.0 && snapshot.outputs[harvestIdx] > 0.0) {
+                harvestActiveTicksTotal++;
+                harvestTicksByUnit[unit]++;
+            }
+
             // energy charged this tick = what left the unit; peak is the
             // hardest single-tick burn over its life
             final double burn = prevEnergy[unit] - snapshot.energy[unit];
@@ -176,6 +187,8 @@ public final class DynamicsObserver {
 
         finalEnergyTotal = sum(snapshot.energy);
         finalEnergySink = snapshot.energySink;
+        finalReservoir = snapshot.reservoir;
+        cumulativeInflow = snapshot.cumulativeInflow;
 
         System.arraycopy(snapshot.outputs, 0, prevOutputs, 0, prevOutputs.length);
         System.arraycopy(snapshot.delayMemory, 0, prevDelay, 0, prevDelay.length);
@@ -228,6 +241,8 @@ public final class DynamicsObserver {
         for (final double v : snapshot.energy) {
             h = Noise.mix(h ^ Double.doubleToLongBits(v));
         }
+        h = Noise.mix(h ^ Double.doubleToLongBits(snapshot.reservoir));
+        h = Noise.mix(h ^ Double.doubleToLongBits(snapshot.cumulativeInflow));
         stateDigest = h;
     }
 
@@ -258,10 +273,15 @@ public final class DynamicsObserver {
                 ticksActiveByUnit,
                 clampByUnit,
                 threshFlipsByUnit,
+                harvestTicksByUnit,
                 finalEnergyTotal,
                 finalEnergySink,
                 KernelConfig.INITIAL_ENERGY * unitCount,
                 KernelConfig.INITIAL_ENERGY,
+                KernelConfig.RESOURCE_INITIAL,
+                finalReservoir,
+                cumulativeInflow,
+                harvestActiveTicksTotal,
                 stateDigest
         );
     }
