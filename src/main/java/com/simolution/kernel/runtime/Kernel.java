@@ -231,10 +231,12 @@ public final class Kernel {
         final int randIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.RAND * NodeLayout.Sensor.INSTANCES_PER_TYPE);
 
         final int resourceIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.RESOURCE * NodeLayout.Sensor.INSTANCES_PER_TYPE);
+        final int selfEnergyIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_ENERGY * NodeLayout.Sensor.INSTANCES_PER_TYPE);
 
         outputsNext[constIdx] = 1.0;
         outputsNext[randIdx] = Noise.sample(KernelConfig.RANDOM_SEED, unit, tick);
         outputsNext[resourceIdx] = reservoir / KernelConfig.RESOURCE_CAPACITY;
+        outputsNext[selfEnergyIdx] = Math.min(1.0, energy[unit] / KernelConfig.SELF_ENERGY_SCALE);
 
         final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[addIdx] = accumulators[addIdx];
@@ -266,6 +268,9 @@ public final class Kernel {
 
         final int harvestIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
         outputsNext[harvestIdx] = accumulators[harvestIdx];
+
+        final int reproduceIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.REPRODUCE * NodeLayout.Action.INSTANCES_PER_TYPE);
+        outputsNext[reproduceIdx] = accumulators[reproduceIdx];
     }
 
     private void swapBuffers() {

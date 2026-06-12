@@ -32,8 +32,9 @@ class WiringReportTest {
 
         // assert
         String[] lines = csv.split("\n");
+        final int addAbs = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         assertEquals(3, lines.length, "header + 2 connections");
-        assertTrue(lines[1].startsWith("0,0,0,CONST,5,ADD,"), lines[1]);
+        assertTrue(lines[1].startsWith("0,0,0,CONST," + addAbs + ",ADD,"), lines[1]);
         assertTrue(lines[1].endsWith(",1"), "CONST->ADD is meaningful");
         assertTrue(lines[2].contains("ADD,") && lines[2].contains("ACTION_Y,"), lines[2]);
     }

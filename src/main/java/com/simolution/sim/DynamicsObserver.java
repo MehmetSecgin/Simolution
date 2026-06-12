@@ -205,17 +205,21 @@ public final class DynamicsObserver {
 
     /**
      * Exact fixed-point check: every output and delay memory cell equals
-     * last tick's, bit for bit. The RAND sensor's own output is excluded —
-     * it changes every tick by construction, but influences nothing unless
-     * wired, in which case downstream nodes betray it anyway.
+     * last tick's, bit for bit. Two sensor outputs are excluded because they
+     * track exogenous, ever-drifting scalars by construction and so would
+     * never let any unit register a fixed point, yet they influence nothing
+     * unless wired (in which case downstream nodes betray them anyway):
+     * RAND (counter noise) and SELF_ENERGY (the unit's own energy, which the
+     * metabolic bill moves every tick).
      */
     private boolean unitStateUnchanged(final KernelSnapshot snapshot, final int unit) {
         final int base = unit * NodeLayout.TOTAL;
         final int randIdx = base + NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
+        final int selfEnergyIdx = base + NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.SELF_ENERGY;
 
         for (int node = 0; node < NodeLayout.TOTAL; node++) {
             final int idx = base + node;
-            if (idx == randIdx) {
+            if (idx == randIdx || idx == selfEnergyIdx) {
                 continue;
             }
             if (snapshot.outputs[idx] != prevOutputs[idx] || snapshot.delayMemory[idx] != prevDelay[idx]) {

@@ -18,6 +18,8 @@ public final class KernelConfig {
     public static final double RESOURCE_INITIAL = RESOURCE_CAPACITY;
     public static final double RESOURCE_INFLOW = 50.0;
 
+    public static final double SELF_ENERGY_SCALE = 2000.0;
+
     public static final int SENSOR_JUNK_COUNT = 2;
     public static final int INTERNAL_JUNK_COUNT = 3;
     public static final int ACTION_JUNK_COUNT = 1;
