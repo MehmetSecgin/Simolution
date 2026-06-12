@@ -66,7 +66,8 @@ Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:
 
 Binding (implementations MUST conform):
 
-- [docs/contract/contract-v0.md](docs/contract/contract-v0.md) — the laws: time, energy, decay, dormancy, death, prohibitions
+- [docs/contract/contract-v0.md](docs/contract/contract-v0.md) — the closed-system laws: time, energy, decay, dormancy, death, prohibitions
+- [docs/contract/contract-v1.md](docs/contract/contract-v1.md) — open-system laws (energy intake); supersedes v0 §3/§10. **Design locked, not yet implemented** — the next build target
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
@@ -124,4 +125,6 @@ The owner wants autonomous implementation but full understanding. So: small sing
 1. ~~Multi-unit evaluation~~ done (ADR 0002, 0003)
 2. ~~True MUL semantics~~ done (ADR 0005)
 3. ~~Energy accounting: structural decay + activity cost~~ done (ADR 0006)
-4. Then, and only then: energy intake, mutation, reproduction, environment, selection
+4. **Energy intake** — next build target; design locked in contract-v1 + ADR 0009 (RESOURCE depletable global pool + HARVEST, uniform transduction, acuity emergent from weights, well-mixed/location-free)
+5. Reproduction + mutation (evolution proper) — only after intake
+6. Later: CROWDING/EMIT + quorum, perceptual fidelity, space
