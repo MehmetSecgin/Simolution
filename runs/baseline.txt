@@ -20,52 +20,52 @@ units-rand-wired: 91
 
 ## dynamics
 ticks-with-any-activity: 999
-signal-propagations-total: 1074334
-junk-sink-propagations: 359048
-junk-sink-propagation-fraction: 0.3342051913092204
-clamp-saturation-events: 26851
-thresh-flips-total: 11815
+signal-propagations-total: 1066394
+junk-sink-propagations: 352972
+junk-sink-propagation-fraction: 0.33099586081692134
+clamp-saturation-events: 25247
+thresh-flips-total: 11225
 units-dormant-from-birth: 0
-units-dormant-at-end: 61
+units-dormant-at-end: 66
 
 ## energy
 initial-energy-total: 100000.0
-final-energy-total: 23076.22557511941
-energy-sink: 192160.40880293606
+final-energy-total: 33785.54278070465
+energy-sink: 205717.888135679
 initial-reservoir: 100000.0
-final-reservoir: 34713.36562194164
+final-reservoir: 10446.569083615123
 cumulative-inflow: 49950.0
-intake-total: 115236.63437805837
-energy-audit-error: 2.9103830456733704E-9
-units-alive-at-end: 39
-units-dead-at-end: 61
+intake-total: 139503.43091638488
+energy-audit-error: 1.2223608791828156E-9
+units-alive-at-end: 34
+units-dead-at-end: 66
 death-tick-first: 324
 death-tick-median: 417
-death-tick-last: 919
+death-tick-last: 981
 
 ## intake
 units-ever-harvested: 66
-harvest-active-ticks-total: 35262
+harvest-active-ticks-total: 34458
 
 ## burn-rate
-mean-burn-rate-p0: -0.32017345578677486
-mean-burn-rate-p50: 1.6556291390728477
+mean-burn-rate-p0: -3.272365044613984
+mean-burn-rate-p50: 1.6835016835016836
 mean-burn-rate-p90: 2.6525198938992043
 mean-burn-rate-p100: 3.0864197530864197
 
 ## terminal-regimes
-fixed-point: 49
-bounded: 35
+fixed-point: 52
+bounded: 32
 divergent: 16
 divergence-cutoff: 1000000.0
 
 ## action-channel
 units-final-y-nonfinite: 1
 final-abs-y-p0: 0.0
-final-abs-y-p50: 2.06314113673767
-final-abs-y-p90: 9.090294429433627
-final-abs-y-p100: 9.962886175860362E146
+final-abs-y-p50: 1.980273336645247
+final-abs-y-p90: 8.587927578728406
+final-abs-y-p100: 1.3352342432482126E139
 
 per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v5.md)
 per-unit-wiring: 3200 connections in the .wiring.csv sidecar (see docs/specs/report-v5.md)
-state-digest: a48c1499cc32412b
+state-digest: 1edef886dbba0943

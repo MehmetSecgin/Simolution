@@ -26,6 +26,7 @@ public final class Kernel {
 
     private final double[] energy;
     private final int[] connectionCount;
+    private final int[] harvestConnCount;
     private final int[] activeThisTick;
     private double energySink;
 
@@ -66,6 +67,7 @@ public final class Kernel {
         this.energy = new double[unitCount];
         Arrays.fill(energy, KernelConfig.INITIAL_ENERGY);
         this.connectionCount = new int[unitCount];
+        this.harvestConnCount = new int[unitCount];
         this.activeThisTick = new int[unitCount];
 
         this.reservoir = KernelConfig.RESOURCE_INITIAL;
@@ -90,6 +92,9 @@ public final class Kernel {
         for (final CompiledConnection connection : connections) {
             final int unit = connection.sourceAbsoluteIndex / NodeLayout.TOTAL;
             connectionCount[unit]++;
+            if (isHarvestTransporter(connection)) {
+                harvestConnCount[unit]++;
+            }
             if (isMulDestination(connection)) {
                 mulConnections[mulCursor++] = connection;
                 mulInDegree[unit] = Math.min(2, mulInDegree[unit] + 1);
@@ -117,6 +122,22 @@ public final class Kernel {
     private static boolean isMulDestination(final CompiledConnection connection) {
         final int dstLocal = connection.destinationAbsoluteIndex % NodeLayout.TOTAL;
         return dstLocal == NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
+    }
+
+    /**
+     * A "transporter": a connection feeding the HARVEST node from a meaningful
+     * source. The count of these is a unit's structural uptake investment — its
+     * intake ceiling scales with it (contract v1 §5, ADR 0012), so eating
+     * capacity is a heritable genome trait, not a global grant. Junk-source
+     * connections carry no signal, so they are not transporters.
+     */
+    private static boolean isHarvestTransporter(final CompiledConnection connection) {
+        final int dstLocal = connection.destinationAbsoluteIndex % NodeLayout.TOTAL;
+        if (dstLocal != NodeLayout.ACTION_OFFSET + NodeLayout.Action.HARVEST) {
+            return false;
+        }
+        final int srcLocal = connection.sourceAbsoluteIndex % NodeLayout.TOTAL;
+        return NodeLayout.isMeaningful(srcLocal);
     }
 
     public void tick() {
@@ -301,29 +322,40 @@ public final class Kernel {
     }
 
     /**
-     * Saturating uptake (contract v1 §5, ADR 0011): demand is a saturating
-     * (Michaelis–Menten) function of harvest output —
-     * {@code INTAKE_MAX · h / (HALF_SATURATION + h)} — so it rises with harvest
-     * but never past {@code INTAKE_MAX}, the transporter ceiling. You cannot eat
-     * infinitely fast: a runaway signal buys no extra intake, which removes the
-     * incentive to explode a feedback loop into the mouth and keeps the demand
-     * total bounded (no overflow of the shared denominator).
-     * <p>
-     * A non-finite output (a divergent unit) is unreadable garbage, not a harvest
-     * action, so it demands nothing — {@code max(0, …)} also means you cannot
-     * un-eat.
+     * Saturating uptake with an <b>emergent</b> ceiling (contract v1 §5, ADR
+     * 0012). Demand is {@code capacity · σ(output)} where:
+     * <ul>
+     *   <li>{@code capacity = CAPACITY_PER_CONNECTION · transporterCount} — the
+     *       intake ceiling, set by the unit's structural investment in harvest
+     *       wiring (counted once at construction) and paid for through ordinary
+     *       per-connection decay. Eating capacity is therefore a heritable,
+     *       evolvable genome trait, not a global constant grant. It is bounded by
+     *       the genome size, so it cannot diverge.</li>
+     *   <li>{@code σ(output) = output / (HALF_SATURATION + output) ∈ [0,1)} — how
+     *       far the cell is currently driving its mouth open. Saturating, so a
+     *       runaway/divergent signal only approaches the ceiling, never exceeds
+     *       it: there is no payoff to exploding a feedback loop into the mouth,
+     *       and the demand total stays bounded (the shared denominator cannot
+     *       overflow).</li>
+     * </ul>
+     * A non-finite output is unreadable garbage, not a harvest action, so it
+     * demands nothing; {@code max(0, …)} also means you cannot un-eat.
      */
     private double harvestDemand(final int unit) {
+        final int transporters = harvestConnCount[unit];
+        if (transporters == 0) {
+            return 0.0;
+        }
         final int harvestIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
                 + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
         final double output = outputsPrev[harvestIdx];
         if (!Double.isFinite(output) || output <= 0.0) {
             return 0.0;
         }
-        // INTAKE_MAX·output/(HALF+output), rearranged to avoid the overflow of
-        // INTAKE_MAX·output when output is a huge (divergent) finite value.
-        return KernelConfig.HARVEST_INTAKE_MAX
-                / (1.0 + KernelConfig.HARVEST_HALF_SATURATION / output);
+        final double capacity = KernelConfig.HARVEST_CAPACITY_PER_CONNECTION * transporters;
+        // capacity · output/(HALF+output), rearranged to avoid overflow when
+        // output is a huge (divergent) finite value.
+        return capacity / (1.0 + KernelConfig.HARVEST_HALF_SATURATION / output);
     }
 
     /**

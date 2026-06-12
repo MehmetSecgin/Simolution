@@ -156,13 +156,17 @@ class EnergyTest {
             prevEnergy = e;
         }
 
-        // assert
-        assertTrue(maxGain <= KernelConfig.HARVEST_INTAKE_MAX + 1.0e-9,
-                "per-tick intake must not exceed the saturation ceiling, got " + maxGain);
-        double ceiling = KernelConfig.HARVEST_INTAKE_MAX / KernelConfig.STORAGE_LEAK_RATE;
-        assertTrue(maxEnergy < ceiling,
-                "a saturated harvester cannot hoard past its carrying capacity " + ceiling
-                        + ", reached " + maxEnergy);
+        // assert: one transporter (DELAY->HARVEST), so the emergent ceiling is
+        // CAPACITY_PER_CONNECTION * 1
+        double capacity = KernelConfig.HARVEST_CAPACITY_PER_CONNECTION * 1;
+        assertTrue(maxGain <= capacity + 1.0e-9,
+                "per-tick intake must not exceed the unit's emergent ceiling " + capacity
+                        + ", got " + maxGain);
+        double carryingCap = capacity / KernelConfig.STORAGE_LEAK_RATE;
+        double bound = Math.max(KernelConfig.INITIAL_ENERGY, carryingCap) + 1.0;
+        assertTrue(maxEnergy < bound,
+                "a saturated harvester cannot hoard past its carrying capacity " + carryingCap
+                        + " (or its starting bank), reached " + maxEnergy);
         assertTrue(died, "the diverger implodes: once its signal overflows, intake stops and leak kills it");
     }
 

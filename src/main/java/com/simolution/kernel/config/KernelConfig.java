@@ -11,7 +11,7 @@ public final class KernelConfig {
     public static final double DECAY_PER_CONNECTION = 0.02;
     public static final double COST_PER_PROPAGATION = 0.06;
 
-    public static final double HARVEST_INTAKE_MAX = 5.0;
+    public static final double HARVEST_CAPACITY_PER_CONNECTION = 1.5;
     public static final double HARVEST_HALF_SATURATION = 1.0;
     public static final double STORAGE_LEAK_RATE = 0.002;
     public static final double RESOURCE_CAPACITY = 100000.0;
