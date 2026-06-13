@@ -38,10 +38,13 @@ class EnergyTest {
     void openSystemConservesEnergyExactly() {
         // arrange
         int[][] genomes = com.simolution.sim.GenomeFactory.random(11L, 50, 32);
-        Kernel kernel = new Kernel(genomes, 5000, 32);
-        double credited = KernelConfig.INITIAL_ENERGY * 50 + KernelConfig.RESOURCE_INITIAL;
+        int worldWidth = 71;
+        Kernel kernel = new Kernel(genomes, worldWidth, 32);
+        double credited = KernelConfig.INITIAL_ENERGY * 50
+                + KernelConfig.CELL_INITIAL * worldWidth * worldWidth;
 
-        // act + assert: contract v1 §7 — initial + inflow == units + reservoir + sink
+        // act + assert: contract v3 §7 — initial energy + initial resource + inflow
+        // == units + total field + sink
         for (int i = 0; i < 500; i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();

@@ -14,9 +14,14 @@ public final class KernelConfig {
     public static final double HARVEST_CAPACITY_PER_CONNECTION = 1.5;
     public static final double HARVEST_HALF_SATURATION = 1.0;
     public static final double STORAGE_LEAK_RATE = 0.002;
-    public static final double RESOURCE_CAPACITY = 100000.0;
-    public static final double RESOURCE_INITIAL = RESOURCE_CAPACITY;
-    public static final double RESOURCE_INFLOW = 50.0;
+
+    public static final double CELL_CAPACITY = 100.0;
+    public static final double CELL_INITIAL = CELL_CAPACITY;
+    public static final double CELL_INFLOW = 1.0;
+    public static final double DIFFUSION_RATE = 0.1;
+
+    public static final double MOVE_COST = 0.2;
+    public static final double MOVE_DEADZONE = 0.1;
 
     public static final double SELF_ENERGY_SCALE = 2000.0;
 

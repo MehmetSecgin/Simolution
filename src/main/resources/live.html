@@ -1,0 +1,86 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Simolution live map</title>
+<style>
+  :root { color-scheme: dark; }
+  body { background:#0d1117; color:#c9d1d9; font:14px/1.5 ui-monospace,Menlo,Consolas,monospace; margin:0; padding:20px; }
+  h1 { font-size:15px; font-weight:600; margin:0 0 12px; color:#e6edf3; }
+  .badge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:12px; margin-left:8px; vertical-align:middle; }
+  .live { background:#1f6f3d; color:#d6ffe2; }
+  .ended { background:#3d3f44; color:#c9d1d9; }
+  .wrap { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+  canvas { background:#000; image-rendering:pixelated; border:1px solid #30363d; }
+  .panel { min-width:240px; }
+  .row { display:flex; align-items:center; gap:10px; margin:8px 0; }
+  button { background:#21262d; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button:hover { background:#30363d; }
+  input[type=range] { flex:1; }
+  .stat { color:#8b949e; } .stat b { color:#e6edf3; font-weight:600; }
+  label { color:#8b949e; user-select:none; }
+</style></head><body>
+<h1>Simolution live map <span id="badge" class="badge live">connecting…</span></h1>
+<div class="wrap">
+  <canvas id="cv" width="640" height="640"></canvas>
+  <div class="panel">
+    <div class="row"><label><input type="checkbox" id="follow" checked> follow live</label></div>
+    <div class="row"><input id="slider" type="range" min="0" max="0" value="0"></div>
+    <div class="row"><button id="play">&#9654; replay</button><span id="meta" class="stat"></span></div>
+    <div class="row"><label><input type="checkbox" id="showres" checked> resource heatmap</label></div>
+    <div class="row stat">tick <b id="tick">–</b></div>
+    <div class="row stat">frame <b id="frame">0</b> / <span id="last">0</span></div>
+    <div class="row stat">alive <b id="alive">0</b></div>
+    <div class="row stat">lineages <b id="lin">0</b></div>
+    <div class="row stat" style="margin-top:14px">units coloured by lineage; background = resource (dark&rarr;green).</div>
+  </div>
+</div>
+<script>
+let W = 0, px = 6, every = 1;
+const frames = [];
+let idx = 0, done = false, showRes = true, replaying = false;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const $ = (id) => document.getElementById(id);
+
+function linColor(id){ return `hsl(${(id*137.508)%360},72%,58%)`; }
+function resColor(l){ const t=l/9; return `rgb(${Math.round(t*18)},${Math.round(24+t*108)},${Math.round(t*46)})`; }
+
+function sizeCanvas(){ px = Math.max(2, Math.floor(640/W)); cv.width = W*px; cv.height = W*px; }
+
+function draw(){
+  if (!frames.length) return;
+  const f = frames[Math.min(idx, frames.length-1)];
+  if (showRes){
+    const r=f.r;
+    for (let c=0;c<r.length;c++){ ctx.fillStyle=resColor(r.charCodeAt(c)-48); ctx.fillRect((c%W)*px,((c/W)|0)*px,px,px); }
+  } else { ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height); }
+  const lin=new Set();
+  for (const [cell,lineage] of f.o){ ctx.fillStyle=linColor(lineage); ctx.fillRect((cell%W)*px,((cell/W)|0)*px,px,px); lin.add(lineage); }
+  $('tick').textContent=f.t; $('frame').textContent=idx; $('last').textContent=frames.length-1;
+  $('alive').textContent=f.o.length; $('lin').textContent=lin.size;
+  $('slider').max=Math.max(0,frames.length-1); $('slider').value=idx;
+}
+
+async function poll(){
+  try {
+    const res = await fetch('/frames?since=' + frames.length);
+    const data = await res.json();
+    if (!W && data.world){ W=data.world; every=data.sampleEvery; sizeCanvas(); $('meta').textContent = `${W}x${W} torus, every ${every} ticks`; }
+    if (data.frames.length){ for (const fr of data.frames) frames.push(fr); }
+    done = data.done;
+    if ($('follow').checked && !replaying && frames.length){ idx = frames.length-1; }
+    $('badge').className = 'badge ' + (done ? 'ended' : 'live');
+    $('badge').textContent = done ? 'run ended — scrub freely' : 'LIVE — ' + frames.length + ' frames';
+    draw();
+  } catch(e){ $('badge').textContent='waiting for server…'; }
+  if (!done) setTimeout(poll, 600);
+}
+
+$('slider').oninput = (e)=>{ idx=+e.target.value; $('follow').checked=false; draw(); };
+$('showres').onchange = (e)=>{ showRes=e.target.checked; draw(); };
+$('follow').onchange = (e)=>{ if(e.target.checked && frames.length){ idx=frames.length-1; draw(); } };
+$('play').onclick = ()=>{
+  if (replaying){ replaying=false; return; }
+  replaying=true; $('follow').checked=false; idx=0;
+  const step=()=>{ if(!replaying) return; draw(); idx++; if(idx>=frames.length){ replaying=false; return; } setTimeout(step, 1000/12); };
+  step();
+};
+poll();
+</script></body></html>

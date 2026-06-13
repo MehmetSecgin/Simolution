@@ -35,7 +35,7 @@ class MultiUnitKernelTest {
     void unitsDoNotLeakSignalsIntoEachOther() {
         // arrange
         Kernel kernel = new Kernel(
-                new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 3, 32);
+                new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 2, 32);
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
 
@@ -61,7 +61,7 @@ class MultiUnitKernelTest {
         Kernel alone = new Kernel(
                 new int[][] {FEEDBACK_GENOME}, 1, 32);
         Kernel crowded = new Kernel(
-                new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 5, 32);
+                new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 3, 32);
 
         // act + assert
         for (int tick = 0; tick < 20; tick++) {

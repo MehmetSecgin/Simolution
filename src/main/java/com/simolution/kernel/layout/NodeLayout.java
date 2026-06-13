@@ -8,7 +8,7 @@ public final class NodeLayout {
 
         public static final int CONST = 0;
         public static final int RAND = 1;
-        public static final int RESOURCE = 2;
+        public static final int LOCAL_RESOURCE = 2;
         public static final int SELF_ENERGY = 3;
 
         public static final int MEANINGFUL_COUNT = 4;
@@ -44,8 +44,12 @@ public final class NodeLayout {
         public static final int Y = 0;
         public static final int HARVEST = 1;
         public static final int REPRODUCE = 2;
+        public static final int MOVE_N = 3;
+        public static final int MOVE_S = 4;
+        public static final int MOVE_E = 5;
+        public static final int MOVE_W = 6;
 
-        public static final int MEANINGFUL_COUNT = 3;
+        public static final int MEANINGFUL_COUNT = 7;
 
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + KernelConfig.ACTION_JUNK_COUNT;
@@ -88,7 +92,7 @@ public final class NodeLayout {
             return switch (s) {
                 case Sensor.CONST -> "CONST";
                 case Sensor.RAND -> "RAND";
-                case Sensor.RESOURCE -> "RESOURCE";
+                case Sensor.LOCAL_RESOURCE -> "LOCAL_RESOURCE";
                 case Sensor.SELF_ENERGY -> "SELF_ENERGY";
                 default -> "JUNK-S" + s;
             };
@@ -109,6 +113,10 @@ public final class NodeLayout {
             case Action.Y -> "ACTION_Y";
             case Action.HARVEST -> "HARVEST";
             case Action.REPRODUCE -> "REPRODUCE";
+            case Action.MOVE_N -> "MOVE_N";
+            case Action.MOVE_S -> "MOVE_S";
+            case Action.MOVE_E -> "MOVE_E";
+            case Action.MOVE_W -> "MOVE_W";
             default -> "JUNK-A" + a;
         };
     }

@@ -22,10 +22,11 @@ public final class RunReport {
 
         out.append("# Simolution run report\n");
         out.append("schema: ").append(SCHEMA).append('\n');
-        out.append("kernel: v2\n");
+        out.append("kernel: v3\n");
         out.append("seed: ").append(config.seed()).append('\n');
         out.append("units: ").append(units).append('\n');
-        out.append("max-units: ").append(config.maxUnits()).append('\n');
+        out.append("world-width: ").append(config.worldWidth()).append('\n');
+        out.append("grid-cells: ").append(config.worldWidth() * config.worldWidth()).append('\n');
         out.append("ticks: ").append(config.ticks()).append('\n');
         out.append("genome-source: ").append(config.demo() ? "builtin-demo" : "random").append('\n');
         out.append("genes-per-unit: ").append(config.demo() ? 4 : config.genesPerUnit()).append('\n');

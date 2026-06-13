@@ -8,6 +8,10 @@ public final class KernelSnapshot {
     public final double[] damage;
     public final double energySink;
     public final double reservoir;
+    public final double[] resourceField;
+    public final int worldWidth;
+    public final int[] position;
+    public final double initialResourceTotal;
     public final double cumulativeInflow;
     public final long[] lineageId;
     public final int[] generation;
@@ -16,7 +20,8 @@ public final class KernelSnapshot {
     public final double creditedInitialEnergy;
 
     public KernelSnapshot(int tick, double[] outputs, double[] delayMemory, double[] energy,
-                          double[] damage, double energySink, double reservoir, double cumulativeInflow,
+                          double[] damage, double energySink, double reservoir, double[] resourceField,
+                          int worldWidth, int[] position, double initialResourceTotal, double cumulativeInflow,
                           long[] lineageId, int[] generation, long birthsTotal,
                           int maxGeneration, double creditedInitialEnergy) {
         this.tick = tick;
@@ -26,6 +31,10 @@ public final class KernelSnapshot {
         this.damage = damage;
         this.energySink = energySink;
         this.reservoir = reservoir;
+        this.resourceField = resourceField;
+        this.worldWidth = worldWidth;
+        this.position = position;
+        this.initialResourceTotal = initialResourceTotal;
         this.cumulativeInflow = cumulativeInflow;
         this.lineageId = lineageId;
         this.generation = generation;

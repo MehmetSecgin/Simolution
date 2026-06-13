@@ -78,6 +78,7 @@ public final class DynamicsObserver {
     private double finalEnergyTotal;
     private double finalEnergySink;
     private double finalReservoir;
+    private double initialReservoir;
     private double cumulativeInflow;
 
     public DynamicsObserver(final int unitCount, final int maxUnits, final CompiledConnection[] connections) {
@@ -280,6 +281,7 @@ public final class DynamicsObserver {
         finalEnergyTotal = sum(snapshot.energy);
         finalEnergySink = snapshot.energySink;
         finalReservoir = snapshot.reservoir;
+        initialReservoir = snapshot.initialResourceTotal;
         cumulativeInflow = snapshot.cumulativeInflow;
 
         System.arraycopy(snapshot.outputs, 0, prevOutputs, 0, prevOutputs.length);
@@ -337,7 +339,12 @@ public final class DynamicsObserver {
         for (final double v : snapshot.energy) {
             h = Noise.mix(h ^ Double.doubleToLongBits(v));
         }
-        h = Noise.mix(h ^ Double.doubleToLongBits(snapshot.reservoir));
+        for (final double v : snapshot.resourceField) {
+            h = Noise.mix(h ^ Double.doubleToLongBits(v));
+        }
+        for (final int p : snapshot.position) {
+            h = Noise.mix(h ^ p);
+        }
         h = Noise.mix(h ^ Double.doubleToLongBits(snapshot.cumulativeInflow));
         stateDigest = h;
     }
@@ -384,7 +391,7 @@ public final class DynamicsObserver {
                 finalEnergySink,
                 creditedInitialEnergy,
                 KernelConfig.INITIAL_ENERGY,
-                KernelConfig.RESOURCE_INITIAL,
+                initialReservoir,
                 finalReservoir,
                 cumulativeInflow,
                 harvestActiveTicksTotal,

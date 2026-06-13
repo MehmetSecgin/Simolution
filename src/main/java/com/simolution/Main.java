@@ -15,6 +15,8 @@ import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.LineageReport;
+import com.simolution.sim.LiveServer;
+import com.simolution.sim.MapFrameWriter;
 import com.simolution.sim.PopulationReport;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunReport;
@@ -42,13 +44,35 @@ public class Main {
         for (int[] genome : genomes) {
             maxGenes = Math.max(maxGenes, genome.length);
         }
-        int maxUnits = Math.max(config.maxUnits(), genomes.length);
-        Kernel kernel = new Kernel(genomes, maxUnits, maxGenes);
+        int worldWidth = config.worldWidth();
+        int maxUnits = worldWidth * worldWidth;
+        Kernel kernel = new Kernel(genomes, worldWidth, maxGenes);
         DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
 
         TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
+
+        MapFrameWriter mapWriter = null;
+        LiveServer liveServer = null;
+        if (config.outPath() != null && config.mapFrames() > 0) {
+            Path out = Path.of(config.outPath());
+            if (out.getParent() != null) {
+                Files.createDirectories(out.getParent());
+            }
+            Path mapPath = sibling(out, ".map.txt");
+            mapWriter = new MapFrameWriter(
+                    Files.newBufferedWriter(mapPath),
+                    worldWidth, config.ticks(), config.mapFrames());
+            if (config.servePort() > 0) {
+                liveServer = new LiveServer(config.servePort(), mapPath);
+                liveServer.start();
+                System.out.println("live map serving at http://localhost:" + config.servePort()
+                        + "  (watch it tick; Ctrl-C to stop)");
+            }
+        } else if (config.servePort() > 0) {
+            throw new IllegalArgumentException("--serve requires --out (and --map-frames > 0) to stream frames");
+        }
 
         long startNanos = System.nanoTime();
         for (int i = 0; i < config.ticks(); i++) {
@@ -56,9 +80,18 @@ public class Main {
             KernelSnapshot snapshot = kernel.snapshot();
             observer.observe(snapshot);
             timeSeries.sample(i, snapshot);
+            if (mapWriter != null) {
+                mapWriter.maybeFrame(snapshot);
+            }
             if (trace != null) {
                 trace.log(snapshot, unitsToTrace);
             }
+        }
+        if (mapWriter != null) {
+            mapWriter.close();
+        }
+        if (liveServer != null) {
+            liveServer.markDone();
         }
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000;
 
@@ -100,6 +133,24 @@ public class Main {
             Path popWiring = sibling(out, ".popwiring.csv");
             Files.writeString(popWiring, WiringReport.render(kernel.liveConnections()));
             System.out.println("evolved wiring written to " + popWiring);
+
+            if (config.mapFrames() > 0) {
+                System.out.println("spatial map frames written to " + sibling(out, ".map.txt")
+                        + " (render: python3 tools/mapviz.py " + sibling(out, ".map.txt") + ")");
+            }
+        }
+
+        if (liveServer != null) {
+            System.out.println();
+            System.out.println("run complete — live map still serving at http://localhost:"
+                    + config.servePort() + " (scrub/replay). Ctrl-C to stop.");
+            try {
+                Thread.currentThread().join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                liveServer.stop();
+            }
         }
     }
 

@@ -16,8 +16,10 @@ class RunReportTest {
         int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
-        Kernel kernel = new Kernel(genomes, config.maxUnits(), config.genesPerUnit());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), config.maxUnits(), connections);
+        int worldWidth = config.worldWidth();
+        int maxUnits = worldWidth * worldWidth;
+        Kernel kernel = new Kernel(genomes, worldWidth, config.genesPerUnit());
+        DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();
             observer.observe(kernel.snapshot());
@@ -28,7 +30,7 @@ class RunReportTest {
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 42L, 16, 4000, 16, false, false, null);
+        RunConfig config = new RunConfig(25, 200, 42L, 16, 64, 16, false, false, null, 0, 0);
 
         // act
         String first = runAndRender(config);
@@ -41,7 +43,7 @@ class RunReportTest {
     @Test
     void reportPointsToCsvInsteadOfInliningUnits() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 1L, 8, 4000, 8, false, false, null));
+        String report = runAndRender(new RunConfig(25, 50, 1L, 8, 64, 8, false, false, null, 0, 0));
 
         // assert
         assertFalse(report.contains("## units"));
@@ -51,7 +53,7 @@ class RunReportTest {
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 9L, 8, 4000, 8, false, false, null));
+        String report = runAndRender(new RunConfig(5, 50, 9L, 8, 64, 8, false, false, null, 0, 0));
 
         // assert
         assertTrue(report.contains("schema: report-v6"));

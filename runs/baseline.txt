@@ -1,9 +1,10 @@
 # Simolution run report
 schema: report-v6
-kernel: v2
+kernel: v3
 seed: 42
 units: 100
-max-units: 10000
+world-width: 100
+grid-cells: 10000
 ticks: 1000
 genome-source: random
 genes-per-unit: 32
@@ -11,70 +12,70 @@ max-genes: 32
 
 ## structure
 connections-compiled: 3200
-connections-meaningful: 1401
-connections-junk-touching: 1799
-duplicate-connection-pairs: 350
+connections-meaningful: 1528
+connections-junk-touching: 1672
+duplicate-connection-pairs: 233
 weight-abs-mean: 1.9717865535447276
 weight-abs-max: 3.999633777886288
 weight-positive-fraction: 0.50375
 units-sensor-action-reachable: 100
-units-rand-wired: 85
+units-rand-wired: 87
 
 ## dynamics
 ticks-with-any-activity: 999
-signal-propagations-total: 636541
-junk-sink-propagations: 200594
-junk-sink-propagation-fraction: 0.31513131125881916
-clamp-saturation-events: 13955
-thresh-flips-total: 6507
+signal-propagations-total: 627273
+junk-sink-propagations: 162999
+junk-sink-propagation-fraction: 0.25985336528114555
+clamp-saturation-events: 14736
+thresh-flips-total: 5364
 units-dormant-from-birth: 0
-units-dormant-at-end: 95
+units-dormant-at-end: 94
 
 ## reproduction
-births-total: 5151
-max-generation: 62
-peak-population: 908
-final-population: 6
+births-total: 1228
+max-generation: 20
+peak-population: 292
+final-population: 12
 distinct-lineages-alive: 6
 
 ## energy
 initial-energy-total: 100000.0
-final-energy-total: 3460.0426061624808
-energy-sink: 237975.3982516759
-initial-reservoir: 100000.0
-final-reservoir: 8514.559142163667
-cumulative-inflow: 49950.0
-intake-total: 141435.44085783634
-energy-audit-error: 2.066371962428093E-9
-units-alive-at-end: 5
-units-dead-at-end: 95
+final-energy-total: 2428.5744668831053
+energy-sink: 154521.40041965793
+initial-reservoir: 1000000.0
+final-reservoir: 999928.3649559817
+cumulative-inflow: 56878.33984254384
+intake-total: 56949.97488656221
+energy-audit-error: 2.1187588572502136E-8
+units-alive-at-end: 3
+units-dead-at-end: 97
 death-tick-first: 7
-death-tick-median: 57
-death-tick-last: 846
+death-tick-median: 357
+death-tick-last: 963
 
 ## intake
-units-ever-harvested: 95
-harvest-active-ticks-total: 29285
+units-ever-harvested: 59
+harvest-active-ticks-total: 20022
 
 ## burn-rate
-mean-burn-rate-p0: 0.021901905399697285
-mean-burn-rate-p50: 12.345679012345679
-mean-burn-rate-p90: 111.11111111111111
+mean-burn-rate-p0: 0.5760881066908107
+mean-burn-rate-p50: 2.7027027027027026
+mean-burn-rate-p90: 40.0
 mean-burn-rate-p100: 142.85714285714286
 
 ## terminal-regimes
-fixed-point: 85
+fixed-point: 83
 bounded: 4
-divergent: 11
+divergent: 13
 divergence-cutoff: 1000000.0
 
 ## action-channel
 units-final-y-nonfinite: 0
 final-abs-y-p0: 0.0
-final-abs-y-p50: 4.4200569730566155
-final-abs-y-p90: 4.4200569730566155
-final-abs-y-p100: 12.924029580111757
+final-abs-y-p50: 0.0
+final-abs-y-p90: 3.2851344340342417
+final-abs-y-p100: 9.04930259477864
 
 per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v6.md)
 per-unit-wiring: 3200 connections in the .wiring.csv sidecar (see docs/specs/report-v6.md)
-state-digest: 5c7b2cdfbccdd295
+state-digest: f9b7a28b98203cbd

@@ -35,8 +35,9 @@ class DynamicsObserverTest {
 
     private static DynamicsSummary runAndSummarize(int[][] genomes, int ticks) {
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        final int cap = Math.max(genomes.length, 4000);
-        Kernel kernel = new Kernel(genomes, cap, 32);
+        final int worldWidth = (int) Math.ceil(Math.sqrt(Math.max(genomes.length, 4000)));
+        final int cap = worldWidth * worldWidth;
+        Kernel kernel = new Kernel(genomes, worldWidth, 32);
         DynamicsObserver observer = new DynamicsObserver(genomes.length, cap, connections);
         for (int i = 0; i < ticks; i++) {
             kernel.tick();
