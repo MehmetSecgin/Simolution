@@ -29,7 +29,12 @@ public record DynamicsSummary(
         double finalReservoir,
         double cumulativeInflow,
         long harvestActiveTicksTotal,
-        long stateDigest
+        long stateDigest,
+        int peakPopulation,
+        int finalPopulation,
+        int distinctLineagesAlive,
+        long birthsTotal,
+        int maxGeneration
 ) {
 
     public static final double DIVERGENCE_CUTOFF = 1.0e6;

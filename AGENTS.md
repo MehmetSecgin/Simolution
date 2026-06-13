@@ -2,7 +2,7 @@
 
 Artificial-life experiment: emergent survival under honest thermodynamics. The kernel defines physical laws (energy, decay, signal propagation) and never meanings, goals, or fitness. Lifelike strategies must emerge from evolution, never be coded in.
 
-Current milestone: **Kernel v1** — a deterministic VM for evolving signal graphs, now an open system. Genome = list of 32-bit genes, one gene = one weighted connection between nodes of a fixed substrate. Energy accounting (decay, activity cost, death) and energy intake (RESOURCE pool + HARVEST) exist; mutation and reproduction do not yet — those arrive as additive phases next.
+Current milestone: **Kernel v2** — a deterministic VM for *evolving* signal graphs. Genome = list of 32-bit genes, one gene = one weighted connection between nodes of a fixed substrate. Energy accounting (decay, activity cost, death), energy intake (RESOURCE pool + HARVEST), and now **reproduction + point mutation** all exist: units beget mutated offspring, paid in conserved energy, so the population evolves. Substrate has two more meaningful nodes than v1 — `SELF_ENERGY` sensor and `REPRODUCE` action (`NodeLayout.TOTAL` = 13). Variable-length genomes (indels) and biomass-as-a-variable are the next additive steps.
 
 ## Commands
 
@@ -11,17 +11,20 @@ Current milestone: **Kernel v1** — a deterministic VM for evolving signal grap
 ./gradlew test    # JUnit 5; includes spec-conformance tests
 ./gradlew build   # full verification
 
-# population run with deterministic report (schema: docs/specs/report-v5.md)
-./gradlew run --args="--units 100 --ticks 1000 --seed 42"
-# flags: --units N --ticks T --seed S --genes G --trace --out <file>
-# --out also writes <base>.units.csv (per-unit metrics) and <base>.wiring.csv (per-unit signature)
+# population run with deterministic report (schema: docs/specs/report-v6.md)
+./gradlew run --args="--units 100 --ticks 1000 --seed 42 --max-units 10000"
+# flags: --units N --ticks T --seed S --genes G --max-units M --max-genes G2 --trace --out <file>
+# --max-units = slot-pool capacity (memory bound, NOT a population cap): a birth
+#   with no free slot HALTS the run (contract-v2 §5). Set it above the run's peak
+#   population (~8x founders under current constants) or the run halts and is rerun
+#   larger. --out also writes <base>.units.csv + <base>.wiring.csv
 
 # visualize a run as a self-contained HTML dashboard (stdlib python, no deps)
 python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 ```
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
-`runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --out runs/baseline.txt`
+`runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --max-units 10000 --out runs/baseline.txt`
 after the change and diff it (both it and `runs/baseline.units.csv` are committed).
 Output is byte-deterministic, so every changed line was caused by your change; the
 `state-digest` line catches drift below display rounding. Explain the diff (or its
@@ -45,7 +48,7 @@ com.simolution
     │   ├── GeneDecoder       gene → CompiledConnection; modulo ID wrap; weight scaling
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (precompute, never per-tick)
     ├── runtime
-    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-intake → settle-cost (6 phases); whole population in one flat array set
+    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-intake → settle-cost → settle-reproduction (7 phases); fixed slot pool, per-slot genes recompiled at birth, population derived (energy>0)
     │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + sink
     │   └── Noise             stateless counter-based RNG: sample(seed, unit, tick)
     └── logging
@@ -55,7 +58,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
 ├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
 ├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
-├── RunReport                 byte-deterministic report-v5 text (aggregates + distributions)
+├── RunReport                 byte-deterministic report-v6 text (aggregates + distributions + reproduction)
 ├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
 └── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
 ```
@@ -67,11 +70,12 @@ Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:
 Binding (implementations MUST conform):
 
 - [docs/contract/contract-v0.md](docs/contract/contract-v0.md) — the closed-system laws: time, energy, decay, dormancy, death, prohibitions
-- [docs/contract/contract-v1.md](docs/contract/contract-v1.md) — open-system laws (energy intake); supersedes v0 §3/§10. **Design locked, not yet implemented** — the next build target
+- [docs/contract/contract-v1.md](docs/contract/contract-v1.md) — open-system laws (energy intake); supersedes v0 §3/§10. Implemented (ADR 0010–0013)
+- [docs/contract/contract-v2.md](docs/contract/contract-v2.md) — reproduction + mutation laws (REPRODUCE effector, SELF_ENERGY, halt-on-full, abiogenesis, per-slot storage, BUILD_COST). Implemented (ADR 0014–0016); supersedes v1 §11
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
-- [docs/specs/report-v5.md](docs/specs/report-v5.md) — current run report + per-unit CSV + wiring CSV schema (open-system: reservoir, intake, harvest participation); delta over [report-v4.md](docs/specs/report-v4.md)
+- [docs/specs/report-v6.md](docs/specs/report-v6.md) — current run report + per-unit CSV + wiring CSV schema (adds reproduction section: births, generations, population, lineages); delta over [report-v5.md](docs/specs/report-v5.md)
 
 Historical / non-binding:
 
@@ -130,5 +134,5 @@ Solo local repo: no remote, no `main` trunk, no PR flow. One long-lived branch *
 2. ~~True MUL semantics~~ done (ADR 0005)
 3. ~~Energy accounting: structural decay + activity cost~~ done (ADR 0006)
 4. ~~Energy intake~~ done (ADR 0009 design, ADR 0010 implementation): RESOURCE depletable global pool + HARVEST action, intake before cost, emergent acuity, open-system audit (reservoir + units + sink + inflow)
-5. **Reproduction + mutation (evolution proper)** — next build target; only after intake
+5. ~~Reproduction + mutation (evolution proper)~~ done (ADR 0014 design, 0015 implementation, 0016 BUILD_COST anti-degeneracy): REPRODUCE effector + SELF_ENERGY sensor, per-slot rewritable store, phase-7 settle-reproduction, point mutation, halt-on-full, fixed per-birth build cost. Next within evolution: variable-length genomes (indels), then biomass as a distinct variable (time/size physics)
 6. Later: CROWDING/EMIT + quorum, perceptual fidelity, space

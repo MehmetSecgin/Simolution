@@ -42,6 +42,22 @@ public final class Noise {
     }
 
     /**
+     * Deterministic pseudo-random double in {@code [0, 1)} for mutation
+     * decisions, keyed by the birth event {@code (seed, childSlot, birthTick)}
+     * and a per-stream {@code index} (contract v2 §9). Domain-separated from
+     * {@link #sample} — which hashes (unit, tick) for the RAND sensor — by
+     * folding in the index as a third dimension, so a child's mutation stream
+     * never collides with any unit's sensor noise. Same key → same flips,
+     * always, so a run's entire genealogy is reproducible.
+     */
+    public static double mutationUniform(long seed, int childSlot, int birthTick, int index) {
+        long h = mix(seed + GOLDEN_GAMMA * (childSlot + 1L));
+        h = mix(h + GOLDEN_GAMMA * (birthTick + 1L));
+        h = mix(h + GOLDEN_GAMMA * (index + 1L));
+        return (h >>> 11) * 0x1.0p-52;
+    }
+
+    /**
      * SplitMix64 finalizer (Steele et al.): xor-shift + odd-constant
      * multiplies until every input bit affects every output bit
      * (avalanche). This is what turns nearby inputs into

@@ -20,6 +20,12 @@ public final class KernelConfig {
 
     public static final double SELF_ENERGY_SCALE = 2000.0;
 
+    public static final double REPRODUCE_MAX = 200.0;
+    public static final double REPRODUCE_HALF_SATURATION = 1.0;
+    public static final double REPRODUCE_YIELD = 0.7;
+    public static final double BUILD_COST = 10.0;
+    public static final double MUTATION_RATE_PER_BIT = 0.001;
+
     public static final int SENSOR_JUNK_COUNT = 2;
     public static final int INTERNAL_JUNK_COUNT = 3;
     public static final int ACTION_JUNK_COUNT = 1;

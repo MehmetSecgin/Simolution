@@ -21,7 +21,16 @@ import com.simolution.kernel.runtime.Noise;
 public final class DynamicsObserver {
 
     private final int unitCount;
+    private final int maxUnits;
     private final CompiledConnection[] connections;
+
+    private final boolean[] lineageSeen;
+    private int peakPopulation;
+    private int finalPopulation;
+    private int distinctLineagesAlive;
+    private long birthsTotal;
+    private int maxGeneration;
+    private double creditedInitialEnergy;
 
     private final double[] prevOutputs;
     private final double[] prevDelay;
@@ -58,9 +67,11 @@ public final class DynamicsObserver {
     private double finalReservoir;
     private double cumulativeInflow;
 
-    public DynamicsObserver(final int unitCount, final CompiledConnection[] connections) {
+    public DynamicsObserver(final int unitCount, final int maxUnits, final CompiledConnection[] connections) {
         this.unitCount = unitCount;
+        this.maxUnits = maxUnits;
         this.connections = connections;
+        this.lineageSeen = new boolean[maxUnits];
 
         final int totalNodes = unitCount * NodeLayout.TOTAL;
         this.prevOutputs = new double[totalNodes];
@@ -183,6 +194,31 @@ public final class DynamicsObserver {
             finalEnergy[unit] = snapshot.energy[unit];
         }
 
+        // population-wide reproduction aggregates over every slot (founders and
+        // born children alike), independent of the founder-scoped per-unit
+        // arrays above. Running, bounded — no per-tick history kept.
+        int population = 0;
+        int distinct = 0;
+        Arrays.fill(lineageSeen, false);
+        for (int slot = 0; slot < maxUnits; slot++) {
+            if (snapshot.energy[slot] > 0.0) {
+                population++;
+                final long lineage = snapshot.lineageId[slot];
+                if (lineage >= 0 && lineage < maxUnits && !lineageSeen[(int) lineage]) {
+                    lineageSeen[(int) lineage] = true;
+                    distinct++;
+                }
+            }
+        }
+        if (population > peakPopulation) {
+            peakPopulation = population;
+        }
+        finalPopulation = population;
+        distinctLineagesAlive = distinct;
+        birthsTotal = snapshot.birthsTotal;
+        maxGeneration = snapshot.maxGeneration;
+        creditedInitialEnergy = snapshot.creditedInitialEnergy;
+
         foldDigest(snapshot);
 
         finalEnergyTotal = sum(snapshot.energy);
@@ -280,13 +316,18 @@ public final class DynamicsObserver {
                 harvestTicksByUnit,
                 finalEnergyTotal,
                 finalEnergySink,
-                KernelConfig.INITIAL_ENERGY * unitCount,
+                creditedInitialEnergy,
                 KernelConfig.INITIAL_ENERGY,
                 KernelConfig.RESOURCE_INITIAL,
                 finalReservoir,
                 cumulativeInflow,
                 harvestActiveTicksTotal,
-                stateDigest
+                stateDigest,
+                peakPopulation,
+                finalPopulation,
+                distinctLineagesAlive,
+                birthsTotal,
+                maxGeneration
         );
     }
 }

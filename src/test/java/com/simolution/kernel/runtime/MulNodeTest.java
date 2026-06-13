@@ -25,7 +25,7 @@ class MulNodeTest {
     }
 
     private static double mulOutputAfterTwoTicks(int... genome) {
-        Kernel kernel = new Kernel(new int[][] {genome}, 32);
+        Kernel kernel = new Kernel(new int[][] {genome}, 1, 32);
         kernel.tick();
         kernel.tick();
         return kernel.snapshot().outputs[MUL_IDX];
@@ -120,7 +120,7 @@ class MulNodeTest {
                            .weightRaw(unit)
                            .build()
         };
-        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, 32);
+        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, 1, 32);
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
 
         // act

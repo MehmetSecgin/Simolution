@@ -35,12 +35,13 @@ public class Main {
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
 
-        int maxGenes = 0;
+        int maxGenes = config.maxGenes();
         for (int[] genome : genomes) {
             maxGenes = Math.max(maxGenes, genome.length);
         }
-        Kernel kernel = new Kernel(genomes, maxGenes);
-        DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
+        int maxUnits = Math.max(config.maxUnits(), genomes.length);
+        Kernel kernel = new Kernel(genomes, maxUnits, maxGenes);
+        DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
 

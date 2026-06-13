@@ -33,10 +33,17 @@ public final class Kernel {
     private final int[] activeThisTick;
     private double energySink;
 
+    private final long[] lineageId;
+    private final int[] generation;
+    private long birthsTotal;
+    private int maxGeneration;
+    private final double creditedInitialEnergy;
+
     private double reservoir;
     private double cumulativeInflow;
 
     private final int unitCount;
+    private int freeSlotCursor;
 
     private int tick = 0;
 
@@ -58,49 +65,66 @@ public final class Kernel {
      * the pool's full capacity {@code unitCount · maxGenes} up front (contract v2
      * §12 footprint note).
      */
-    public Kernel(final int[][] genomes, final int maxGenes) {
+    public Kernel(final int[][] initialGenomes, final int maxUnits, final int maxGenes) {
 
-        final int unitCount = genomes.length;
-        this.unitCount = unitCount;
+        final int seededCount = initialGenomes.length;
+        if (seededCount > maxUnits) {
+            throw new IllegalArgumentException(
+                    "initial population " + seededCount + " exceeds maxUnits " + maxUnits);
+        }
+        this.unitCount = maxUnits;
         this.maxGenes = maxGenes;
 
-        final int totalNodes = unitCount * NodeLayout.TOTAL;
+        final int totalNodes = maxUnits * NodeLayout.TOTAL;
 
         this.outputsPrev = new double[totalNodes];
         this.outputsNext = new double[totalNodes];
         this.accumulators = new double[totalNodes];
         this.delayMemory = new double[totalNodes];
 
-        this.mulTop1 = new double[unitCount];
-        this.mulTop2 = new double[unitCount];
-        this.mulInDegree = new int[unitCount];
+        this.mulTop1 = new double[maxUnits];
+        this.mulTop2 = new double[maxUnits];
+        this.mulInDegree = new int[maxUnits];
 
-        this.energy = new double[unitCount];
-        Arrays.fill(energy, KernelConfig.INITIAL_ENERGY);
-        this.harvestConnCount = new int[unitCount];
-        this.activeThisTick = new int[unitCount];
+        // empty slots start dead (energy 0, contract v2 §5): they are skipped
+        // by every phase exactly as corpses are, and a birth may claim them.
+        this.energy = new double[maxUnits];
+        this.harvestConnCount = new int[maxUnits];
+        this.activeThisTick = new int[maxUnits];
+
+        this.lineageId = new long[maxUnits];
+        Arrays.fill(lineageId, -1L);
+        this.generation = new int[maxUnits];
+        this.birthsTotal = 0L;
+        this.maxGeneration = 0;
+        this.creditedInitialEnergy = KernelConfig.INITIAL_ENERGY * seededCount;
+        this.freeSlotCursor = 0;
 
         this.reservoir = KernelConfig.RESOURCE_INITIAL;
         this.cumulativeInflow = 0.0;
 
-        final int capacity = unitCount * maxGenes;
+        final int capacity = maxUnits * maxGenes;
         this.connections = new CompiledConnection[capacity];
         this.genes = new int[capacity];
-        this.geneCount = new int[unitCount];
-        this.sumStart = new int[unitCount];
-        this.sumEnd = new int[unitCount];
-        this.mulStart = new int[unitCount];
-        this.mulEnd = new int[unitCount];
+        this.geneCount = new int[maxUnits];
+        this.sumStart = new int[maxUnits];
+        this.sumEnd = new int[maxUnits];
+        this.mulStart = new int[maxUnits];
+        this.mulEnd = new int[maxUnits];
 
-        for (int unit = 0; unit < unitCount; unit++) {
-            final int[] genome = genomes[unit];
-            if (genome.length > maxGenes) {
-                throw new IllegalArgumentException(
-                        "unit " + unit + " genome has " + genome.length
-                        + " genes, exceeds maxGenes " + maxGenes);
+        for (int unit = 0; unit < maxUnits; unit++) {
+            if (unit < seededCount) {
+                final int[] genome = initialGenomes[unit];
+                if (genome.length > maxGenes) {
+                    throw new IllegalArgumentException(
+                            "unit " + unit + " genome has " + genome.length
+                            + " genes, exceeds maxGenes " + maxGenes);
+                }
+                System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
+                geneCount[unit] = genome.length;
+                energy[unit] = KernelConfig.INITIAL_ENERGY;
+                lineageId[unit] = unit;
             }
-            System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
-            geneCount[unit] = genome.length;
             compileSlot(unit);
         }
     }
@@ -185,6 +209,8 @@ public final class Kernel {
         settleIntake();
         // Phase 6
         settleCost();
+        // Phase 7
+        settleReproduction();
 
         tick++;
     }
@@ -440,7 +466,148 @@ public final class Kernel {
         }
     }
 
+    /**
+     * Phase 7 — reproduction (contract v2 §2/§4/§5/§11). Each unit still alive
+     * after paying this tick's bill drives its REPRODUCE channel; the world
+     * converts that output to a saturating energy commitment, draws it from the
+     * parent, and installs a mutated copy into a free slot. The child is inert
+     * until next tick (its node state is zeroed on install), so it cannot
+     * reproduce again this tick. Energy is conserved: the child receives
+     * {@code REPRODUCE_YIELD} of the commitment and the lossy remainder flows to
+     * the sink. Reproduction never fails for lack of room — an exhausted pool
+     * halts the run (contract v2 §5): denying a birth would be a smuggled
+     * population cap. Parents are scanned in ascending slot order and each birth
+     * claims the lowest free slot, so the whole genealogy is deterministic.
+     * <p>
+     * Each birth also burns a fixed {@code BUILD_COST} to the sink — the
+     * irreducible biosynthesis overhead of assembling a new unit (ADR 0015),
+     * the reproduction analogue of the metabolic {@code BASAL_COST}. Together
+     * with the proportional yield loss it gives a Pirt-shaped reproduction bill
+     * (fixed + proportional), so spamming tiny offspring is net-lethal and total
+     * births are bounded by the energy in the system. A parent that cannot
+     * afford {@code BUILD_COST} on top of any commitment simply does not
+     * reproduce — an energy constraint, not a denied birth.
+     */
+    private void settleReproduction() {
+        freeSlotCursor = 0;
+        for (int parent = 0; parent < unitCount; parent++) {
+            if (energy[parent] <= KernelConfig.BUILD_COST) {
+                continue;
+            }
+            final double drive = reproduceDrive(parent);
+            if (drive <= 0.0) {
+                continue;
+            }
+            final double commit = Math.min(drive, energy[parent] - KernelConfig.BUILD_COST);
+            if (commit <= 0.0) {
+                continue;
+            }
+            final int child = nextFreeSlot();
+            if (child < 0) {
+                throw new IllegalStateException(
+                        "tick " + tick + ": MAX_UNITS=" + unitCount
+                        + " exhausted, lineage " + lineageId[parent]
+                        + " birth blocked — raise --max-units and rerun");
+            }
+            energy[parent] -= commit + KernelConfig.BUILD_COST;
+            final double childEnergy = KernelConfig.REPRODUCE_YIELD * commit;
+            energySink += (commit - childEnergy) + KernelConfig.BUILD_COST;
+            installChild(child, parent, childEnergy);
+            birthsTotal++;
+            if (generation[child] > maxGeneration) {
+                maxGeneration = generation[child];
+            }
+        }
+    }
+
+    /**
+     * The raw reproduction drive: {@code REPRODUCE_MAX · σ(output)} with the
+     * same saturating shape as harvest demand (contract v2 §4) — a runaway
+     * signal buys no extra investment. {@code max(0, …)}: you cannot
+     * un-reproduce; a non-finite output is garbage, not an action, so it drives
+     * nothing. Affordability (the parent reserving BUILD_COST and not
+     * overdrawing) is applied by the caller.
+     */
+    private double reproduceDrive(final int unit) {
+        final int reproduceIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
+                + (NodeLayout.Action.REPRODUCE * NodeLayout.Action.INSTANCES_PER_TYPE);
+        final double output = outputsPrev[reproduceIdx];
+        if (!Double.isFinite(output) || output <= 0.0) {
+            return 0.0;
+        }
+        return KernelConfig.REPRODUCE_MAX
+                / (1.0 + KernelConfig.REPRODUCE_HALF_SATURATION / output);
+    }
+
+    /**
+     * Lowest free (energy &le; 0) slot at or beyond the monotonic cursor, or -1
+     * if none remain. The cursor only advances, so each birth in a tick takes a
+     * distinct slot and the scan is O(maxUnits) per tick in total, not per birth.
+     */
+    private int nextFreeSlot() {
+        for (int slot = freeSlotCursor; slot < unitCount; slot++) {
+            if (energy[slot] <= 0.0) {
+                freeSlotCursor = slot + 1;
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Install a mutated copy of the parent's genome into a free slot (contract
+     * v2 §6/§9). The slot is fully reset: genes copied then point-mutated,
+     * recompiled, node state (outputs, delay memory) zeroed so the child starts
+     * inert and first acts next tick, energy and lineage tags set. {@code
+     * lineageId} is inherited unchanged (the root ancestor); {@code generation}
+     * is the parent's + 1.
+     */
+    private void installChild(final int child, final int parent, final double childEnergy) {
+        final int count = geneCount[parent];
+        System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
+        geneCount[child] = count;
+        mutate(child);
+        compileSlot(child);
+
+        final int nodeBase = child * NodeLayout.TOTAL;
+        for (int n = 0; n < NodeLayout.TOTAL; n++) {
+            outputsPrev[nodeBase + n] = 0.0;
+            outputsNext[nodeBase + n] = 0.0;
+            delayMemory[nodeBase + n] = 0.0;
+        }
+        activeThisTick[child] = 0;
+
+        energy[child] = childEnergy;
+        lineageId[child] = lineageId[parent];
+        generation[child] = generation[parent] + 1;
+    }
+
+    /**
+     * Point mutation (contract v2 §9): each of a gene's 32 bits flips
+     * independently with probability {@code MUTATION_RATE_PER_BIT}, drawn from
+     * the birth-keyed counter RNG so the result is deterministic. Mutation-safe
+     * by construction — every 32-bit value decodes to a legal gene — so no flip
+     * can be rejected.
+     */
+    private void mutate(final int child) {
+        final int base = child * maxGenes;
+        final int count = geneCount[child];
+        int index = 0;
+        for (int g = 0; g < count; g++) {
+            int gene = genes[base + g];
+            for (int bit = 0; bit < 32; bit++) {
+                if (Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, index++)
+                        < KernelConfig.MUTATION_RATE_PER_BIT) {
+                    gene ^= (1 << bit);
+                }
+            }
+            genes[base + g] = gene;
+        }
+    }
+
     public KernelSnapshot snapshot() {
-        return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, energySink, reservoir, cumulativeInflow);
+        return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, energySink,
+                reservoir, cumulativeInflow, lineageId, generation, birthsTotal,
+                maxGeneration, creditedInitialEnergy);
     }
 }

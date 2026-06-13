@@ -3,8 +3,8 @@ package com.simolution.sim;
 import java.util.Arrays;
 
 /**
- * Renders a run into the report-v5 text format
- * (docs/specs/report-v5.md). Every value is deterministic: same code +
+ * Renders a run into the report-v6 text format
+ * (docs/specs/report-v6.md). Every value is deterministic: same code +
  * same config produce a byte-identical file. No wall-clock data belongs
  * here — timing goes to the console, never the report. Per-unit detail
  * lives in the .units.csv sidecar (UnitCsvReport); per-unit wiring in the
@@ -12,7 +12,7 @@ import java.util.Arrays;
  */
 public final class RunReport {
 
-    public static final String SCHEMA = "report-v5";
+    public static final String SCHEMA = "report-v6";
 
     private RunReport() {}
 
@@ -22,12 +22,14 @@ public final class RunReport {
 
         out.append("# Simolution run report\n");
         out.append("schema: ").append(SCHEMA).append('\n');
-        out.append("kernel: v1\n");
+        out.append("kernel: v2\n");
         out.append("seed: ").append(config.seed()).append('\n');
         out.append("units: ").append(units).append('\n');
+        out.append("max-units: ").append(config.maxUnits()).append('\n');
         out.append("ticks: ").append(config.ticks()).append('\n');
         out.append("genome-source: ").append(config.demo() ? "builtin-demo" : "random").append('\n');
         out.append("genes-per-unit: ").append(config.demo() ? 4 : config.genesPerUnit()).append('\n');
+        out.append("max-genes: ").append(config.maxGenes()).append('\n');
 
         out.append("\n## structure\n");
         out.append("connections-compiled: ").append(structure.connectionsCompiled()).append('\n');
@@ -50,6 +52,13 @@ public final class RunReport {
         out.append("thresh-flips-total: ").append(dynamics.threshFlipsTotal()).append('\n');
         out.append("units-dormant-from-birth: ").append(dynamics.countDormantFromBirth()).append('\n');
         out.append("units-dormant-at-end: ").append(dynamics.countDormantAtEnd()).append('\n');
+
+        out.append("\n## reproduction\n");
+        out.append("births-total: ").append(dynamics.birthsTotal()).append('\n');
+        out.append("max-generation: ").append(dynamics.maxGeneration()).append('\n');
+        out.append("peak-population: ").append(dynamics.peakPopulation()).append('\n');
+        out.append("final-population: ").append(dynamics.finalPopulation()).append('\n');
+        out.append("distinct-lineages-alive: ").append(dynamics.distinctLineagesAlive()).append('\n');
 
         out.append("\n## energy\n");
         out.append("initial-energy-total: ").append(dynamics.initialEnergyTotal()).append('\n');
@@ -100,10 +109,10 @@ public final class RunReport {
         out.append("final-abs-y-p100: ").append(quantile(finiteFinalY, 100)).append('\n');
 
         out.append("\nper-unit-detail: ")
-           .append(units).append(" rows in the .units.csv sidecar (see docs/specs/report-v5.md)\n");
+           .append(units).append(" rows in the .units.csv sidecar (see docs/specs/report-v6.md)\n");
         out.append("per-unit-wiring: ")
            .append(structure.connectionsCompiled())
-           .append(" connections in the .wiring.csv sidecar (see docs/specs/report-v5.md)\n");
+           .append(" connections in the .wiring.csv sidecar (see docs/specs/report-v6.md)\n");
 
         out.append("state-digest: ").append(String.format("%016x", dynamics.stateDigest())).append('\n');
         return out.toString();

@@ -88,15 +88,26 @@ that dividing was good. The kernel grants the *ability* to reproduce and the
   investment — there is no payoff to exploding a loop into the reproduction
   channel, mirroring the §5 uptake law of v1.
 * **Energy is conserved across a birth.** The child's starting energy comes
-  entirely from the parent; the kernel creates none:
+  entirely from the parent; the kernel creates none. The reproduction bill has a
+  fixed and a proportional term, mirroring the metabolic bill's
+  `BASAL_COST + maintenance` (ADR 0016):
 
-  `parent.energy -= commit`
+  `parent.energy -= commit + BUILD_COST`
   `child.energy   = REPRODUCE_YIELD × commit`
-  `(1 − REPRODUCE_YIELD) × commit → sink`
+  `(1 − REPRODUCE_YIELD) × commit + BUILD_COST → sink`
 
   `REPRODUCE_YIELD ∈ (0,1]` is the reproduction efficiency (Pirt's growth-yield
-  analogue; the lost fraction is the thermodynamic cost of building a new unit).
-  It is a uniform world-harshness parameter, not a per-unit talent.
+  analogue; the lost fraction is the proportional cost of building a new unit).
+  `BUILD_COST` is the **fixed** biosynthesis overhead charged on every birth — the
+  irreducible cost of assembling a unit, the reproduction analogue of
+  `BASAL_COST`. It makes spamming tiny offspring net-lethal and bounds total
+  births by the energy in the system, so the population cannot explode (ADR 0016,
+  the v2 analogue of the v1 anti-degeneracy law ADR 0011). Both are uniform
+  world-harshness parameters, not per-unit talents.
+* **Affordability is an energy constraint, not a denied birth.** A parent must
+  cover `BUILD_COST` on top of its commitment, or it simply does not reproduce
+  this tick. This is physical (you cannot build what you cannot pay for) and is
+  distinct from the slot-pool exhaustion of §5, which halts the run.
 * **No kernel minimum viable child.** If a genome commits too little, the child
   is born under the basal floor and dies next tick — wasted energy, selected
   against. The kernel sets no floor on `commit`; viability is the genome's
@@ -359,10 +370,11 @@ set (once), never tuned to an outcome:
 
 * **Scale anchors** — `SELF_ENERGY_SCALE`, `REPRODUCE_HALF` (set once).
 * **World-harshness** — `REPRODUCE_MAX` (max investment rate), `REPRODUCE_YIELD`
-  (build efficiency), `MUTATION_RATE_PER_BIT` (variation strength). These define
-  how costly and how faithful reproduction is; set once to make an evolvable
-  world, never tuned to hit a target generation count, lineage diversity, or
-  population size.
+  (build efficiency, proportional cost), `BUILD_COST` (fixed per-birth
+  biosynthesis cost — the anti-spam term, ADR 0016), `MUTATION_RATE_PER_BIT`
+  (variation strength). These define how costly and how faithful reproduction is;
+  set once to make an evolvable world, never tuned to hit a target generation
+  count, lineage diversity, or population size.
 * **`MAX_UNITS`** and **`MAX_GENES`** are memory bounds (scale/safety anchors),
   explicitly **not** regulators — `MAX_UNITS` does not cap population (§5) and
   `MAX_GENES` is headroom for genome growth, not a tuned complexity ceiling. The

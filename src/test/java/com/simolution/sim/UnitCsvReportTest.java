@@ -18,8 +18,8 @@ class UnitCsvReportTest {
         int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
-        Kernel kernel = new Kernel(genomes, config.genesPerUnit());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
+        Kernel kernel = new Kernel(genomes, config.maxUnits(), config.genesPerUnit());
+        DynamicsObserver observer = new DynamicsObserver(config.units(), config.maxUnits(), connections);
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();
             observer.observe(kernel.snapshot());
@@ -30,7 +30,7 @@ class UnitCsvReportTest {
     @Test
     void csvIsDeterministicAndHasRowPerUnit() {
         // arrange
-        RunConfig config = new RunConfig(30, 800, 42L, 16, false, false, null);
+        RunConfig config = new RunConfig(30, 800, 42L, 16, 8000, 16, false, false, null);
 
         // act
         Run a = run(config);
@@ -48,7 +48,7 @@ class UnitCsvReportTest {
     @Test
     void deadUnitConsumedAllEnergyAndHasDeathTick() {
         // arrange: long run so units die
-        RunConfig config = new RunConfig(20, 1500, 7L, 32, false, false, null);
+        RunConfig config = new RunConfig(20, 1500, 7L, 32, 8000, 32, false, false, null);
         Run r = run(config);
         DynamicsSummary dynamics = r.dynamics();
 
@@ -68,7 +68,7 @@ class UnitCsvReportTest {
     @Test
     void burnRateIsConsumedOverLifespan() {
         // arrange
-        RunConfig config = new RunConfig(10, 1000, 3L, 16, false, false, null);
+        RunConfig config = new RunConfig(10, 1000, 3L, 16, 8000, 16, false, false, null);
         Run r = run(config);
         DynamicsSummary dynamics = r.dynamics();
 

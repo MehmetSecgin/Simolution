@@ -16,8 +16,8 @@ class RunReportTest {
         int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
-        Kernel kernel = new Kernel(genomes, config.genesPerUnit());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
+        Kernel kernel = new Kernel(genomes, config.maxUnits(), config.genesPerUnit());
+        DynamicsObserver observer = new DynamicsObserver(config.units(), config.maxUnits(), connections);
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();
             observer.observe(kernel.snapshot());
@@ -28,7 +28,7 @@ class RunReportTest {
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 42L, 16, false, false, null);
+        RunConfig config = new RunConfig(25, 200, 42L, 16, 4000, 16, false, false, null);
 
         // act
         String first = runAndRender(config);
@@ -41,7 +41,7 @@ class RunReportTest {
     @Test
     void reportPointsToCsvInsteadOfInliningUnits() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 1L, 8, false, false, null));
+        String report = runAndRender(new RunConfig(25, 50, 1L, 8, 4000, 8, false, false, null));
 
         // assert
         assertFalse(report.contains("## units"));
@@ -51,10 +51,10 @@ class RunReportTest {
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 9L, 8, false, false, null));
+        String report = runAndRender(new RunConfig(5, 50, 9L, 8, 4000, 8, false, false, null));
 
         // assert
-        assertTrue(report.contains("schema: report-v5"));
+        assertTrue(report.contains("schema: report-v6"));
         assertTrue(report.contains("per-unit-wiring: "));
         assertTrue(report.contains("## structure"));
         assertTrue(report.contains("## dynamics"));
