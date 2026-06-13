@@ -14,10 +14,12 @@ import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.GenomeFactory;
+import com.simolution.sim.LineageReport;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunReport;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
+import com.simolution.sim.TimeSeriesReport;
 import com.simolution.sim.UnitCsvReport;
 import com.simolution.sim.WiringReport;
 
@@ -45,11 +47,14 @@ public class Main {
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
 
+        TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
+
         long startNanos = System.nanoTime();
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
             observer.observe(snapshot);
+            timeSeries.sample(i, snapshot);
             if (trace != null) {
                 trace.log(snapshot, unitsToTrace);
             }
@@ -78,6 +83,14 @@ public class Main {
             Path wiring = sibling(out, ".wiring.csv");
             Files.writeString(wiring, WiringReport.render(connections));
             System.out.println("per-unit wiring written to " + wiring);
+
+            Path lineage = sibling(out, ".lineage.csv");
+            Files.writeString(lineage, LineageReport.render(observer.lineageSummary(), config.ticks()));
+            System.out.println("per-lineage detail written to " + lineage);
+
+            Path series = sibling(out, ".timeseries.csv");
+            Files.writeString(series, timeSeries.render());
+            System.out.println("time series written to " + series);
         }
     }
 

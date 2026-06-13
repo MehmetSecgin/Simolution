@@ -10,7 +10,7 @@ Usage:
 
 If the output path is omitted, the report's extension is replaced with .html.
 The CSV sidecar is found by replacing the report's extension with .units.csv,
-matching the kernel's own output convention (docs/specs/report-v5.md).
+matching the kernel's own output convention (docs/specs/report-v6.md).
 """
 
 import csv
@@ -25,6 +25,55 @@ def units_csv_for(report_path: Path) -> Path:
 
 def wiring_csv_for(report_path: Path) -> Path:
     return report_path.with_suffix(".wiring.csv")
+
+
+def lineage_csv_for(report_path: Path) -> Path:
+    return report_path.with_suffix(".lineage.csv")
+
+
+def timeseries_csv_for(report_path: Path) -> Path:
+    return report_path.with_suffix(".timeseries.csv")
+
+
+def parse_lineages(csv_path: Path) -> list[dict]:
+    rows = []
+    if not csv_path.exists():
+        return rows
+    with csv_path.open() as f:
+        for row in csv.DictReader(f):
+            rows.append(
+                {
+                    "id": int(row["lineage"]),
+                    "first": int(row["first_tick"]),
+                    "ext": int(row["extinct_tick"]),
+                    "al": int(row["alive_at_end"]),
+                    "peak": int(row["peak_members"]),
+                    "fin": int(row["final_members"]),
+                    "gen": int(row["max_generation"]),
+                    "ls": int(row["lifespan"]),
+                    "en": float(row["final_energy"]),
+                }
+            )
+    return rows
+
+
+def parse_timeseries(csv_path: Path) -> list[dict]:
+    rows = []
+    if not csv_path.exists():
+        return rows
+    with csv_path.open() as f:
+        for row in csv.DictReader(f):
+            rows.append(
+                {
+                    "t": int(row["tick"]),
+                    "pop": int(row["population"]),
+                    "births": int(row["births"]),
+                    "gen": int(row["max_generation"]),
+                    "en": float(row["unit_energy"]),
+                    "res": float(row["reservoir"]),
+                }
+            )
+    return rows
 
 
 def parse_wiring(csv_path: Path) -> dict:
@@ -77,8 +126,10 @@ def parse_units(csv_path: Path) -> list[dict]:
     return rows
 
 
-def build_html(meta: dict, units: list[dict], wiring: dict, report_name: str) -> str:
-    payload = json.dumps({"meta": meta, "units": units, "wiring": wiring})
+def build_html(meta: dict, units: list[dict], wiring: dict, lineages: list[dict],
+               timeseries: list[dict], report_name: str) -> str:
+    payload = json.dumps({"meta": meta, "units": units, "wiring": wiring,
+                          "lineages": lineages, "timeseries": timeseries})
     return _TEMPLATE.replace("__TITLE__", report_name).replace("__DATA__", payload)
 
 
@@ -128,6 +179,46 @@ _TEMPLATE = r"""<!doctype html>
   <div class="sub" id="sub"></div>
 </header>
 <div class="cards" id="cards"></div>
+
+<div id="reprosec" style="display:none">
+<div class="sectit">Reproduction &amp; evolution — the population over time</div>
+<div class="grid">
+  <div class="panel"><h2>Population over time</h2>
+    <div class="desc">Living units each tick across the whole pool (founders + descendants). The gen-0 boom, then the starvation bust to a sustained, inflow-limited population. Dashed = peak.</div>
+    <canvas id="popcurve" width="700" height="320"></canvas></div>
+  <div class="panel"><h2>Energy economy over time</h2>
+    <div class="desc">Total energy held by all living units vs the shared reservoir. Watch the boom drain the reservoir, then both settle to the inflow floor.</div>
+    <canvas id="energycurve" width="700" height="320"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:#58a6ff"></i>unit energy</span>
+      <span><i class="dot" style="background:#3fb950"></i>reservoir</span>
+    </div></div>
+  <div class="panel"><h2>Births &amp; deepest generation</h2>
+    <div class="desc">Cumulative births (the reproductive throughput) and the deepest generation reached (how far evolution has run). Flat births = reproduction has stalled.</div>
+    <canvas id="gencurve" width="700" height="320"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:#d29922"></i>cumulative births</span>
+      <span><i class="dot" style="background:#bc8cff"></i>max generation</span>
+    </div></div>
+</div>
+
+<div class="sectit">Lineages — who descended from whom</div>
+<div class="grid">
+  <div class="panel"><h2>Lineage outcomes</h2>
+    <div class="desc">Each founder lineage: peak members it ever reached (x) vs deepest generation it evolved (y). Green = still alive at the end, grey = extinct. Top-right = the lineages that both grew and evolved.</div>
+    <canvas id="linscatter" width="700" height="320"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:#3fb950"></i>alive at end</span>
+      <span><i class="dot" style="background:#7d8590"></i>extinct</span>
+    </div></div>
+  <div class="panel"><h2>Biggest lineages</h2>
+    <div class="desc">Top lineages by peak members. Bar = peak size ever; bright overlay = members still alive at the end.</div>
+    <canvas id="linbars" width="700" height="320"></canvas></div>
+  <div class="panel" style="grid-column: 1 / -1;"><h2>Surviving lineages</h2>
+    <div class="desc">Lineages with living members at the last tick, by final size. These are the winners selection left standing.</div>
+    <div id="lintable" style="overflow:auto; max-height:280px;"></div></div>
+</div>
+</div>
 
 <div class="sectit">Open-system economy — reservoir → units → sink</div>
 <div class="grid">
@@ -196,9 +287,15 @@ _TEMPLATE = r"""<!doctype html>
     <div class="desc">Only nodes this unit actually wires are drawn, placed by <b>signal depth</b> (distance from the sensors), not by node category —
       so position follows the flow. Colour still marks sensor/internal/action. Edge colour = weight sign (green +, red −), thickness = magnitude.
       <b>Feedback edges</b> (DELAY loops, cycles) route below, dashed. The <b class="b">live circuit</b> — the sensor→action core doing work — is bright; dead wiring faded.</div>
-    <div style="display:flex; gap:14px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+    <div class="desc" style="margin:-2px 0 8px; color:#586069;">Circuits shown are the <b>founder</b> genomes (the seeded generation). Filter and sort the founder set below.</div>
+    <div style="display:flex; gap:10px 14px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
       <label>unit <select id="usel"></select></label>
       <button id="prev">‹</button><button id="next">›</button>
+      <label style="font-size:11px;">regime <select id="fregime"><option value="">all</option><option>fixed-point</option><option>bounded</option><option>divergent</option></select></label>
+      <label style="font-size:11px;">status <select id="fstatus"><option value="">all</option><option value="1">alive</option><option value="0">dead</option></select></label>
+      <label style="font-size:11px;">feeding <select id="ffeed"><option value="">all</option><option value="fed">ever fed</option><option value="never">never fed</option></select></label>
+      <label style="font-size:11px;">sort <select id="fsort"><option value="unit">unit #</option><option value="ls">lifespan</option><option value="ht">harvest</option><option value="mc">connections</option></select></label>
+      <span id="fcount" style="color:#7d8590; font-size:11px;"></span>
       <label style="font-size:12px; color:#7d8590;"><input type="checkbox" id="showjunk"> show junk wiring</label>
       <button id="findharv" style="font-size:11px;">jump to a harvester</button>
     </div>
@@ -218,7 +315,9 @@ _TEMPLATE = r"""<!doctype html>
 <script>
 const DATA = __DATA__;
 const M = DATA.meta, U = DATA.units;
+const LIN = DATA.lineages || [], TS = DATA.timeseries || [];
 const TICKS = +(M["ticks"] || 1000), N = U.length;
+const HAS_REPRO = TS.length > 0 || LIN.length > 0;
 const COL = { "fixed-point": "#3fb950", "bounded": "#58a6ff", "divergent": "#f85149" };
 const num = k => (M[k] === undefined ? NaN : +M[k]);
 const fmt = v => !isFinite(v) ? "—" : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString()
@@ -248,6 +347,13 @@ card("median death", medianDeath, deaths.length?`first ${deaths[0]} · last ${de
 card("divergent", U.filter(u=>u.rg==="divergent").length, `of ${N} units`);
 if (M["energy-audit-error"] !== undefined)
   card("audit error", (+M["energy-audit-error"]).toExponential(1), "≈0 = conserved");
+if (HAS_REPRO) {
+  const linAlive = LIN.filter(l=>l.al===1).length;
+  card("births", fmt(num("births-total")), "offspring ever born", true);
+  card("peak pop", fmt(num("peak-population")), "max alive at once", true);
+  card("final pop", fmt(num("final-population")), `${linAlive||num("distinct-lineages-alive")} lineages alive`, true);
+  card("deepest gen", num("max-generation"), "generations evolved");
+}
 
 // ---- canvas helpers ----
 function setup(id) {
@@ -446,6 +552,84 @@ scatter("wirescatter", u=>u.mc, "meaningful connections", 0, Math.max(...U.map(u
   });
 })();
 
+// ---- reproduction & lineages ----
+if (HAS_REPRO) {
+  document.getElementById("reprosec").style.display = "";
+  const tmax = TS.length ? TS[TS.length-1].t : TICKS;
+
+  if (TS.length) {
+    (function(){
+      const g = setup("popcurve");
+      const ymax = Math.max(1, ...TS.map(s=>s.pop));
+      axes(g, "tick", "living units", tmax, ymax);
+      g.x.strokeStyle="#586069"; g.x.setLineDash([4,4]);
+      const yp=py(g,ymax,ymax); g.x.beginPath(); g.x.moveTo(g.pad,yp); g.x.lineTo(g.w-12,yp); g.x.stroke(); g.x.setLineDash([]);
+      g.x.strokeStyle="#58a6ff"; g.x.lineWidth=2; g.x.beginPath();
+      TS.forEach((s,i)=>{ const X=px(g,s.t,tmax),Y=py(g,s.pop,ymax); i?g.x.lineTo(X,Y):g.x.moveTo(X,Y); });
+      g.x.stroke();
+      g.x.lineTo(px(g,tmax,tmax),g.h-g.pad); g.x.lineTo(g.pad,g.h-g.pad);
+      g.x.fillStyle="rgba(88,166,255,0.10)"; g.x.fill();
+    })();
+    (function(){
+      const g = setup("energycurve");
+      const ymax = Math.max(1, ...TS.map(s=>Math.max(s.en,s.res)));
+      axes(g, "tick", "energy", tmax, ymax);
+      const line=(key,col)=>{ g.x.strokeStyle=col; g.x.lineWidth=2; g.x.beginPath();
+        TS.forEach((s,i)=>{ const X=px(g,s.t,tmax),Y=py(g,s[key],ymax); i?g.x.lineTo(X,Y):g.x.moveTo(X,Y); }); g.x.stroke(); };
+      line("res","#3fb950"); line("en","#58a6ff");
+    })();
+    (function(){
+      const g = setup("gencurve");
+      const bmax = Math.max(1, ...TS.map(s=>s.births)), gmax = Math.max(1, ...TS.map(s=>s.gen));
+      axes(g, "tick", "cumulative births", tmax, bmax);
+      const line=(f,col)=>{ g.x.strokeStyle=col; g.x.lineWidth=2; g.x.beginPath();
+        TS.forEach((s,i)=>{ const X=px(g,s.t,tmax),Y=py(g,f(s),bmax); i?g.x.lineTo(X,Y):g.x.moveTo(X,Y); }); g.x.stroke(); };
+      line(s=>s.births,"#d29922"); line(s=>s.gen/gmax*bmax,"#bc8cff");
+      g.x.fillStyle="#bc8cff"; g.x.font="10px ui-monospace,monospace"; g.x.fillText("gen max "+gmax, g.w-92, 18);
+    })();
+  }
+
+  if (LIN.length) {
+    (function(){
+      const g = setup("linscatter");
+      const xmax = Math.max(2, ...LIN.map(l=>l.peak)), ymax = Math.max(1, ...LIN.map(l=>l.gen));
+      axes(g, "peak members", "max generation", xmax, ymax);
+      for (const l of LIN){
+        g.x.fillStyle = l.al ? "#3fb950" : "#7d8590"; g.x.globalAlpha = l.al ? 0.9 : 0.35;
+        g.x.beginPath(); g.x.arc(px(g,Math.min(l.peak,xmax),xmax), py(g,Math.min(l.gen,ymax),ymax), l.al?4:3, 0, 7); g.x.fill();
+      }
+      g.x.globalAlpha = 1;
+    })();
+    (function(){
+      const g = setup("linbars");
+      const top = [...LIN].sort((a,b)=>b.peak-a.peak).slice(0,20);
+      const ymax = Math.max(1, ...top.map(l=>l.peak));
+      axes(g, "lineage (top 20 by peak)", "members", 1, ymax);
+      const slot = (g.w-12-g.pad)/Math.max(1,top.length);
+      g.x.font="8px ui-monospace,monospace";
+      top.forEach((l,i)=>{
+        const cx=g.pad+slot*i+slot/2, bw=slot*0.7;
+        const yp=py(g,l.peak,ymax); g.x.fillStyle="#30506e"; g.x.fillRect(cx-bw/2,yp,bw,(g.h-g.pad)-yp);
+        if(l.fin>0){ const yf=py(g,l.fin,ymax); g.x.fillStyle="#3fb950"; g.x.fillRect(cx-bw/2,yf,bw,(g.h-g.pad)-yf); }
+        g.x.fillStyle="#586069"; g.x.save(); g.x.translate(cx+3,g.h-g.pad+12); g.x.rotate(0.5); g.x.fillText("#"+l.id,0,0); g.x.restore();
+      });
+    })();
+    (function(){
+      const el = document.getElementById("lintable");
+      const surv = LIN.filter(l=>l.al===1).sort((a,b)=>b.fin-a.fin || b.gen-a.gen);
+      if(!surv.length){ el.innerHTML="<div style='color:#7d8590'>no lineages survived to the end</div>"; return; }
+      const th="padding:3px 10px"; let h="<table style='border-collapse:collapse;width:100%;font-size:11px'>"+
+        `<tr style='color:#7d8590;text-align:right'><th style='text-align:left;${th}'>lineage</th>`+
+        `<th style='${th}'>final</th><th style='${th}'>peak</th><th style='${th}'>max gen</th>`+
+        `<th style='${th}'>lifespan</th><th style='${th}'>energy</th></tr>`;
+      for(const l of surv) h+=`<tr style='text-align:right;border-top:1px solid #21262d'>`+
+        `<td style='text-align:left;${th}'>#${l.id}</td><td style='${th}'>${l.fin}</td><td style='${th}'>${l.peak}</td>`+
+        `<td style='${th}'>${l.gen}</td><td style='${th}'>${l.ls}</td><td style='${th}'>${fmt(l.en)}</td></tr>`;
+      el.innerHTML = h+"</table>";
+    })();
+  }
+}
+
 // ---- unit circuit: signal-flow by depth (no fixed categories) ----
 const WIRING = DATA.wiring || {};
 const NS="http://www.w3.org/2000/svg";
@@ -520,7 +704,36 @@ function reach(edges, starts, rev){
 
 const usel=document.getElementById("usel");
 const unitKeys=Object.keys(WIRING).map(Number).sort((a,b)=>a-b);
-unitKeys.forEach(u=>{ const o=document.createElement("option"); o.value=u; o.textContent="unit "+u; usel.appendChild(o); });
+const uByUnit={}; U.forEach(u=>uByUnit[u.unit]=u);
+const fregime=document.getElementById("fregime"), fstatus=document.getElementById("fstatus"),
+      ffeed=document.getElementById("ffeed"), fsort=document.getElementById("fsort"),
+      fcount=document.getElementById("fcount");
+
+function filteredUnits(){
+  const rg=fregime.value, st=fstatus.value, fd=ffeed.value, so=fsort.value;
+  const list=unitKeys.filter(k=>{
+    const u=uByUnit[k]; if(!u) return true;
+    if(rg && u.rg!==rg) return false;
+    if(st!=="" && u.al!==+st) return false;
+    if(fd==="fed" && !(u.ht>0)) return false;
+    if(fd==="never" && u.ht>0) return false;
+    return true;
+  });
+  const keyf={unit:u=>u.unit, ls:u=>-u.ls, ht:u=>-u.ht, mc:u=>-u.mc}[so]||(u=>u.unit);
+  list.sort((a,b)=> keyf(uByUnit[a]||{unit:a}) - keyf(uByUnit[b]||{unit:b}));
+  return list;
+}
+function rebuildUnitList(){
+  const cur=+usel.value;
+  const list=filteredUnits();
+  usel.innerHTML="";
+  list.forEach(k=>{ const o=document.createElement("option"); o.value=k;
+    const u=uByUnit[k]||{}; o.textContent=`unit ${k}`+(u.rg?` · ${u.rg}`:"")+(u.al?" · alive":"")+(u.ht>0?` · fed ${u.ht}`:""); usel.appendChild(o); });
+  fcount.textContent=`${list.length} / ${unitKeys.length} units`;
+  if(list.length){ const i=list.indexOf(cur); usel.selectedIndex=i>=0?i:0; drawWiring(); }
+  else { document.getElementById("wiring").innerHTML=""; document.getElementById("uinfo").textContent="no units match filter"; }
+}
+[fregime,fstatus,ffeed,fsort].forEach(e=>e.addEventListener("change",rebuildUnitList));
 
 function drawWiring(){
   const u=+usel.value, showJunk=document.getElementById("showjunk").checked;
@@ -608,9 +821,11 @@ document.getElementById("prev").onclick=()=>{ usel.selectedIndex=Math.max(0,usel
 document.getElementById("next").onclick=()=>{ usel.selectedIndex=Math.min(usel.options.length-1,usel.selectedIndex+1); drawWiring(); };
 document.getElementById("findharv").onclick=()=>{
   const best=[...U].filter(x=>WIRING[x.unit]).sort((a,b)=>b.ht-a.ht)[0];
-  if(best){ const i=unitKeys.indexOf(best.unit); if(i>=0){ usel.selectedIndex=i; drawWiring(); } }
+  if(!best) return;
+  fregime.value=""; fstatus.value=""; ffeed.value=""; rebuildUnitList();
+  usel.value=best.unit; drawWiring();
 };
-if(usel.options.length){ drawWiring(); }
+rebuildUnitList();
 </script>
 </body>
 </html>
@@ -634,8 +849,11 @@ def main(argv: list[str]) -> int:
     meta = parse_report(report_path)
     units = parse_units(csv_path)
     wiring = parse_wiring(wiring_csv_for(report_path))
-    out_path.write_text(build_html(meta, units, wiring, report_path.name))
-    print(f"wrote {out_path} ({len(units)} units, wiring for {len(wiring)})")
+    lineages = parse_lineages(lineage_csv_for(report_path))
+    timeseries = parse_timeseries(timeseries_csv_for(report_path))
+    out_path.write_text(build_html(meta, units, wiring, lineages, timeseries, report_path.name))
+    print(f"wrote {out_path} ({len(units)} units, wiring for {len(wiring)}, "
+          f"{len(lineages)} lineages, {len(timeseries)} time samples)")
     return 0
 
 

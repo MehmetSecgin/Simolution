@@ -32,6 +32,19 @@ public final class DynamicsObserver {
     private int maxGeneration;
     private double creditedInitialEnergy;
 
+    // per-lineage running aggregates, indexed by lineageId (= the founder slot
+    // index a lineage descends from, always < founder count). Bounded by the
+    // founder count, never by ticks. Scratch is refilled each tick.
+    private final int[] lineagePeak;
+    private final int[] lineageFinal;
+    private final int[] lineageMaxGen;
+    private final int[] lineageFirstTick;
+    private final int[] lineageExtinctTick;
+    private final double[] lineageFinalEnergy;
+    private final int[] lineageAliveScratch;
+    private final int[] lineageGenScratch;
+    private final double[] lineageEnergyScratch;
+
     private final double[] prevOutputs;
     private final double[] prevDelay;
     private final double[] accumulators;
@@ -72,6 +85,18 @@ public final class DynamicsObserver {
         this.maxUnits = maxUnits;
         this.connections = connections;
         this.lineageSeen = new boolean[maxUnits];
+
+        this.lineagePeak = new int[unitCount];
+        this.lineageFinal = new int[unitCount];
+        this.lineageMaxGen = new int[unitCount];
+        this.lineageFirstTick = new int[unitCount];
+        Arrays.fill(lineageFirstTick, -1);
+        this.lineageExtinctTick = new int[unitCount];
+        Arrays.fill(lineageExtinctTick, -1);
+        this.lineageFinalEnergy = new double[unitCount];
+        this.lineageAliveScratch = new int[unitCount];
+        this.lineageGenScratch = new int[unitCount];
+        this.lineageEnergyScratch = new double[unitCount];
 
         final int totalNodes = unitCount * NodeLayout.TOTAL;
         this.prevOutputs = new double[totalNodes];
@@ -200,14 +225,45 @@ public final class DynamicsObserver {
         int population = 0;
         int distinct = 0;
         Arrays.fill(lineageSeen, false);
+        Arrays.fill(lineageAliveScratch, 0);
+        Arrays.fill(lineageGenScratch, 0);
+        Arrays.fill(lineageEnergyScratch, 0.0);
         for (int slot = 0; slot < maxUnits; slot++) {
             if (snapshot.energy[slot] > 0.0) {
                 population++;
                 final long lineage = snapshot.lineageId[slot];
-                if (lineage >= 0 && lineage < maxUnits && !lineageSeen[(int) lineage]) {
-                    lineageSeen[(int) lineage] = true;
-                    distinct++;
+                if (lineage >= 0 && lineage < unitCount) {
+                    final int l = (int) lineage;
+                    if (!lineageSeen[l]) {
+                        lineageSeen[l] = true;
+                        distinct++;
+                    }
+                    lineageAliveScratch[l]++;
+                    if (snapshot.generation[slot] > lineageGenScratch[l]) {
+                        lineageGenScratch[l] = snapshot.generation[slot];
+                    }
+                    lineageEnergyScratch[l] += snapshot.energy[slot];
                 }
+            }
+        }
+        for (int l = 0; l < unitCount; l++) {
+            final int alive = lineageAliveScratch[l];
+            if (alive > 0) {
+                if (lineageFirstTick[l] < 0) {
+                    lineageFirstTick[l] = snapshot.tick;
+                }
+                if (alive > lineagePeak[l]) {
+                    lineagePeak[l] = alive;
+                }
+                if (lineageGenScratch[l] > lineageMaxGen[l]) {
+                    lineageMaxGen[l] = lineageGenScratch[l];
+                }
+                lineageFinal[l] = alive;
+                lineageFinalEnergy[l] = lineageEnergyScratch[l];
+            } else if (lineageFirstTick[l] >= 0 && lineageExtinctTick[l] < 0) {
+                lineageExtinctTick[l] = snapshot.tick;
+                lineageFinal[l] = 0;
+                lineageFinalEnergy[l] = 0.0;
             }
         }
         if (population > peakPopulation) {
@@ -284,6 +340,16 @@ public final class DynamicsObserver {
         h = Noise.mix(h ^ Double.doubleToLongBits(snapshot.reservoir));
         h = Noise.mix(h ^ Double.doubleToLongBits(snapshot.cumulativeInflow));
         stateDigest = h;
+    }
+
+    /**
+     * Per-lineage aggregates (one entry per founder, indexed by lineageId).
+     * Bounded by the founder count; rendered to the .lineage.csv sidecar.
+     */
+    public LineageSummary lineageSummary() {
+        return new LineageSummary(
+                lineagePeak, lineageFinal, lineageMaxGen,
+                lineageFirstTick, lineageExtinctTick, lineageFinalEnergy);
     }
 
     public DynamicsSummary summarize() {

@@ -28,6 +28,26 @@ Inserted between `## dynamics` and `## energy`:
 These are computed over the whole slot pool as running, bounded aggregates (no
 per-tick history). They are the only population-wide reproduction metrics.
 
+## New sidecar: `.lineage.csv`
+
+One row per founder lineage that ever had a living member (lineage-id order, so
+byte-deterministic). Tracks the descendants the founder-scoped `.units.csv`
+cannot see. Bounded by the founder count, not ticks. Columns:
+`lineage, first_tick, extinct_tick, alive_at_end, peak_members, final_members,
+max_generation, lifespan, final_energy`. `extinct_tick = -1` and
+`alive_at_end = 1` for a lineage still living at the end; `lifespan` runs from
+first appearance to extinction (or to `ticks` if alive).
+
+## New sidecar: `.timeseries.csv`
+
+A downsampled population-vs-time trace for charting — at most
+`TimeSeriesReport.BUCKETS` (1000) evenly-spaced ticks regardless of run length,
+so its footprint is constant in ticks. Columns:
+`tick, population, births, max_generation, unit_energy, reservoir`
+(`population` and `unit_energy` are over the whole slot pool;
+`births`/`max_generation` are cumulative). It is the only population-over-time
+data the system keeps; the visualizer reads it for the reproduction charts.
+
 ## Founder-scoped metrics (unchanged shape, narrowed meaning)
 
 The existing per-unit arrays and their derived report lines (dynamics activity,
