@@ -15,6 +15,7 @@ import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.LineageReport;
+import com.simolution.sim.PopulationReport;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunReport;
 import com.simolution.sim.StructuralAnalyzer;
@@ -91,6 +92,14 @@ public class Main {
             Path series = sibling(out, ".timeseries.csv");
             Files.writeString(series, timeSeries.render());
             System.out.println("time series written to " + series);
+
+            Path population = sibling(out, ".population.csv");
+            Files.writeString(population, PopulationReport.render(kernel.snapshot()));
+            System.out.println("final population written to " + population);
+
+            Path popWiring = sibling(out, ".popwiring.csv");
+            Files.writeString(popWiring, WiringReport.render(kernel.liveConnections()));
+            System.out.println("evolved wiring written to " + popWiring);
         }
     }
 

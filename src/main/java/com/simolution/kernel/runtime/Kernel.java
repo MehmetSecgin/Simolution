@@ -29,6 +29,7 @@ public final class Kernel {
     private final int[] mulInDegree;
 
     private final double[] energy;
+    private final double[] damage;
     private final int[] harvestConnCount;
     private final int[] activeThisTick;
     private double energySink;
@@ -89,6 +90,7 @@ public final class Kernel {
         // empty slots start dead (energy 0, contract v2 §5): they are skipped
         // by every phase exactly as corpses are, and a birth may claim them.
         this.energy = new double[maxUnits];
+        this.damage = new double[maxUnits];
         this.harvestConnCount = new int[maxUnits];
         this.activeThisTick = new int[maxUnits];
 
@@ -447,6 +449,15 @@ public final class Kernel {
      *   <li><b>maintenance</b> (∝ energy held) — upkeep proportional to size
      *       (energy proxies biomass). Makes a hoard above the equilibrium
      *       {@code E* = (capacity − basal)/LEAK_RATE} unsustainable — it implodes.</li>
+     *   <li><b>aging</b> ({@code damage · AGING_COST}) — senescence: upkeep that
+     *       rises with accumulated wear (contract v2 §7, ADR 0017). {@code damage}
+     *       is the unit's lifetime dissipated energy (incremented below by this
+     *       very charge, so older cells pay more and the cost accelerates —
+     *       Gompertz). Since every cell pays at least {@code BASAL_COST}, damage
+     *       only ever grows while the harvest ceiling is bounded, so no cell is
+     *       immortal; offspring reset {@code damage} to 0 (germline renewal), so
+     *       the lineage outruns entropy only by reproducing. The rate is a uniform
+     *       conversion; the lifespan that results is per-unit and emergent.</li>
      * </ul>
      * No term scales with connection count: cost lives on what a unit does and
      * holds, not on what it has. Charge clamps to available energy so a unit
@@ -459,10 +470,12 @@ public final class Kernel {
             }
             final double activity = activeThisTick[unit] * KernelConfig.COST_PER_PROPAGATION;
             final double maintenance = energy[unit] * KernelConfig.STORAGE_LEAK_RATE;
+            final double aging = damage[unit] * KernelConfig.AGING_COST;
             final double charge = Math.min(
-                    KernelConfig.BASAL_COST + activity + maintenance, energy[unit]);
+                    KernelConfig.BASAL_COST + activity + maintenance + aging, energy[unit]);
             energy[unit] -= charge;
             energySink += charge;
+            damage[unit] += charge;
         }
     }
 
@@ -511,7 +524,9 @@ public final class Kernel {
             }
             energy[parent] -= commit + KernelConfig.BUILD_COST;
             final double childEnergy = KernelConfig.REPRODUCE_YIELD * commit;
-            energySink += (commit - childEnergy) + KernelConfig.BUILD_COST;
+            final double dissipated = (commit - childEnergy) + KernelConfig.BUILD_COST;
+            energySink += dissipated;
+            damage[parent] += dissipated;
             installChild(child, parent, childEnergy);
             birthsTotal++;
             if (generation[child] > maxGeneration) {
@@ -578,6 +593,7 @@ public final class Kernel {
         activeThisTick[child] = 0;
 
         energy[child] = childEnergy;
+        damage[child] = 0.0;
         lineageId[child] = lineageId[parent];
         generation[child] = generation[parent] + 1;
     }
@@ -605,8 +621,38 @@ public final class Kernel {
         }
     }
 
+    /**
+     * Compiled connections of every currently-alive unit, in slot order (each
+     * slot's sum range then mul range — the same per-unit ordering the wiring
+     * export expects). Unlike the founders' static wiring, these reflect every
+     * mutation a lineage accrued, so the descendants' evolved circuits can be
+     * inspected. End-of-run export only — allocates, never called per tick.
+     */
+    public CompiledConnection[] liveConnections() {
+        int count = 0;
+        for (int unit = 0; unit < unitCount; unit++) {
+            if (energy[unit] > 0.0) {
+                count += (sumEnd[unit] - sumStart[unit]) + (mulEnd[unit] - mulStart[unit]);
+            }
+        }
+        final CompiledConnection[] out = new CompiledConnection[count];
+        int cursor = 0;
+        for (int unit = 0; unit < unitCount; unit++) {
+            if (energy[unit] <= 0.0) {
+                continue;
+            }
+            for (int i = sumStart[unit]; i < sumEnd[unit]; i++) {
+                out[cursor++] = connections[i];
+            }
+            for (int i = mulStart[unit]; i < mulEnd[unit]; i++) {
+                out[cursor++] = connections[i];
+            }
+        }
+        return out;
+    }
+
     public KernelSnapshot snapshot() {
-        return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, energySink,
+        return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, damage, energySink,
                 reservoir, cumulativeInflow, lineageId, generation, birthsTotal,
                 maxGeneration, creditedInitialEnergy);
     }

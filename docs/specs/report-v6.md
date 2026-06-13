@@ -48,6 +48,21 @@ so its footprint is constant in ticks. Columns:
 `births`/`max_generation` are cumulative). It is the only population-over-time
 data the system keeps; the visualizer reads it for the reproduction charts.
 
+## New sidecar: `.population.csv`
+
+One row per slot alive (`energy > 0`) at the last tick, in slot order. The final
+*living* population — the evolved descendants, which the founder-scoped
+`.units.csv` cannot show. Columns: `slot, lineage, generation, energy, damage`
+(`damage` = accumulated lifetime dissipation, the senescence variable of §7).
+
+## New sidecar: `.popwiring.csv`
+
+The evolved circuits of the final living population — same columns as
+`.wiring.csv` but keyed by `slot` (the unit column is the slot), one row per
+connection. Where `.wiring.csv` is the founders' seeded genomes, this is what
+mutation made of them. Pair with `.population.csv` (slot → lineage/generation) to
+compare a founder's circuit against its gen-N descendant.
+
 ## Founder-scoped metrics (unchanged shape, narrowed meaning)
 
 The existing per-unit arrays and their derived report lines (dynamics activity,

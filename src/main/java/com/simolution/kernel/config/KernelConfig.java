@@ -24,7 +24,8 @@ public final class KernelConfig {
     public static final double REPRODUCE_HALF_SATURATION = 1.0;
     public static final double REPRODUCE_YIELD = 0.7;
     public static final double BUILD_COST = 10.0;
-    public static final double MUTATION_RATE_PER_BIT = 0.001;
+    public static final double MUTATION_RATE_PER_BIT = 0.0003;
+    public static final double AGING_COST = 0.0005;
 
     public static final int SENSOR_JUNK_COUNT = 2;
     public static final int INTERNAL_JUNK_COUNT = 3;

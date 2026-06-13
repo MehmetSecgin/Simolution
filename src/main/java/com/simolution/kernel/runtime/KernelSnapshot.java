@@ -5,6 +5,7 @@ public final class KernelSnapshot {
     public final double[] outputs;
     public final double[] delayMemory;
     public final double[] energy;
+    public final double[] damage;
     public final double energySink;
     public final double reservoir;
     public final double cumulativeInflow;
@@ -15,13 +16,14 @@ public final class KernelSnapshot {
     public final double creditedInitialEnergy;
 
     public KernelSnapshot(int tick, double[] outputs, double[] delayMemory, double[] energy,
-                          double energySink, double reservoir, double cumulativeInflow,
+                          double[] damage, double energySink, double reservoir, double cumulativeInflow,
                           long[] lineageId, int[] generation, long birthsTotal,
                           int maxGeneration, double creditedInitialEnergy) {
         this.tick = tick;
         this.outputs = outputs;
         this.delayMemory = delayMemory;
         this.energy = energy;
+        this.damage = damage;
         this.energySink = energySink;
         this.reservoir = reservoir;
         this.cumulativeInflow = cumulativeInflow;

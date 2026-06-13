@@ -161,19 +161,52 @@ occupies a slot; death frees it (§6); a birth claims a free one.
 
 ---
 
-## 7. Mortality is economic only (no coded aging)
+## 7. Mortality: entropic aging + germline renewal (supersedes "no aging")
 
-* The kernel adds **no senescence, no lifespan cap, no age-dependent cost.** A
-  coded clock would be the kernel deciding how long life lasts — a semantic knob
-  and an outcome target (§12).
-* "Living forever" remains *possible* but is disfavoured by the economy, not
-  forbidden by fiat: persistence already requires continuous intake (v1 §6a), and
-  in a reproducing population a non-reproducing immortal is out-competed for the
-  finite reservoir by lineages that fill slots and draw the pool down. Individual
-  immortality is thus rare and evolutionarily inert without any aging law.
-* If empirically a "do-nothing immortal" comes to dominate (the v1 eat-forever
-  exploit's analogue), that is a signal to examine the physics — not a license to
-  add an aging knob to suppress it.
+This section originally bet that immortality would be "rare and evolutionarily
+inert," so no aging law was needed. **The runs falsified that** (ADR 0017): a unit
+that harvests at least its bill sits at equilibrium forever, and once the
+reservoir is at its inflow floor, reproducing (costly, §4) is locally worse than
+just persisting — so evolution converges on **non-reproducing immortal harvesters**
+and freezes. That is the opposite of inert. So a uniform aging law is added, the
+v2 analogue of the v1 anti-degeneracy laws (ADR 0011/0016).
+
+The biology (single-celled organisms): nothing lives forever by eating. Yeast ages
+both *chronologically* (a non-dividing cell loses viability over time) and
+*replicatively* (a mother buds a finite number of daughters, then dies); damage —
+oxidized proteins, aggregates, failing organelles — accumulates and is **segregated
+asymmetrically** at division so the daughter is born rejuvenated. The lineage is
+immortal; the individual is not, and reproduction is *how* the lineage outruns
+entropy.
+
+The law (uniform, no coded lifespan):
+
+* Each unit carries accumulated **`damage`** = the total energy it has dissipated
+  to the sink over its life (its lifetime entropy production). It grows by exactly
+  the energy charged each tick (metabolism) plus the loss dissipated per birth
+  (`(1−YIELD)·commit + BUILD_COST`).
+* Damage adds an **aging term to the metabolic bill**: `charge += damage ·
+  AGING_COST`. Because that aging charge is itself dissipated, damage feeds back —
+  upkeep accelerates with age (the **Gompertz law**: mortality rate rises with
+  age).
+* **No immortality.** Every living unit pays at least `BASAL_COST`, so damage only
+  ever grows, while the harvest ceiling is bounded (Vmax, §5/v1). Aging cost
+  therefore eventually exceeds any possible intake → death by the *unchanged*
+  derived predicate `energy ≤ 0`. No new death rule, no coded death tick.
+* **Germline renewal / asymmetric segregation.** Offspring are born with
+  `damage = 0`; the parent keeps its accumulated damage. So a lineage escapes
+  entropy *only* by reproducing — reproduce-or-perish, the pressure that keeps
+  evolution flowing. Both real failure modes emerge from this one law: a pure
+  eater dies of chronological aging (metabolic dissipation), a heavy reproducer of
+  replicative aging (reproduction dissipation — a finite bud count).
+* **Aging rate is emergent, not assigned.** `AGING_COST` is a uniform conversion
+  (entropy → cost), identical for every unit — *not* a per-unit lifespan. Because
+  damage tracks each unit's own dissipation, a frugal/efficient cell ages slowly
+  and lives long (caloric restriction extends lifespan — real), a busy/hoarding/
+  fecund one ages fast. Lifespan **falls out** of each genome's own
+  work/harvest/reproduction balance; the kernel never says when anyone dies. This
+  is the line that separates it from the coded lifespan §12 forbids.
+* Conservation holds: the aging charge flows unit → sink like every other cost.
 
 ---
 
@@ -371,10 +404,12 @@ set (once), never tuned to an outcome:
 * **Scale anchors** — `SELF_ENERGY_SCALE`, `REPRODUCE_HALF` (set once).
 * **World-harshness** — `REPRODUCE_MAX` (max investment rate), `REPRODUCE_YIELD`
   (build efficiency, proportional cost), `BUILD_COST` (fixed per-birth
-  biosynthesis cost — the anti-spam term, ADR 0016), `MUTATION_RATE_PER_BIT`
-  (variation strength). These define how costly and how faithful reproduction is;
-  set once to make an evolvable world, never tuned to hit a target generation
-  count, lineage diversity, or population size.
+  biosynthesis cost — the anti-spam term, ADR 0016), `AGING_COST` (entropy → upkeep
+  conversion — the senescence term, §7, ADR 0017), `MUTATION_RATE_PER_BIT`
+  (copy fidelity — kept *low* so reproduction outruns mutational meltdown / error
+  catastrophe under forced turnover). These define how costly, how faithful, and
+  how mortal life is; set once to make an evolvable world, never tuned to hit a
+  target generation count, lineage diversity, lifespan, or population size.
 * **`MAX_UNITS`** and **`MAX_GENES`** are memory bounds (scale/safety anchors),
   explicitly **not** regulators — `MAX_UNITS` does not cap population (§5) and
   `MAX_GENES` is headroom for genome growth, not a tuned complexity ceiling. The
