@@ -11,7 +11,9 @@ public record RunConfig(
         boolean demo,
         String outPath,
         int mapFrames,
-        int servePort
+        int servePort,
+        boolean observe,
+        int checkpointEvery
 ) {
 
     public static RunConfig parse(String[] args) {
@@ -22,8 +24,10 @@ public record RunConfig(
         Integer maxGenes = null;
         Integer mapFrames = null;
         Integer servePort = null;
+        Integer checkpointEvery = null;
         long seed = 0L;
         boolean trace = false;
+        boolean observe = false;
         String outPath = null;
 
         for (int i = 0; i < args.length; i++) {
@@ -35,16 +39,23 @@ public record RunConfig(
                 case "--max-genes" -> maxGenes = Integer.parseInt(args[++i]);
                 case "--map-frames" -> mapFrames = Integer.parseInt(args[++i]);
                 case "--serve" -> servePort = Integer.parseInt(args[++i]);
+                case "--checkpoint-every" -> checkpointEvery = Integer.parseInt(args[++i]);
                 case "--seed" -> seed = Long.parseLong(args[++i]);
                 case "--trace" -> trace = true;
+                case "--observe" -> observe = true;
                 case "--out" -> outPath = args[++i];
                 default -> throw new IllegalArgumentException("Unknown argument: " + args[i]);
             }
         }
 
+        if (observe && outPath == null) {
+            throw new IllegalArgumentException("--observe requires --out (the .obs/ dir sits beside it)");
+        }
+
         boolean demo = units == null && genes == null;
         if (demo) {
-            return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, 0, 0);
+            return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, 0, 0,
+                    observe, checkpointEvery == null ? 2000 : checkpointEvery);
         }
         int u = units == null ? 1 : units;
         int g = genes == null ? 32 : genes;
@@ -65,7 +76,9 @@ public record RunConfig(
                 false,
                 outPath,
                 mapFrames == null ? 120 : mapFrames,
-                servePort == null ? 0 : servePort
+                servePort == null ? 0 : servePort,
+                observe,
+                checkpointEvery == null ? 2000 : checkpointEvery
         );
     }
 

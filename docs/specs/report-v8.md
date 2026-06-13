@@ -94,21 +94,34 @@ tracks.
 ### `metrics.csv` — per-tick aggregates (every tick; O(1) per tick)
 ```
 tick,population,lineages_alive,births_cum,deaths_cum,energy_total,field_total,
-     sink,intake_cum,inflow_cum,audit_error,max_generation
+     sink,inflow_cum,audit_error,max_generation
 ```
-Supersedes today's `timeseries.csv` (renamed and moved under `.obs/`; not emitted
-alongside — one canonical metric stream, not two). Every-tick is affordable: a
-fixed-width row, streamed and flushed, no in-RAM growth.
+`deaths_cum` is derived (`founderCount + births_cum − population`), not stored —
+every individual is a founder or a birth, and a living slot is one that has not
+died. `audit_error` is the closed-system residual (contract v3 §7), ~0 (FP noise).
+`intake_cum` from the original draft is dropped: cumulative intake is not a
+kernel-tracked quantity, and adding state to the pure kernel solely to log it is
+unjustified — `inflow_cum` already closes the audit. Supersedes today's
+`timeseries.csv` (renamed, conceptually moved under `.obs/`; not double-emitted).
+Every-tick is affordable: a fixed-width row, streamed and flushed, no in-RAM growth.
 
 ### `map.txt` — spatial sample (unchanged from report-v7)
-Resource field + per-cell lineage, sampled every K ticks.
+Resource field + per-cell lineage, sampled every K ticks. Stays at its report-v7
+sibling location (`<base>.map.txt`, beside `--out`), written by the existing
+`--map-frames` path; the manifest records its `mapSampleEvery` so a reader can find
+and align it. Only the new artifacts (manifest, events, metrics, checkpoints) live
+under `<base>.obs/`.
 
 ### `ckpt/<tick>.ckpt` — full-state checkpoints (binary, every C ticks)
 Restore point for O(1)-ish replay jumps. Contents = the complete restorable kernel
 state at that tick: `tick`, and per-slot `genes`/`geneCount`, `energy`, `damage`,
-`lineageId`, `generation`, `position`; plus `resourceField`, `outputsPrev`,
-`delayMemory`, `energySink`, `cumulativeInflow`, `birthsTotal`, `maxGeneration`.
-(`cellOccupant` is rederived from `position`.) **No RNG state is stored**: the
+`lineageId`, `generation`, `position`; plus `resourceField`, `cellOccupant`,
+`outputsPrev`, `delayMemory`, `energySink`, `cumulativeInflow`, `birthsTotal`,
+`maxGeneration`. (`cellOccupant` **is** stored, not rederived from `position`: a
+parent that spends to exactly 0 energy in reproduction dies without freeing its
+cell — only metabolic death frees it — so a cell may be occupied by a corpse, and
+occupancy is not a function of the living units' positions.) **No RNG state is
+stored**: the
 runtime RNG is the stateless counter-based `Noise.sample(seed, slot, tick)`, a pure
 function of the seed and the (slot, tick) being computed — there is no internal
 generator state to capture, and `tick` is already in the checkpoint. This is also
@@ -167,23 +180,29 @@ COPY (SELECT * FROM read_json_auto('run.obs/events.jsonl'))
 datasource at `<base>.obs/` later for dashboards/alerting with zero migration. It
 is explicitly *not* required and *not* the storage of record.
 
-## Time-travel viewer (`tools/`, stdlib + DuckDB)
+## Time-travel viewer (`tools/timetravel.py`, stdlib + optional DuckDB)
 
-Extends the report-v7 viewers with a **snapshot page**: given a run and a tick T,
-the JVM replays to T and dumps a one-shot state page — the lattice (as `map.txt`
-frames), a per-unit table (energy, damage, generation, cell), and the selected
-unit's live circuit (as `visualize.py` already renders founder/evolved circuits).
-This is the "open tick T, see everything" surface. Aggregate panels (population,
-energy, lineage counts) render from `metrics.csv`/`events.jsonl` via DuckDB.
+The report-v7 viewers gain a **snapshot page**. The JVM replays to T and writes a
+one-shot text dump (`SnapshotDump`: `tick`/`world`/`resource` + `unit` rows +
+`wire` rows — the lattice, a per-unit table, and every living unit's evolved
+circuit). `tools/timetravel.py` renders it to a self-contained HTML "open tick T,
+see everything" page: resource heatmap + units by lineage (click a cell to
+inspect), the per-unit table, the selected unit's circuit drawn sensor→internal→
+action, and population/energy charts (from the sibling `metrics.csv`) with a marker
+at T. Aggregate questions can also go straight to DuckDB over the artifacts.
 
 ## CLI
 
 ```
 --observe                 enable the observability layer (writes <base>.obs/; requires --out)
 --checkpoint-every C      full-state checkpoint cadence (default 2000; 0 disables → pure replay)
+--replay <obsDir> --at T [--snapshot-out <file>]
+                          replay mode: reconstruct tick T and dump its state page
 ```
 Off by default: tests, baseline, and the standard report path are untouched and
 allocate nothing new. `--observe` requires `--out` (the `.obs/` dir sits beside it).
+`--replay` is a distinct invocation (no run); with no `--snapshot-out` the dump
+goes to stdout.
 
 ## Memory & determinism guarantees (must hold)
 
@@ -200,3 +219,16 @@ allocate nothing new. `--observe` requires `--out` (the `.obs/` dir sits beside 
 Live push to Grafana during a run; cross-run comparison dashboards; per-tick
 per-unit streaming (replay covers it); compression/retention policy for very long
 runs' checkpoints.
+
+## Status — implemented (ADR 0023)
+
+Shipped: `Kernel.saveState`/`loadState`, `RunManifest` (+ `ConfigHash`),
+`EventLogWriter` / `MetricsWriter` / `CheckpointWriter`, `Replayer`,
+`SnapshotDump`, the `--observe` / `--checkpoint-every` / `--replay` CLI, and
+`tools/timetravel.py`. All four must-hold guarantees are asserted in
+`ObservabilityTest` (replay exactness across checkpoint boundaries, sink-off
+byte-identity, manifest round-trip, configHash-mismatch refusal). One spec change
+fell out of implementation: `cellOccupant` is **stored** in checkpoints, not
+rederived — a parent can spend to exactly 0 energy in reproduction and die without
+freeing its cell (only metabolic death frees it), so occupancy is not a function of
+living positions (noted above; the kernel asymmetry itself is flagged separately).

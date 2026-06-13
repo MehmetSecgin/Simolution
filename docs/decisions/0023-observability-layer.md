@@ -60,6 +60,13 @@ not `GenomeFactory` code; founding state is data, like `founderCells`.
   late-tick inspection O(C). Checkpointing is opt-out (`--checkpoint-every 0`).
 
 ## Status
-Design only (report-v8). Implementation deferred — sim-side sink + manifest (with
-verbatim founder genomes) + replay/checkpoint (save/restore only) + event log to
-follow, behind `--observe` (off by default, tests and baseline untouched).
+Implemented (report-v8). `Kernel.saveState`/`loadState` (+ `connectionsOf`, genes
+exposed read-only in the snapshot for mutation diffing), `RunManifest` + `ConfigHash`
+(verbatim founder genomes), `EventLogWriter` / `MetricsWriter` / `CheckpointWriter`,
+`Replayer`, `SnapshotDump`, `--observe` / `--checkpoint-every` / `--replay`, and
+`tools/timetravel.py`. Guarantees asserted in `ObservabilityTest`. Baseline
+byte-identical (changes are additive; `--observe` off by default). One refinement:
+checkpoints **store** `cellOccupant` rather than rederiving it — reproductive death
+(spending to exactly 0 energy) leaves a cell occupied by a corpse, so occupancy is
+not a pure function of living positions. That kernel asymmetry is flagged for a
+separate decision (it would change dynamics + baseline).

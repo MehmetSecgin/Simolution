@@ -29,6 +29,16 @@ python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 # 120; 0 disables). Then:
 python3 tools/mapviz.py runs/baseline.map.txt   # writes runs/baseline.map.html
 
+# observability layer (report-v8): optional, decoupled, off by default. Writes
+# <base>.obs/ (manifest.json, events.jsonl, metrics.csv, ckpt/<tick>.ckpt) beside
+# --out. Determinism is the time machine: store the replay key + periodic
+# checkpoints, recompute any tick on demand. Sink-off runs stay byte-identical.
+./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo.txt --observe --checkpoint-every 2000"
+# then reconstruct any tick at full fidelity (lattice + per-unit + evolved circuits):
+./gradlew run --args="--replay runs/foo.obs --at 600 --snapshot-out runs/foo.obs/snap-600.txt"
+python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
+# aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
+
 # watch a run LIVE while it ticks (report-v7 live mode): the run starts an
 # in-JVM HTTP server that tails the streamed .map.txt; open the URL to follow the
 # lattice in real time, then scrub/replay after it ends (Ctrl-C to stop serving).
@@ -61,7 +71,7 @@ com.simolution
     │   ├── GeneDecoder       gene → CompiledConnection; modulo ID wrap; weight scaling
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (precompute, never per-tick)
     ├── runtime
-    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-intake → settle-cost → settle-reproduction → settle-movement → settle-diffusion (9 phases); W×W toroidal lattice, slot = permanent storage identity, cell = position[slot] (cellOccupant enforces one-per-cell), per-cell resource field (double-buffered), per-cell intake, spatial birth into a free Moore neighbour, MOVE_N/S/E/W motility, per-slot genes recompiled at birth (never on move), population derived (energy>0)
+    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-intake → settle-cost → settle-reproduction → settle-movement → settle-diffusion (9 phases); W×W toroidal lattice, slot = permanent storage identity, cell = position[slot] (cellOccupant enforces one-per-cell), per-cell resource field (double-buffered), per-cell intake, spatial birth into a free Moore neighbour, MOVE_N/S/E/W motility, per-slot genes recompiled at birth (never on move), population derived (energy>0); saveState/loadState for report-v8 checkpoints (rebuilds structure from genes; cellOccupant stored, not rederived) + connectionsOf(slot) for replay circuit inspection
     │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + sink
     │   └── Noise             stateless counter-based RNG: sample(seed, unit, tick)
     └── logging
@@ -75,7 +85,13 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── MapFrameWriter            streams sampled spatial frames to <base>.map.txt (report-v7); O(1) RAM
 ├── LiveServer                --serve PORT: in-JVM HTTP server tailing .map.txt for the live viewer (report-v7)
 ├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
-└── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
+├── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
+├── RunManifest/ConfigHash    report-v8 replay key (verbatim founder genomes+cells, KernelConfig fingerprint)
+├── EventLogWriter            report-v8 events.jsonl — births/deaths/extinctions derived from snapshot deltas; mutation bits by child↔parent gene diff (no kernel hook)
+├── MetricsWriter             report-v8 metrics.csv — per-tick aggregates, streamed, O(1)/tick
+├── CheckpointWriter          report-v8 ckpt/<tick>.ckpt — full-state checkpoints via Kernel.saveState every C ticks
+├── Replayer                  report-v8 replay: open manifest, seekTo(T) = nearest ckpt + forward ticks, circuitOf(slot); refuses on configHash mismatch
+└── SnapshotDump              report-v8 one-shot tick-T state page (lattice + per-unit + evolved circuits) for tools/timetravel.py
 ```
 
 Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]`. SrcType 0=sensor 1=internal; DstType 0=internal 1=action. IDs wrap modulo TYPE_COUNT, so **every random int is a legal gene**. Weight: signed int16 × (4.0 / 32767), linear, unclamped.
@@ -93,6 +109,7 @@ Binding (implementations MUST conform):
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
 - [docs/specs/report-v6.md](docs/specs/report-v6.md) — run report + per-unit CSV + wiring CSV schema (reproduction section: births, generations, population, lineages); delta over [report-v5.md](docs/specs/report-v5.md)
 - [docs/specs/report-v7.md](docs/specs/report-v7.md) — spatial map sidecar `<base>.map.txt` (resource field + per-cell lineage, sampled, streamed) + `tools/mapviz.py` HTML scrub player; delta over report-v6
+- [docs/specs/report-v8.md](docs/specs/report-v8.md) — observability layer: deterministic-replay time-travel (manifest + checkpoints), decoupled `events.jsonl`/`metrics.csv` sinks (kernel stays pure — no event hook), DuckDB/Parquet query layer, `tools/timetravel.py`. Implemented (ADR 0023); `--observe` off by default, sink-off runs byte-identical; delta over report-v7
 
 Historical / non-binding:
 
@@ -155,4 +172,5 @@ Solo local repo: no remote, no `main` trunk, no PR flow. One long-lived branch *
 6. ~~Space (basic)~~ done (ADR 0018 geometry, 0019 economics): 2D toroidal lattice, per-cell resource field + diffusion, `LOCAL_RESOURCE` replaces global RESOURCE, one-pixel-one-unit, spatial birth into a free Moore neighbour, halt-on-full retired. Sessile. Yields coexisting lineages (vs the old monoculture).
 7. ~~Motility~~ done (ADR 0020): `MOVE_N/S/E/W` effectors (Fork B), one Moore step/tick, `MOVE_COST`, deadzone, blocked-if-occupied; position decoupled from slot (no per-move recompile/alloc); chemotaxis emergent via LOCAL_RESOURCE + DELAY.
 8. ~~Spatial map + scrub viewer + live viewer~~ done (report-v7): `MapFrameWriter` streams a sampled `<base>.map.txt` (resource field + per-cell lineage, O(1) RAM); `tools/mapviz.py` renders a self-contained HTML scrub player; `--serve PORT` starts an in-JVM `LiveServer` (`com.sun.net.httpserver`, no deps) that tails the file so a run can be watched live (`src/main/resources/live.html`, follow-live + scrub).
-9. Later: CROWDING/EMIT + quorum, multi-resource + stoichiometry, fluctuating/patchy inflow, variable-length genomes (indels), biomass as a distinct variable (Pirt).
+9. ~~Observability layer~~ done (report-v8, ADR 0023): deterministic-replay time-travel (`RunManifest` + `CheckpointWriter` + `Replayer`, `Kernel.saveState`/`loadState`), decoupled `EventLogWriter`/`MetricsWriter` sinks (kernel stays pure — no event hook; events + mutation bits derived from snapshots/gene-diff), DuckDB/Parquet query layer, `tools/timetravel.py` time-travel page. `--observe` off by default; sink-off runs byte-identical.
+10. Later: CROWDING/EMIT + quorum, multi-resource + stoichiometry, fluctuating/patchy inflow, variable-length genomes (indels), biomass as a distinct variable (Pirt).

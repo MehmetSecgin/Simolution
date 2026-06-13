@@ -3,6 +3,7 @@ package com.simolution;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.genome.GenomeCompiler;
@@ -11,15 +12,22 @@ import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.logging.ConsoleTableLogger;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.sim.CheckpointWriter;
+import com.simolution.sim.ConfigHash;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.DynamicsSummary;
+import com.simolution.sim.EventLogWriter;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.LineageReport;
 import com.simolution.sim.LiveServer;
 import com.simolution.sim.MapFrameWriter;
+import com.simolution.sim.MetricsWriter;
 import com.simolution.sim.PopulationReport;
+import com.simolution.sim.Replayer;
 import com.simolution.sim.RunConfig;
+import com.simolution.sim.RunManifest;
 import com.simolution.sim.RunReport;
+import com.simolution.sim.SnapshotDump;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
 import com.simolution.sim.TimeSeriesReport;
@@ -31,6 +39,10 @@ public class Main {
     private static final int MAX_TRACED_UNITS = 8;
 
     static void main(String[] args) throws IOException {
+        if (Arrays.asList(args).contains("--replay")) {
+            runReplay(args);
+            return;
+        }
         RunConfig config = RunConfig.parse(args);
 
         int[][] genomes = config.demo()
@@ -46,8 +58,8 @@ public class Main {
         }
         int worldWidth = config.worldWidth();
         int maxUnits = worldWidth * worldWidth;
-        Kernel kernel = new Kernel(genomes, worldWidth, maxGenes,
-                Kernel.scatterFounders(genomes.length, worldWidth));
+        int[] founderCells = Kernel.scatterFounders(genomes.length, worldWidth);
+        Kernel kernel = new Kernel(genomes, worldWidth, maxGenes, founderCells);
         DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
@@ -75,6 +87,28 @@ public class Main {
             throw new IllegalArgumentException("--serve requires --out (and --map-frames > 0) to stream frames");
         }
 
+        EventLogWriter eventLog = null;
+        MetricsWriter metrics = null;
+        CheckpointWriter checkpoints = null;
+        Path obsDir = null;
+        if (config.observe()) {
+            obsDir = obsDir(Path.of(config.outPath()));
+            Files.createDirectories(obsDir);
+            eventLog = new EventLogWriter(Files.newBufferedWriter(obsDir.resolve("events.jsonl")),
+                    maxUnits, genomes.length, worldWidth, founderCells);
+            metrics = new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
+                    genomes.length, maxUnits);
+            checkpoints = new CheckpointWriter(obsDir.resolve("ckpt"), config.checkpointEvery());
+            int mapSampleEvery = config.mapFrames() > 0
+                    ? Math.max(1, config.ticks() / config.mapFrames()) : 0;
+            RunManifest manifest = new RunManifest("v3", config.seed(), worldWidth, genomes.length,
+                    founderCells, genomes, config.seed(), config.genesPerUnit(), maxGenes,
+                    config.ticks(), ConfigHash.compute(), config.checkpointEvery(), mapSampleEvery);
+            Files.writeString(obsDir.resolve("manifest.json"), manifest.toJson());
+            System.out.println("observability layer writing to " + obsDir + "/ (manifest, events.jsonl, "
+                    + "metrics.csv, ckpt/ every " + config.checkpointEvery() + " ticks)");
+        }
+
         long startNanos = System.nanoTime();
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();
@@ -84,12 +118,24 @@ public class Main {
             if (mapWriter != null) {
                 mapWriter.maybeFrame(snapshot);
             }
+            if (eventLog != null) {
+                eventLog.observe(snapshot);
+                metrics.sample(snapshot);
+                checkpoints.maybeCheckpoint(kernel, snapshot);
+            }
             if (trace != null) {
                 trace.log(snapshot, unitsToTrace);
             }
         }
         if (mapWriter != null) {
             mapWriter.close();
+        }
+        if (eventLog != null) {
+            eventLog.close();
+            metrics.close();
+            checkpoints.close();
+            System.out.println("observability artifacts written to " + obsDir
+                    + "/ (replay: ./gradlew run --args=\"--replay " + obsDir + " --at <tick>\")");
         }
         if (liveServer != null) {
             liveServer.markDone();
@@ -153,6 +199,52 @@ public class Main {
                 liveServer.stop();
             }
         }
+    }
+
+    /**
+     * Replay surface (report-v8): {@code --replay <obsDir> --at <T> [--snapshot-out <file>]}.
+     * Reconstructs tick T from the recorded run (checkpoint + forward ticks) and
+     * writes a {@link SnapshotDump} (lattice + per-unit table + evolved circuits) —
+     * the input {@code tools/timetravel.py} renders into an HTML state page. With
+     * no {@code --snapshot-out}, the dump goes to stdout.
+     */
+    private static void runReplay(final String[] args) throws IOException {
+        String obs = null;
+        Integer at = null;
+        String snapshotOut = null;
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+                case "--replay" -> obs = args[++i];
+                case "--at" -> at = Integer.parseInt(args[++i]);
+                case "--snapshot-out" -> snapshotOut = args[++i];
+                default -> throw new IllegalArgumentException("Unknown replay argument: " + args[i]);
+            }
+        }
+        if (obs == null || at == null) {
+            throw new IllegalArgumentException("replay needs --replay <obsDir> and --at <tick>");
+        }
+        Replayer replayer = Replayer.open(Path.of(obs));
+        KernelSnapshot snapshot = replayer.seekTo(at);
+        String dump = SnapshotDump.render(snapshot, replayer.kernel().liveConnections());
+        if (snapshotOut == null) {
+            System.out.print(dump);
+        } else {
+            Path out = Path.of(snapshotOut);
+            if (out.getParent() != null) {
+                Files.createDirectories(out.getParent());
+            }
+            Files.writeString(out, dump);
+            System.out.println("snapshot at tick " + at + " written to " + out);
+        }
+    }
+
+    private static Path obsDir(final Path reportPath) {
+        final String name = reportPath.getFileName().toString();
+        final int dot = name.lastIndexOf('.');
+        final String base = dot < 0 ? name : name.substring(0, dot);
+        final Path parent = reportPath.getParent();
+        final String dirName = base + ".obs";
+        return parent == null ? Path.of(dirName) : parent.resolve(dirName);
     }
 
     private static Path sibling(final Path reportPath, final String suffix) {

@@ -882,6 +882,29 @@ public final class Kernel {
         return out;
     }
 
+    /**
+     * The compiled connections of a single slot (sum range then mul range, the
+     * same per-unit ordering {@link #liveConnections} uses), or an empty array if
+     * the slot is dead. The evolved circuit of one unit — used by the replay
+     * time-travel surface ({@code Replayer.circuitOf}) to inspect a unit at tick T.
+     * Allocates; not a per-tick path.
+     */
+    public CompiledConnection[] connectionsOf(final int slot) {
+        if (energy[slot] <= 0.0) {
+            return new CompiledConnection[0];
+        }
+        final int n = (sumEnd[slot] - sumStart[slot]) + (mulEnd[slot] - mulStart[slot]);
+        final CompiledConnection[] out = new CompiledConnection[n];
+        int c = 0;
+        for (int i = sumStart[slot]; i < sumEnd[slot]; i++) {
+            out[c++] = connections[i];
+        }
+        for (int i = mulStart[slot]; i < mulEnd[slot]; i++) {
+            out[c++] = connections[i];
+        }
+        return out;
+    }
+
     public KernelSnapshot snapshot() {
         double resourceTotal = 0.0;
         for (final double r : resourceField) {
@@ -889,6 +912,118 @@ public final class Kernel {
         }
         return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, damage, energySink,
                 resourceTotal, resourceField, worldWidth, position, initialResourceTotal, cumulativeInflow,
-                lineageId, generation, birthsTotal, maxGeneration, creditedInitialEnergy);
+                lineageId, generation, birthsTotal, maxGeneration, creditedInitialEnergy,
+                genes, geneCount, maxGenes);
+    }
+
+    /**
+     * Serialize the complete <i>restorable</i> kernel state to a binary stream
+     * (report-v8 checkpoints). Only mutable, future-affecting state is written;
+     * everything structure-derived ({@code connections}, sum/mul ranges,
+     * {@code harvestConnCount}, {@code mulInDegree}) is rebuilt by
+     * {@link #loadState} from the genes, and the founding constants
+     * ({@code creditedInitialEnergy}, {@code initialResourceTotal}) are recomputed
+     * by the constructor from the manifest. {@code cellOccupant} <b>is</b> written:
+     * it is not rederivable from living positions, because a parent that spends
+     * down to exactly 0 energy in reproduction (phase 7) dies without freeing its
+     * cell (only phase-6 settle-cost frees on death), so a cell can stay occupied
+     * by a corpse. Per-tick scratch
+     * ({@code accumulators}, {@code mulTop*}, {@code activeThisTick},
+     * {@code outputsNext}, {@code freeSlotCursor}) is intentionally omitted — it is
+     * cleared/overwritten before it is read each tick, so it cannot influence the
+     * future. No RNG state is stored: {@link Noise} is a pure function of
+     * {@code (seed, slot, tick)}, and {@code tick} is in the dump — this is exactly
+     * why restore + tick-forward reproduces the canonical history (report-v8).
+     * <p>
+     * Format is JVM-internal (the {@link com.simolution.sim.Replayer} is the only
+     * reader): {@link java.io.DataOutputStream} big-endian, length-framed.
+     */
+    public void saveState(final java.io.DataOutput out) throws java.io.IOException {
+        out.writeInt(tick);
+        out.writeInt(unitCount);
+        out.writeInt(maxGenes);
+        for (int slot = 0; slot < unitCount; slot++) {
+            final int count = geneCount[slot];
+            out.writeInt(count);
+            final int base = slot * maxGenes;
+            for (int g = 0; g < count; g++) {
+                out.writeInt(genes[base + g]);
+            }
+            out.writeDouble(energy[slot]);
+            out.writeDouble(damage[slot]);
+            out.writeLong(lineageId[slot]);
+            out.writeInt(generation[slot]);
+            out.writeInt(position[slot]);
+        }
+        for (int cell = 0; cell < unitCount; cell++) {
+            out.writeDouble(resourceField[cell]);
+            out.writeInt(cellOccupant[cell]);
+        }
+        for (int i = 0; i < outputsPrev.length; i++) {
+            out.writeDouble(outputsPrev[i]);
+        }
+        for (int i = 0; i < delayMemory.length; i++) {
+            out.writeDouble(delayMemory[i]);
+        }
+        out.writeDouble(energySink);
+        out.writeDouble(cumulativeInflow);
+        out.writeLong(birthsTotal);
+        out.writeInt(maxGeneration);
+    }
+
+    /**
+     * Rehydrate this kernel from a {@link #saveState} dump, overwriting all
+     * mutable state and rebuilding everything structure-derived. The kernel must
+     * have been constructed with the same {@code worldWidth} and {@code maxGenes}
+     * as the saved run (the {@link com.simolution.sim.Replayer} builds it from the
+     * founders in the manifest), so the founding constants and array sizes already
+     * match; this only fast-forwards the mutable arrays to the checkpoint tick.
+     * After loading, ticking forward produces history bit-identical to the
+     * canonical run from tick 0 (asserted by the replay-exactness test).
+     */
+    public void loadState(final java.io.DataInput in) throws java.io.IOException {
+        this.tick = in.readInt();
+        final int savedUnits = in.readInt();
+        final int savedMaxGenes = in.readInt();
+        if (savedUnits != unitCount || savedMaxGenes != maxGenes) {
+            throw new IllegalStateException(
+                    "checkpoint shape (" + savedUnits + " slots, maxGenes " + savedMaxGenes
+                    + ") does not match this kernel (" + unitCount + " slots, maxGenes "
+                    + maxGenes + ")");
+        }
+        for (int slot = 0; slot < unitCount; slot++) {
+            final int count = in.readInt();
+            geneCount[slot] = count;
+            final int base = slot * maxGenes;
+            for (int g = 0; g < count; g++) {
+                genes[base + g] = in.readInt();
+            }
+            energy[slot] = in.readDouble();
+            damage[slot] = in.readDouble();
+            lineageId[slot] = in.readLong();
+            generation[slot] = in.readInt();
+            position[slot] = in.readInt();
+        }
+        for (int cell = 0; cell < unitCount; cell++) {
+            resourceField[cell] = in.readDouble();
+            cellOccupant[cell] = in.readInt();
+        }
+        for (int i = 0; i < outputsPrev.length; i++) {
+            outputsPrev[i] = in.readDouble();
+        }
+        Arrays.fill(outputsNext, 0.0);
+        for (int i = 0; i < delayMemory.length; i++) {
+            delayMemory[i] = in.readDouble();
+        }
+        this.energySink = in.readDouble();
+        this.cumulativeInflow = in.readDouble();
+        this.birthsTotal = in.readLong();
+        this.maxGeneration = in.readInt();
+
+        this.freeSlotCursor = 0;
+        Arrays.fill(activeThisTick, 0);
+        for (int slot = 0; slot < unitCount; slot++) {
+            compileSlot(slot);
+        }
     }
 }
