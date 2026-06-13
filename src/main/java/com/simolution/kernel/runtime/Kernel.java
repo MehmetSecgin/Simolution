@@ -588,6 +588,15 @@ public final class Kernel {
      * births are bounded by the energy in the system. A parent that cannot
      * afford {@code BUILD_COST} on top of any commitment simply does not
      * reproduce — an energy constraint, not a denied birth.
+     * <p>
+     * A parent may commit down to exactly zero energy (the {@code min} cap
+     * permits {@code commit == energy − BUILD_COST}): terminal, semelparous
+     * reproduction — invest everything in one final child and die. Such a parent
+     * is dead ({@code energy ≤ 0}) the instant it pays, so it vacates its cell
+     * here, mirroring {@link #settleCost} (contract v3 §5: "death frees a cell",
+     * with no carve-out for cause). Without this, a reproductive corpse would
+     * hold its cell until its slot was reused, blocking births/moves into it and
+     * making {@code cellOccupant} no longer a pure function of living positions.
      */
     private void settleReproduction() {
         freeSlotCursor = 0;
@@ -612,6 +621,9 @@ public final class Kernel {
                 continue;
             }
             energy[parent] -= commit + KernelConfig.BUILD_COST;
+            if (energy[parent] <= 0.0) {
+                cellOccupant[position[parent]] = -1;
+            }
             final double childEnergy = KernelConfig.REPRODUCE_YIELD * commit;
             final double dissipated = (commit - childEnergy) + KernelConfig.BUILD_COST;
             energySink += dissipated;

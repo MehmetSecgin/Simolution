@@ -23,59 +23,59 @@ units-rand-wired: 87
 
 ## dynamics
 ticks-with-any-activity: 999
-signal-propagations-total: 579865
-junk-sink-propagations: 146834
-junk-sink-propagation-fraction: 0.25322100833814765
-clamp-saturation-events: 14124
-thresh-flips-total: 5923
+signal-propagations-total: 506802
+junk-sink-propagations: 130059
+junk-sink-propagation-fraction: 0.25662684835497884
+clamp-saturation-events: 11831
+thresh-flips-total: 5099
 units-dormant-from-birth: 0
-units-dormant-at-end: 94
+units-dormant-at-end: 97
 
 ## reproduction
-births-total: 1386
-max-generation: 26
-peak-population: 337
-final-population: 6
-distinct-lineages-alive: 5
+births-total: 1436
+max-generation: 23
+peak-population: 342
+final-population: 3
+distinct-lineages-alive: 3
 
 ## energy
 initial-energy-total: 100000.0
-final-energy-total: 1354.169369948145
-energy-sink: 142845.34768447455
+final-energy-total: 484.1829083011809
+energy-sink: 136404.7661384583
 initial-reservoir: 1000000.0
-final-reservoir: 999972.2507141965
-cumulative-inflow: 44171.767768638354
-intake-total: 44199.51705444185
-energy-audit-error: 1.932494342327118E-8
+final-reservoir: 999993.5341666744
+cumulative-inflow: 36882.48321349334
+intake-total: 36888.949046819005
+energy-audit-error: 5.960464477539063E-8
 units-alive-at-end: 3
 units-dead-at-end: 97
 death-tick-first: 7
-death-tick-median: 360
-death-tick-last: 967
+death-tick-median: 338
+death-tick-last: 861
 
 ## intake
 units-ever-harvested: 63
-harvest-active-ticks-total: 19024
+harvest-active-ticks-total: 15560
 
 ## burn-rate
-mean-burn-rate-p0: 0.5744268324151999
-mean-burn-rate-p50: 2.770083102493075
+mean-burn-rate-p0: 0.6557944277313441
+mean-burn-rate-p50: 2.932551319648094
 mean-burn-rate-p90: 83.33333333333333
 mean-burn-rate-p100: 142.85714285714286
 
 ## terminal-regimes
-fixed-point: 83
-bounded: 5
-divergent: 12
+fixed-point: 87
+bounded: 2
+divergent: 11
 divergence-cutoff: 1000000.0
 
 ## action-channel
 units-final-y-nonfinite: 0
 final-abs-y-p0: 0.0
 final-abs-y-p50: 0.0
-final-abs-y-p90: 2.257881405072176
-final-abs-y-p100: 5.761040070802942
+final-abs-y-p90: 3.2813503474882086
+final-abs-y-p100: 9.04930259477864
 
 per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v6.md)
 per-unit-wiring: 3200 connections in the .wiring.csv sidecar (see docs/specs/report-v6.md)
-state-digest: 57ec9c047e896c73
+state-digest: 6aef1ca1a6df1a4e
