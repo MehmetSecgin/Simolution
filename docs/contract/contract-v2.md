@@ -232,8 +232,11 @@ The law (uniform, no coded lifespan):
   axis that may vary; the bit-width of one gene never changes (you add or remove
   whole genes, never resize one). These are independent.
 * **This milestone's only operator is point mutation.** A child's genome is the
-  parent's genome with each bit flipped independently at a small fixed probability
-  (`MUTATION_RATE_PER_BIT`). Under point mutation alone, gene *count* is unchanged
+  parent's genome with each bit flipped independently at a small fixed probability.
+  The rate is **split by bit class** (ADR 0021): the weight bits (0–15) flip at the
+  higher `MUTATION_RATE_WEIGHT` (near-continuous gain tuning, mostly safe); the
+  structure bits (16–31) flip at the lower `MUTATION_RATE_STRUCT` (discrete graph
+  rewiring, mostly disruptive). Under point mutation alone, gene *count* is unchanged
   parent-to-child — but it is **not fixed by the storage model** (see below).
   "Replacing part of a gene" is just a point mutation (flipping the weight, dst,
   or src bits of a word) — it needs no separate operator.
@@ -405,9 +408,11 @@ set (once), never tuned to an outcome:
 * **World-harshness** — `REPRODUCE_MAX` (max investment rate), `REPRODUCE_YIELD`
   (build efficiency, proportional cost), `BUILD_COST` (fixed per-birth
   biosynthesis cost — the anti-spam term, ADR 0016), `AGING_COST` (entropy → upkeep
-  conversion — the senescence term, §7, ADR 0017), `MUTATION_RATE_PER_BIT`
-  (copy fidelity — kept *low* so reproduction outruns mutational meltdown / error
-  catastrophe under forced turnover). These define how costly, how faithful, and
+  conversion — the senescence term, §7, ADR 0017), `MUTATION_RATE_WEIGHT` /
+  `MUTATION_RATE_STRUCT` (copy fidelity, split by bit class per ADR 0021 — both
+  kept *low* so reproduction outruns mutational meltdown / error catastrophe under
+  forced turnover, structure lower still to protect topology). These define how
+  costly, how faithful, and
   how mortal life is; set once to make an evolvable world, never tuned to hit a
   target generation count, lineage diversity, lifespan, or population size.
 * **`MAX_UNITS`** and **`MAX_GENES`** are memory bounds (scale/safety anchors),

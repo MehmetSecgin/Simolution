@@ -72,7 +72,8 @@ public final class Kernel {
      * the pool's full capacity {@code unitCount · maxGenes} up front (contract v2
      * §12 footprint note).
      */
-    public Kernel(final int[][] initialGenomes, final int worldWidth, final int maxGenes) {
+    public Kernel(final int[][] initialGenomes, final int worldWidth, final int maxGenes,
+            final int[] founderCells) {
 
         final int maxUnits = worldWidth * worldWidth;
         final int seededCount = initialGenomes.length;
@@ -80,6 +81,11 @@ public final class Kernel {
             throw new IllegalArgumentException(
                     "initial population " + seededCount + " exceeds grid capacity "
                     + maxUnits + " (worldWidth " + worldWidth + ")");
+        }
+        if (founderCells.length != seededCount) {
+            throw new IllegalArgumentException(
+                    "founderCells length " + founderCells.length
+                    + " must equal founder count " + seededCount);
         }
         this.worldWidth = worldWidth;
         this.unitCount = maxUnits;
@@ -143,11 +149,55 @@ public final class Kernel {
                 geneCount[unit] = genome.length;
                 energy[unit] = KernelConfig.INITIAL_ENERGY;
                 lineageId[unit] = unit;
-                position[unit] = unit;
-                cellOccupant[unit] = unit;
+                final int cell = founderCells[unit];
+                if (cell < 0 || cell >= maxUnits) {
+                    throw new IllegalArgumentException(
+                            "founder cell " + cell + " out of range [0, " + maxUnits + ")");
+                }
+                if (cellOccupant[cell] >= 0) {
+                    throw new IllegalArgumentException(
+                            "founder cell " + cell + " assigned to more than one founder");
+                }
+                position[unit] = cell;
+                cellOccupant[cell] = unit;
             }
             compileSlot(unit);
         }
+    }
+
+    /**
+     * Founder placement policy (ADR 0022): deterministically scatter
+     * {@code seededCount} founders over distinct cells of a
+     * {@code worldWidth × worldWidth} lattice. Returns, for each founder slot
+     * {@code [0, seededCount)}, the cell it starts in — pass straight to the
+     * constructor's {@code founderCells}.
+     * <p>
+     * A partial Fisher-Yates shuffle over the identity permutation
+     * {@code [0, W²)} drives the draws, keyed off the placement RNG
+     * ({@link Noise#placementUniform}, seeded by {@code KernelConfig.RANDOM_SEED}
+     * like RAND and mutation). This replaces the old slot==cell fill, which
+     * packed founders into a contiguous row-major strip at one edge and imposed
+     * an artificial density gradient on every run. The scatter is uniform and
+     * reproducible: same count + grid → identical layout. Placement is a setup
+     * policy, not a kernel law, so it lives here as a static helper the harness
+     * calls, leaving the constructor to take explicit cells.
+     */
+    public static int[] scatterFounders(final int seededCount, final int worldWidth) {
+        final int cellCount = worldWidth * worldWidth;
+        final int[] cell = new int[cellCount];
+        for (int i = 0; i < cellCount; i++) {
+            cell[i] = i;
+        }
+        final int[] founderCell = new int[seededCount];
+        for (int i = 0; i < seededCount; i++) {
+            final double u = Noise.placementUniform(KernelConfig.RANDOM_SEED, i);
+            final int j = i + (int) (u * (cellCount - i));
+            final int tmp = cell[i];
+            cell[i] = cell[j];
+            cell[j] = tmp;
+            founderCell[i] = cell[i];
+        }
+        return founderCell;
     }
 
     /**
@@ -771,10 +821,17 @@ public final class Kernel {
 
     /**
      * Point mutation (contract v2 §9): each of a gene's 32 bits flips
-     * independently with probability {@code MUTATION_RATE_PER_BIT}, drawn from
-     * the birth-keyed counter RNG so the result is deterministic. Mutation-safe
-     * by construction — every 32-bit value decodes to a legal gene — so no flip
-     * can be rejected.
+     * independently, drawn from the birth-keyed counter RNG so the result is
+     * deterministic. Mutation-safe by construction — every 32-bit value decodes
+     * to a legal gene — so no flip can be rejected.
+     *
+     * <p>The per-bit rate is split by what the bit changes (ADR 0021). Bits 0–15
+     * are the weight field ({@code rawGene & 0xFFFF}): near-continuous tuning of
+     * an existing connection, mostly safe, so they anneal at the higher
+     * {@code MUTATION_RATE_WEIGHT}. Bits 16–31 are the structure fields
+     * (Src/Dst type + id): discrete graph rewiring, mostly disruptive, so they
+     * mutate at the lower {@code MUTATION_RATE_STRUCT} — protecting topology
+     * while keeping weight search fast.
      */
     private void mutate(final int child) {
         final int base = child * maxGenes;
@@ -783,8 +840,11 @@ public final class Kernel {
         for (int g = 0; g < count; g++) {
             int gene = genes[base + g];
             for (int bit = 0; bit < 32; bit++) {
+                final double rate = bit < 16
+                        ? KernelConfig.MUTATION_RATE_WEIGHT
+                        : KernelConfig.MUTATION_RATE_STRUCT;
                 if (Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, index++)
-                        < KernelConfig.MUTATION_RATE_PER_BIT) {
+                        < rate) {
                     gene ^= (1 << bit);
                 }
             }

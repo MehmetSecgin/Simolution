@@ -54,7 +54,21 @@ public final class Noise {
         long h = mix(seed + GOLDEN_GAMMA * (childSlot + 1L));
         h = mix(h + GOLDEN_GAMMA * (birthTick + 1L));
         h = mix(h + GOLDEN_GAMMA * (index + 1L));
-        return (h >>> 11) * 0x1.0p-52;
+        return (h >>> 11) * 0x1.0p-53;
+    }
+
+    /**
+     * Deterministic pseudo-random double in {@code [0, 1)} for founder
+     * placement (ADR 0022): the scatter that assigns each founder its starting
+     * cell. Keyed by {@code (seed, index)} where index walks the Fisher-Yates
+     * draws. Domain-separated from {@link #sample} and {@link #mutationUniform}
+     * by an XOR salt on the second mix step, so a placement draw never collides
+     * with sensor noise or a mutation flip. Same key → same layout, always.
+     */
+    public static double placementUniform(long seed, int index) {
+        long h = mix(seed + GOLDEN_GAMMA * (index + 1L));
+        h = mix(h ^ 0x5A5A5A5A5A5A5A5AL);
+        return (h >>> 11) * 0x1.0p-53;
     }
 
     /**

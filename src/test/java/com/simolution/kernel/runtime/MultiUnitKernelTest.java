@@ -35,7 +35,7 @@ class MultiUnitKernelTest {
     void unitsDoNotLeakSignalsIntoEachOther() {
         // arrange
         Kernel kernel = new Kernel(
-                new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 2, 32);
+                new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 2, 32, new int[] {0, 1, 2});
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
 
@@ -59,9 +59,10 @@ class MultiUnitKernelTest {
     void unitZeroIsInvariantUnderPopulationSize() {
         // arrange
         Kernel alone = new Kernel(
-                new int[][] {FEEDBACK_GENOME}, 1, 32);
+                new int[][] {FEEDBACK_GENOME}, 1, 32, new int[] {0});
         Kernel crowded = new Kernel(
-                new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 3, 32);
+                new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 3, 32,
+                new int[] {0, 1, 2, 3, 4});
 
         // act + assert
         for (int tick = 0; tick < 20; tick++) {
@@ -79,7 +80,7 @@ class MultiUnitKernelTest {
     void unitsReceiveDistinctRandStreams() {
         // arrange
         Kernel kernel = new Kernel(
-                new int[][] {EMPTY_GENOME, EMPTY_GENOME}, 2, 32);
+                new int[][] {EMPTY_GENOME, EMPTY_GENOME}, 2, 32, new int[] {0, 1});
         int randIdx = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
 
         // act

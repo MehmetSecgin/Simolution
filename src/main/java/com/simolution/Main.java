@@ -46,7 +46,8 @@ public class Main {
         }
         int worldWidth = config.worldWidth();
         int maxUnits = worldWidth * worldWidth;
-        Kernel kernel = new Kernel(genomes, worldWidth, maxGenes);
+        Kernel kernel = new Kernel(genomes, worldWidth, maxGenes,
+                Kernel.scatterFounders(genomes.length, worldWidth));
         DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
