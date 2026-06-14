@@ -101,7 +101,7 @@ public class Main {
             checkpoints = new CheckpointWriter(obsDir.resolve("ckpt"), config.checkpointEvery());
             int mapSampleEvery = config.mapFrames() > 0
                     ? Math.max(1, config.ticks() / config.mapFrames()) : 0;
-            RunManifest manifest = new RunManifest("v3", config.seed(), worldWidth, genomes.length,
+            RunManifest manifest = new RunManifest("v4", config.seed(), worldWidth, genomes.length,
                     founderCells, genomes, config.seed(), config.genesPerUnit(), maxGenes,
                     config.ticks(), ConfigHash.compute(), config.checkpointEvery(), mapSampleEvery);
             Files.writeString(obsDir.resolve("manifest.json"), manifest.toJson());

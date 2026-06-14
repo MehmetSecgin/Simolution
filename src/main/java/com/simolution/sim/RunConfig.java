@@ -71,7 +71,7 @@ public record RunConfig(
                 seed,
                 g,
                 w,
-                maxGenes == null ? g : maxGenes,
+                maxGenes == null ? g * 2 : maxGenes,
                 trace,
                 false,
                 outPath,

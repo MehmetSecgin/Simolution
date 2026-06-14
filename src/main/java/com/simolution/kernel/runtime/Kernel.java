@@ -580,14 +580,22 @@ public final class Kernel {
      * immediately, so a later parent sees the cell occupied and the whole
      * genealogy + geography is deterministic.
      * <p>
-     * Each birth also burns a fixed {@code BUILD_COST} to the sink — the
-     * irreducible biosynthesis overhead of assembling a new unit (ADR 0015),
-     * the reproduction analogue of the metabolic {@code BASAL_COST}. Together
-     * with the proportional yield loss it gives a Pirt-shaped reproduction bill
-     * (fixed + proportional), so spamming tiny offspring is net-lethal and total
-     * births are bounded by the energy in the system. A parent that cannot
-     * afford {@code BUILD_COST} on top of any commitment simply does not
-     * reproduce — an energy constraint, not a denied birth.
+     * Each birth also burns {@code buildCost = BUILD_COST + BUILD_COST_PER_GENE ·
+     * childGeneCount} to the sink (contract v4 §3): the fixed irreducible
+     * biosynthesis overhead (ADR 0015) plus a term proportional to the child's
+     * <i>post-indel</i> genome length. The length term is the anti-bloat pressure
+     * — carrying genes you don't use costs more to replicate, so neutral indel
+     * drift cannot silently fill a genome to {@code maxGenes} — and it is a
+     * build-time charge only, never a per-tick per-gene tax (that invariant
+     * stands). It keeps the Pirt-shaped bill (fixed + proportional) and adds size
+     * to the proportional part, so spamming tiny offspring stays net-lethal and
+     * total births are bounded by the energy in the system. Because the length
+     * term needs the child's post-indel count, the child genome is built first
+     * ({@link #buildChildGenome}), then {@code buildCost} is known, then the
+     * parent is charged; a parent that cannot afford {@code buildCost} on top of
+     * its commitment simply does not reproduce — an energy constraint, not a
+     * denied birth. (The cheap pre-filter {@code energy ≤ BUILD_COST} skips
+     * parents too poor for even an empty child without claiming a slot.)
      * <p>
      * A parent may commit down to exactly zero energy (the {@code min} cap
      * permits {@code commit == energy − BUILD_COST}): terminal, semelparous
@@ -608,10 +616,6 @@ public final class Kernel {
             if (drive <= 0.0) {
                 continue;
             }
-            final double commit = Math.min(drive, energy[parent] - KernelConfig.BUILD_COST);
-            if (commit <= 0.0) {
-                continue;
-            }
             final int childCell = freeMooreNeighbour(position[parent]);
             if (childCell < 0) {
                 continue;
@@ -620,15 +624,22 @@ public final class Kernel {
             if (childSlot < 0) {
                 continue;
             }
-            energy[parent] -= commit + KernelConfig.BUILD_COST;
+            buildChildGenome(childSlot, parent);
+            final double buildCost = KernelConfig.BUILD_COST
+                    + KernelConfig.BUILD_COST_PER_GENE * geneCount[childSlot];
+            final double commit = Math.min(drive, energy[parent] - buildCost);
+            if (commit <= 0.0) {
+                continue;
+            }
+            energy[parent] -= commit + buildCost;
             if (energy[parent] <= 0.0) {
                 cellOccupant[position[parent]] = -1;
             }
             final double childEnergy = KernelConfig.REPRODUCE_YIELD * commit;
-            final double dissipated = (commit - childEnergy) + KernelConfig.BUILD_COST;
+            final double dissipated = (commit - childEnergy) + buildCost;
             energySink += dissipated;
             damage[parent] += dissipated;
-            installChild(childSlot, childCell, parent, childEnergy);
+            finishChild(childSlot, childCell, parent, childEnergy);
             birthsTotal++;
             if (generation[childSlot] > maxGeneration) {
                 maxGeneration = generation[childSlot];
@@ -799,22 +810,38 @@ public final class Kernel {
     }
 
     /**
-     * Install a mutated copy of the parent's genome into a free slot (contract
-     * v2 §6/§9). The slot is fully reset: genes copied then point-mutated,
-     * recompiled, node state (outputs, delay memory) zeroed so the child starts
-     * inert and first acts next tick, energy and lineage tags set. {@code
-     * lineageId} is inherited unchanged (the root ancestor); {@code generation}
-     * is the parent's + 1. The child takes storage slot {@code child} and is
-     * placed in cell {@code childCell} (a free Moore neighbour, §5); slot and cell
-     * are independent (ADR 0020).
+     * Build a child's genome into a free slot from its parent's (contract v4 §2):
+     * copy the parent's live genes, apply the three mutation operators
+     * ({@link #mutate} — point mutation, then deletion, then tandem duplication),
+     * and recompile the slot's connection region ({@link #compileSlot} is
+     * length-aware, so variable length flows through with no storage rework,
+     * contract v2 §12). After this, {@code geneCount[child]} is the child's
+     * post-indel length, which {@link #settleReproduction} needs to price the
+     * per-gene build cost (contract v4 §3) before charging the parent. Runs at a
+     * birth attempt only — never per tick. If the parent then cannot afford the
+     * build, the slot is simply left dead (energy untouched): its now-stale genes
+     * are inert and unreferenced until a later birth reclaims the slot.
      */
-    private void installChild(final int child, final int childCell, final int parent, final double childEnergy) {
+    private void buildChildGenome(final int child, final int parent) {
         final int count = geneCount[parent];
         System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
         geneCount[child] = count;
         mutate(child);
         compileSlot(child);
+    }
 
+    /**
+     * Finish installing a child whose genome {@link #buildChildGenome} has
+     * already written and compiled (contract v2 §6). Node state (outputs, delay
+     * memory) is zeroed so the child starts inert and first acts next tick;
+     * energy, {@code damage} (reset to 0 — germline renewal, contract v2 §7),
+     * {@code lineageId} (inherited unchanged — the root ancestor), {@code
+     * generation} (parent's + 1), and cell are set. The child takes storage slot
+     * {@code child} and cell {@code childCell} (a free Moore neighbour, §5); slot
+     * and cell are independent (ADR 0020). Called only after the parent has been
+     * charged, so an unaffordable build never installs a living unit.
+     */
+    private void finishChild(final int child, final int childCell, final int parent, final double childEnergy) {
         final int nodeBase = child * NodeLayout.TOTAL;
         for (int n = 0; n < NodeLayout.TOTAL; n++) {
             outputsPrev[nodeBase + n] = 0.0;
@@ -832,36 +859,79 @@ public final class Kernel {
     }
 
     /**
-     * Point mutation (contract v2 §9): each of a gene's 32 bits flips
-     * independently, drawn from the birth-keyed counter RNG so the result is
-     * deterministic. Mutation-safe by construction — every 32-bit value decodes
-     * to a legal gene — so no flip can be rejected.
+     * Mutate a freshly-copied child genome in place — the three heritable
+     * operators of contract v4 §2, applied in the fixed order determinism
+     * depends on:
+     * <ol>
+     *   <li><b>Point mutation</b> (contract v2 §9 / ADR 0021): each of the 32
+     *       bits of each <i>inherited</i> gene flips at its class-split rate —
+     *       weight bits 0–15 at {@code MUTATION_RATE_WEIGHT}, structure bits
+     *       16–31 at the lower {@code MUTATION_RATE_STRUCT}, protecting topology
+     *       while keeping weight search fast.</li>
+     *   <li><b>Deletion</b>: each gene position is dropped with probability
+     *       {@code INDEL_RATE_DEL}; survivors compact toward index 0 (no holes),
+     *       shrinking {@code geneCount}.</li>
+     *   <li><b>Tandem duplication</b>: each <i>survivor</i> spawns, with
+     *       probability {@code INDEL_RATE_DUP}, a faithful copy appended at the
+     *       end — the gene-level analogue of unequal crossing-over (Ohno).
+     *       Divergence of the copy is deferred to point mutation in later
+     *       generations, so there is no separate "randomise the copy" step. A
+     *       duplication that would exceed {@code maxGenes} is dropped (the soft
+     *       cap, §1); the floor is 0 genes (an empty genome is legal and inert).</li>
+     * </ol>
+     * Mutation-safe by construction — every 32-bit value decodes to a legal gene,
+     * and copy/delete cannot forge an illegal one — so no operator can be rejected.
      *
-     * <p>The per-bit rate is split by what the bit changes (ADR 0021). Bits 0–15
-     * are the weight field ({@code rawGene & 0xFFFF}): near-continuous tuning of
-     * an existing connection, mostly safe, so they anneal at the higher
-     * {@code MUTATION_RATE_WEIGHT}. Bits 16–31 are the structure fields
-     * (Src/Dst type + id): discrete graph rewiring, mostly disruptive, so they
-     * mutate at the lower {@code MUTATION_RATE_STRUCT} — protecting topology
-     * while keeping weight search fast.
+     * <p><b>Determinism (contract v4 §4).</b> A single monotone {@code opIndex}
+     * walks every decision in exactly the order above — all point-mutation bit
+     * draws, then all deletion draws, then all duplication draws — each keyed
+     * {@code (seed, childSlot, birthTick, opIndex)} via
+     * {@link Noise#mutationUniform}. The counter never repeats within a birth and
+     * at most one birth claims a slot per tick, so every draw has a unique key:
+     * same seed → same genome, and report-v8 replay reproduces it exactly. The
+     * duplication draw is consumed for every survivor even when the cap drops its
+     * effect, so a binding cap never desynchronises the counter. This monotone
+     * single-counter key is contract v4 §4 verbatim; it replaces the v2 per-bit
+     * {@code geneIndex} key, which the index shifts of indels would have broken.
      */
     private void mutate(final int child) {
         final int base = child * maxGenes;
-        final int count = geneCount[child];
-        int index = 0;
+        int count = geneCount[child];
+        int opIndex = 0;
+
         for (int g = 0; g < count; g++) {
             int gene = genes[base + g];
             for (int bit = 0; bit < 32; bit++) {
                 final double rate = bit < 16
                         ? KernelConfig.MUTATION_RATE_WEIGHT
                         : KernelConfig.MUTATION_RATE_STRUCT;
-                if (Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, index++)
+                if (Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, opIndex++)
                         < rate) {
                     gene ^= (1 << bit);
                 }
             }
             genes[base + g] = gene;
         }
+
+        int survivors = 0;
+        for (int g = 0; g < count; g++) {
+            final boolean delete = Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, opIndex++)
+                    < KernelConfig.INDEL_RATE_DEL;
+            if (!delete) {
+                genes[base + survivors++] = genes[base + g];
+            }
+        }
+        count = survivors;
+
+        for (int g = 0; g < survivors; g++) {
+            final boolean duplicate = Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, opIndex++)
+                    < KernelConfig.INDEL_RATE_DUP;
+            if (duplicate && count < maxGenes) {
+                genes[base + count++] = genes[base + g];
+            }
+        }
+
+        geneCount[child] = count;
     }
 
     /**
