@@ -81,10 +81,11 @@
     <canvas id="cv" width="640" height="640"></canvas>
     <div class="col" style="width:100%">
       <div class="row"><label><input type="checkbox" id="follow" checked> follow live</label>
+        <label><input type="checkbox" id="bymass"> by mass</label>
         <label style="margin-left:auto"><input type="checkbox" id="showres" checked> resource</label></div>
       <div class="row"><input id="slider" type="range" min="0" max="0" value="0"></div>
       <div class="row"><button id="play">&#9654; replay</button><span id="meta" class="kv"></span></div>
-      <div class="row kv">tick <b id="tick">–</b> · frame <b id="frame">0</b>/<span id="last">0</span> · alive <b id="alive">0</b> · lineages <b id="lin">0</b></div>
+      <div class="row kv">tick <b id="tick">–</b> · frame <b id="frame">0</b>/<span id="last">0</span> · alive <b id="alive">0</b> · lineages <b id="lin">0</b> · mass <b id="massmean">0</b>/<b id="massmax">0</b></div>
     </div>
   </div>
 
@@ -144,14 +145,20 @@ function groupGenomes(f){
   return g;
 }
 
+let byMass=false, massMax=1;
+function massColor(m){ const t=Math.max(0,Math.min(1,m/massMax)); return `hsl(${Math.round(240*(1-t))},80%,55%)`; }
 function draw(){
   const f=curFrame(); if(!f) return;
   if(showRes){ const r=f.r; for(let c=0;c<r.length;c++){ ctx.fillStyle=resColor(r.charCodeAt(c)-48); ctx.fillRect((c%W)*px,((c/W)|0)*px,px,px);} }
   else{ ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height); }
-  const lin=new Set();
-  for(const u of f.units){ ctx.fillStyle=linColor(u.lineage); ctx.fillRect((u.cell%W)*px,((u.cell/W)|0)*px,px,px); lin.add(u.lineage); }
+  const lin=new Set(); let msum=0,mmax=0;
+  for(const u of f.units){ const m=u.mass||0; msum+=m; if(m>mmax)mmax=m; }
+  if(mmax>massMax) massMax=mmax;
+  for(const u of f.units){ ctx.fillStyle=byMass?massColor(u.mass||0):linColor(u.lineage); ctx.fillRect((u.cell%W)*px,((u.cell/W)|0)*px,px,px); lin.add(u.lineage); }
   $('tick').textContent=f.t; $('frame').textContent=idx; $('last').textContent=frames.length-1;
   $('alive').textContent=f.units.length; $('lin').textContent=lin.size;
+  $('massmean').textContent=f.units.length?(msum/f.units.length).toFixed(2):'0';
+  $('massmax').textContent=mmax.toFixed(2);
   $('slider').max=Math.max(0,frames.length-1); $('slider').value=idx;
   renderGenomes(f); renderDetail(f);
 }
@@ -291,7 +298,7 @@ function renderDetail(f){
     if(renderedKey!==key){ d.innerHTML=circuitSVG(u.genes); renderedKey=key; }
     const mc=u.genes.map(decodeGene).filter(w=>!w.junk).length;
     sb.innerHTML=`<span class="pill">slot <b>${u.slot}</b></span><span class="pill">gen <b>${u.gen}</b></span>`+
-      `<span class="pill">lineage <b>${u.lineage}</b></span><span class="pill">energy <b>${u.energy}</b></span>`+
+      `<span class="pill">lineage <b>${u.lineage}</b></span><span class="pill">energy <b>${u.energy}</b></span><span class="pill">mass <b>${(u.mass||0).toFixed(2)}</b></span>`+
       `<span class="pill"><b>${u.genes.length}</b> genes · <b>${mc}</b> meaningful</span>`+
       `<span class="pill">&#9889; <b id="actcount">0</b> connections active this tick</span>`;
     updateActivity(u);
@@ -324,6 +331,7 @@ async function poll(){
 }
 $('slider').oninput=(e)=>{ idx=+e.target.value; $('follow').checked=false; draw(); };
 $('showres').onchange=(e)=>{ showRes=e.target.checked; draw(); };
+$('bymass').onchange=(e)=>{ byMass=e.target.checked; draw(); };
 $('hidejunk').onchange=(e)=>{ hideJunk=e.target.checked; renderedKey=null; draw(); };
 $('follow').onchange=(e)=>{ if(e.target.checked&&frames.length){ idx=frames.length-1; draw(); } };
 $('play').onclick=()=>{ if(replaying){replaying=false;return;}

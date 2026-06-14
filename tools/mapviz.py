@@ -35,10 +35,10 @@ def parse(path):
             elif tag == "r":
                 cur["r"] = rest
             elif tag == "u":
-                # u <cell> <slot> <lineage> <generation> <energy> <geneCount> <gene...>
+                # u <cell> <slot> <lineage> <generation> <energy> <mass> <geneCount> <gene...>
                 tok = rest.split()
-                if len(tok) >= 3:
-                    cur["o"].append([int(tok[0]), int(tok[2])])
+                if len(tok) >= 6:
+                    cur["o"].append([int(tok[0]), int(tok[2]), float(tok[5])])
     if cur is not None:
         frames.append(cur)
     if world is None:
@@ -76,11 +76,13 @@ HTML = """<!doctype html><html><head><meta charset="utf-8">
     <div class="row"><input id="slider" type="range" min="0" max="{maxidx}" value="0"></div>
     <div class="row"><label>speed</label><input id="speed" type="range" min="1" max="60" value="12"><span id="fps" class="stat"></span></div>
     <div class="row"><label><input type="checkbox" id="showres" checked> resource heatmap</label></div>
+    <div class="row"><label><input type="checkbox" id="bymass"> colour by mass</label></div>
     <div class="row stat">tick <b id="tick">0</b></div>
     <div class="row stat">frame <b id="frame">0</b> / {maxidx}</div>
     <div class="row stat">alive <b id="alive">0</b></div>
     <div class="row stat">lineages <b id="lin">0</b></div>
-    <div class="row stat" style="margin-top:14px">units coloured by lineage; background = resource (dark&rarr;green).</div>
+    <div class="row stat">mass mean <b id="massmean">0</b> &middot; max <b id="massmax">0</b></div>
+    <div class="row stat" style="margin-top:14px">units coloured by lineage (or mass: blue&rarr;red, scaled to run max); background = resource (dark&rarr;green).</div>
   </div>
 </div>
 <script>
@@ -99,8 +101,15 @@ function resColor(level) {{
   const t = level / 9;
   return `rgb(${{Math.round(t*18)}},${{Math.round(24+t*108)}},${{Math.round(t*46)}})`;
 }}
+let MASSMAX = 0;
+for (const f of FRAMES) for (const u of f.o) if (u[2] > MASSMAX) MASSMAX = u[2];
+if (MASSMAX <= 0) MASSMAX = 1;
+function massColor(m) {{
+  const t = Math.max(0, Math.min(1, m / MASSMAX));
+  return `hsl(${{Math.round(240 * (1 - t))}},80%,55%)`;  // blue (small) -> red (large)
+}}
 
-let idx = 0, playing = false, fps = 12, showRes = true;
+let idx = 0, playing = false, fps = 12, showRes = true, byMass = false;
 
 function draw() {{
   const f = FRAMES[idx];
@@ -116,15 +125,19 @@ function draw() {{
   }}
   // living units
   const lineages = new Set();
-  for (const [cell, lineage] of f.o) {{
-    ctx.fillStyle = linColor(lineage);
+  let msum = 0, mmax = 0;
+  for (const [cell, lineage, mass] of f.o) {{
+    ctx.fillStyle = byMass ? massColor(mass) : linColor(lineage);
     ctx.fillRect((cell % W) * px, ((cell / W) | 0) * px, px, px);
     lineages.add(lineage);
+    msum += mass; if (mass > mmax) mmax = mass;
   }}
   document.getElementById('tick').textContent = f.t;
   document.getElementById('frame').textContent = idx;
   document.getElementById('alive').textContent = f.o.length;
   document.getElementById('lin').textContent = lineages.size;
+  document.getElementById('massmean').textContent = f.o.length ? (msum / f.o.length).toFixed(2) : '0';
+  document.getElementById('massmax').textContent = mmax.toFixed(2);
   document.getElementById('slider').value = idx;
 }}
 
@@ -148,6 +161,7 @@ document.getElementById('step').onclick = () => {{ idx = (idx + 1) % FRAMES.leng
 document.getElementById('slider').oninput = (e) => {{ idx = +e.target.value; draw(); }};
 document.getElementById('speed').oninput = (e) => {{ fps = +e.target.value; document.getElementById('fps').textContent = fps + '/s'; }};
 document.getElementById('showres').onchange = (e) => {{ showRes = e.target.checked; draw(); }};
+document.getElementById('bymass').onchange = (e) => {{ byMass = e.target.checked; draw(); }};
 document.getElementById('fps').textContent = fps + '/s';
 draw();
 </script></body></html>

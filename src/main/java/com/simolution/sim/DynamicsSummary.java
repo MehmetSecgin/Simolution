@@ -36,7 +36,8 @@ public record DynamicsSummary(
         long birthsTotal,
         int maxGeneration,
         double creditedInitialMass,
-        double finalMassTotal
+        double finalMassTotal,
+        double[] finalMass
 ) {
 
     public static final double DIVERGENCE_CUTOFF = 1.0e6;

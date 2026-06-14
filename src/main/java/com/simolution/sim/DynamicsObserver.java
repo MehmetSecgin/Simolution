@@ -61,6 +61,7 @@ public final class DynamicsObserver {
     private final double[] prevEnergy;
     private final int[] deathTick;
     private final double[] finalEnergy;
+    private final double[] finalMass;
     private final double[] peakBurn;
     private final long[] propagationsByUnit;
     private final int[] ticksActiveByUnit;
@@ -120,6 +121,8 @@ public final class DynamicsObserver {
         Arrays.fill(deathTick, -1);
         this.finalEnergy = new double[unitCount];
         Arrays.fill(finalEnergy, KernelConfig.INITIAL_ENERGY);
+        this.finalMass = new double[unitCount];
+        Arrays.fill(finalMass, KernelConfig.INITIAL_MASS);
         this.peakBurn = new double[unitCount];
         this.propagationsByUnit = new long[unitCount];
         this.ticksActiveByUnit = new int[unitCount];
@@ -220,6 +223,7 @@ public final class DynamicsObserver {
                 deathTick[unit] = snapshot.tick;
             }
             finalEnergy[unit] = snapshot.energy[unit];
+            finalMass[unit] = snapshot.mass[unit];
         }
 
         // population-wide reproduction aggregates over every slot (founders and
@@ -409,7 +413,8 @@ public final class DynamicsObserver {
                 birthsTotal,
                 maxGeneration,
                 creditedInitialMass,
-                finalMassTotal
+                finalMassTotal,
+                finalMass
         );
     }
 }

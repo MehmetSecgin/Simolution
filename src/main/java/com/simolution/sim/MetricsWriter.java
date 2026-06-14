@@ -33,7 +33,7 @@ public final class MetricsWriter implements Closeable {
         this.line = new StringBuilder(160);
         this.lineageSeen = new boolean[founderCount];
         out.write("tick,population,lineages_alive,births_cum,deaths_cum,energy_total,"
-                + "field_total,sink,inflow_cum,audit_error,max_generation\n");
+                + "field_total,sink,inflow_cum,audit_error,max_generation,mass_total\n");
     }
 
     public void sample(final KernelSnapshot snapshot) throws IOException {
@@ -75,7 +75,8 @@ public final class MetricsWriter implements Closeable {
             .append(sink).append(',')
             .append(inflow).append(',')
             .append(auditError).append(',')
-            .append(snapshot.maxGeneration).append('\n');
+            .append(snapshot.maxGeneration).append(',')
+            .append(snapshot.massTotal).append('\n');
         out.write(line.toString());
         out.flush();
     }

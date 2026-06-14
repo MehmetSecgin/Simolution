@@ -12,7 +12,7 @@ import java.util.Arrays;
  */
 public final class RunReport {
 
-    public static final String SCHEMA = "report-v6";
+    public static final String SCHEMA = "report-v10";
 
     private RunReport() {}
 
@@ -22,7 +22,7 @@ public final class RunReport {
 
         out.append("# Simolution run report\n");
         out.append("schema: ").append(SCHEMA).append('\n');
-        out.append("kernel: v4\n");
+        out.append("kernel: v5\n");
         out.append("seed: ").append(config.seed()).append('\n');
         out.append("units: ").append(units).append('\n');
         out.append("world-width: ").append(config.worldWidth()).append('\n');
@@ -79,6 +79,18 @@ public final class RunReport {
         out.append("death-tick-last: ")
            .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length - 1]).append('\n');
 
+        out.append("\n## mass\n");
+        final double[] aliveMass = aliveMasses(dynamics);
+        out.append("initial-mass-total: ").append(dynamics.creditedInitialMass()).append('\n');
+        out.append("final-mass-total: ").append(dynamics.finalMassTotal()).append('\n');
+        out.append("units-alive: ").append(aliveMass.length).append('\n');
+        out.append("final-mass-mean-alive: ")
+           .append(aliveMass.length == 0 ? 0.0 : dynamics.finalMassTotal() / aliveMass.length).append('\n');
+        out.append("final-mass-p0: ").append(quantile(aliveMass, 0)).append('\n');
+        out.append("final-mass-p50: ").append(quantile(aliveMass, 50)).append('\n');
+        out.append("final-mass-p90: ").append(quantile(aliveMass, 90)).append('\n');
+        out.append("final-mass-p100: ").append(quantile(aliveMass, 100)).append('\n');
+
         out.append("\n## intake\n");
         out.append("units-ever-harvested: ").append(dynamics.countEverHarvested()).append('\n');
         out.append("harvest-active-ticks-total: ").append(dynamics.harvestActiveTicksTotal()).append('\n');
@@ -131,5 +143,30 @@ public final class RunReport {
         }
         final int index = (int) Math.floor(p / 100.0 * (sorted.length - 1));
         return sorted[index];
+    }
+
+    /**
+     * Sorted final masses of the units alive at end (death tick &lt; 0). Corpses
+     * are excluded because death dissipates a unit's mass to the sink (contract
+     * v5 §6), so their mass is 0 and would skew the size distribution.
+     */
+    private static double[] aliveMasses(final DynamicsSummary dynamics) {
+        final int[] death = dynamics.deathTick();
+        final double[] mass = dynamics.finalMass();
+        int alive = 0;
+        for (final int d : death) {
+            if (d < 0) {
+                alive++;
+            }
+        }
+        final double[] out = new double[alive];
+        int cursor = 0;
+        for (int unit = 0; unit < death.length; unit++) {
+            if (death[unit] < 0) {
+                out[cursor++] = mass[unit];
+            }
+        }
+        Arrays.sort(out);
+        return out;
     }
 }

@@ -161,28 +161,29 @@ public final class LiveServer {
                 .append(",\"units\":[");
         for (int i = 0; i < f.units.size(); i++) {
             final String[] tok = f.units.get(i).split(" ");
-            if (tok.length < 6) {
+            if (tok.length < 7) {
                 continue;
             }
             if (i > 0) {
                 json.append(',');
             }
-            // u line rest: cell slot lineage gen energy geneCount gene...
+            // u line rest: cell slot lineage gen energy mass geneCount gene...
             json.append("{\"cell\":").append(tok[0])
                     .append(",\"slot\":").append(tok[1])
                     .append(",\"lineage\":").append(tok[2])
                     .append(",\"gen\":").append(tok[3])
                     .append(",\"energy\":").append(tok[4])
+                    .append(",\"mass\":").append(jnum(tok[5]))
                     .append(",\"genes\":[");
-            final int geneCount = parseIntSafe(tok[5], 0);
-            for (int g = 0; g < geneCount && 6 + g < tok.length; g++) {
+            final int geneCount = parseIntSafe(tok[6], 0);
+            for (int g = 0; g < geneCount && 7 + g < tok.length; g++) {
                 if (g > 0) {
                     json.append(',');
                 }
-                json.append(tok[6 + g]);
+                json.append(tok[7 + g]);
             }
             json.append("],\"o\":[");
-            for (int t = 6 + geneCount, oi = 0; t < tok.length; t++, oi++) {
+            for (int t = 7 + geneCount, oi = 0; t < tok.length; t++, oi++) {
                 if (oi > 0) {
                     json.append(',');
                 }

@@ -57,11 +57,13 @@ class RunReportTest {
         String report = runAndRender(new RunConfig(5, 50, 9L, 8, 64, 8, false, false, null, 0, 0, false, 0));
 
         // assert
-        assertTrue(report.contains("schema: report-v6"));
+        assertTrue(report.contains("schema: report-v10"));
         assertTrue(report.contains("per-unit-wiring: "));
         assertTrue(report.contains("## structure"));
         assertTrue(report.contains("## dynamics"));
         assertTrue(report.contains("## energy"));
+        assertTrue(report.contains("## mass"));
+        assertTrue(report.contains("final-mass-total: "));
         assertTrue(report.contains("## intake"));
         assertTrue(report.contains("intake-total: "));
         assertTrue(report.contains("## burn-rate"));

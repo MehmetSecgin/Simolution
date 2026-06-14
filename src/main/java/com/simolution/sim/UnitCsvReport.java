@@ -14,7 +14,7 @@ public final class UnitCsvReport {
             + "first_activity_tick,death_tick,lifespan,alive,"
             + "energy_consumed,final_energy,mean_burn_rate,peak_burn,"
             + "total_propagations,ticks_active,clamp_saturations,thresh_flips,"
-            + "harvest_ticks,regime,final_abs_y,max_abs_output";
+            + "harvest_ticks,regime,final_abs_y,max_abs_output,final_mass";
 
     private UnitCsvReport() {}
 
@@ -45,6 +45,7 @@ public final class UnitCsvReport {
                .append(',').append(regimeName(dynamics.regime(unit)))
                .append(',').append(dynamics.finalAbsAction()[unit])
                .append(',').append(dynamics.maxAbsOutput()[unit])
+               .append(',').append(dynamics.finalMass()[unit])
                .append('\n');
         }
         return out.toString();

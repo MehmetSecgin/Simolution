@@ -30,7 +30,7 @@ import com.simolution.kernel.runtime.KernelSnapshot;
  *   sample-every &lt;K&gt;
  *   t &lt;tick&gt;                                  --- one frame ---
  *   r &lt;W·W resource digits 0-9, quantized to CELL_CAPACITY&gt;
- *   u &lt;cell&gt; &lt;slot&gt; &lt;lineage&gt; &lt;generation&gt; &lt;energyRounded&gt; &lt;geneCount&gt; &lt;gene×geneCount&gt; &lt;nodeOutput×NodeLayout.TOTAL&gt;
+ *   u &lt;cell&gt; &lt;slot&gt; &lt;lineage&gt; &lt;generation&gt; &lt;energyRounded&gt; &lt;massRounded&gt; &lt;geneCount&gt; &lt;gene×geneCount&gt; &lt;nodeOutput×NodeLayout.TOTAL&gt;
  *   ... (one u line per living unit)
  * </pre>
  * {@code r} is dense (every cell); {@code u} lines are sparse (only living units).
@@ -99,6 +99,7 @@ public final class MapFrameWriter implements Closeable {
                 .append(' ').append(lineageId[slot])
                 .append(' ').append(generation[slot])
                 .append(' ').append(Math.round(energy[slot]))
+                .append(' ').append(Math.round(snapshot.mass[slot] * 1000.0) / 1000.0)
                 .append(' ').append(count);
             final int base = slot * maxGenes;
             for (int g = 0; g < count; g++) {
