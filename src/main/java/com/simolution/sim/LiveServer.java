@@ -13,19 +13,22 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * A tiny live viewer server (report-v7, live mode). Serves a player page and a
- * frames endpoint that <b>tails the streamed {@code .map.txt}</b> — so the run
- * can be watched in the browser as it ticks, then scrubbed once it ends. The
- * frames live on disk (written by {@link MapFrameWriter}); the server only reads
- * the file on request and holds nothing per-tick in memory, so the memory
- * doctrine is preserved (footprint constant in tick count). JDK built-in
- * {@code com.sun.net.httpserver} — no dependency.
+ * A tiny live viewer server (report-v7 live mode, report-v9 frame format). Serves
+ * a player page and a frames endpoint that <b>tails the streamed {@code .map.txt}</b>
+ * — so the run can be watched as it ticks, then scrubbed once it ends. The frames
+ * live on disk (written by {@link MapFrameWriter}); the server re-reads the file on
+ * request and holds nothing per-tick in memory, so the memory doctrine is preserved.
+ * <p>
+ * There is <b>no reconstruction</b>: each frame already carries its own list of
+ * living units and their genomes, so the viewer computes distinct genomes and
+ * decodes circuits entirely client-side. The server just turns the line-oriented
+ * frame file into JSON. JDK built-in {@code com.sun.net.httpserver} — no dependency.
  * <ul>
  *   <li>{@code GET /} → the live player page (classpath resource live.html).</li>
- *   <li>{@code GET /frames?since=N} → JSON {@code {world, sampleEvery, done,
- *       frames:[{t,r,o}, ...]}} for frames at index ≥ N. Only <em>complete</em>
- *       frames (t+r+o all present) are returned, so a partially-written trailing
- *       frame is never served.</li>
+ *   <li>{@code GET /frames?since=N} → JSON {@code {world, sampleEvery, total, done,
+ *       frames:[{t, r, units:[{cell,slot,lineage,gen,energy,genes:[...]}]}]}} for
+ *       frames at index ≥ N. While the run is live the final (possibly half-written)
+ *       frame is withheld; once done, every frame is served.</li>
  * </ul>
  */
 public final class LiveServer {
@@ -49,7 +52,7 @@ public final class LiveServer {
         http.stop(0);
     }
 
-    /** Mark the run finished so the player stops polling. */
+    /** Mark the run finished so the player stops polling and the last frame is served. */
     public void markDone() {
         this.done = true;
     }
@@ -87,79 +90,116 @@ public final class LiveServer {
     }
 
     /**
-     * Parse the map file into complete frames and serialise those at index ≥
-     * {@code since} as JSON. Re-reads the file per request (O(frames)); fine at
-     * poll cadence and keeps server state at zero.
+     * Parse the map file into frames and serialise those at index ≥ {@code since}
+     * as JSON. Re-reads the file per request (O(file)); fine at poll cadence and
+     * keeps server state at zero. A frame closes when the next {@code t} line
+     * begins (or at EOF); while the run is live the trailing frame is withheld so
+     * a half-written frame is never served.
      */
     private String buildFramesJson(final int since) throws IOException {
         int world = 0;
         int sampleEvery = 1;
-        final List<String[]> frames = new ArrayList<>();
-        String t = null;
-        String r = null;
+        final List<Frame> frames = new ArrayList<>();
+        Frame cur = null;
         if (Files.exists(mapFile)) {
-            for (final String line : Files.readAllLines(mapFile)) {
-                if (line.isEmpty()) {
+            for (final String ln : Files.readAllLines(mapFile)) {
+                if (ln.isEmpty()) {
                     continue;
                 }
-                final int sp = line.indexOf(' ');
-                final String tag = sp < 0 ? line : line.substring(0, sp);
-                final String rest = sp < 0 ? "" : line.substring(sp + 1);
+                final int sp = ln.indexOf(' ');
+                final String tag = sp < 0 ? ln : ln.substring(0, sp);
+                final String rest = sp < 0 ? "" : ln.substring(sp + 1);
                 switch (tag) {
                     case "world" -> world = parseIntSafe(rest, 0);
                     case "sample-every" -> sampleEvery = parseIntSafe(rest, 1);
                     case "t" -> {
-                        t = rest;
-                        r = null;
-                    }
-                    case "r" -> r = rest;
-                    case "o" -> {
-                        if (t != null && r != null) {
-                            frames.add(new String[] {t, r, rest});
+                        if (cur != null && cur.r != null) {
+                            frames.add(cur);
                         }
-                        t = null;
-                        r = null;
+                        cur = new Frame(rest);
+                    }
+                    case "r" -> {
+                        if (cur != null) {
+                            cur.r = rest;
+                        }
+                    }
+                    case "u" -> {
+                        if (cur != null) {
+                            cur.units.add(rest);
+                        }
                     }
                     default -> { }
                 }
             }
+            if (cur != null && cur.r != null) {
+                frames.add(cur);
+            }
         }
+        final int served = done ? frames.size() : Math.max(0, frames.size() - 1);
 
-        final StringBuilder json = new StringBuilder(4096);
+        final StringBuilder json = new StringBuilder(8192);
         json.append("{\"world\":").append(world)
                 .append(",\"sampleEvery\":").append(sampleEvery)
-                .append(",\"total\":").append(frames.size())
+                .append(",\"total\":").append(served)
                 .append(",\"done\":").append(done)
                 .append(",\"frames\":[");
         final int from = Math.max(0, since);
-        for (int i = from; i < frames.size(); i++) {
-            final String[] f = frames.get(i);
+        for (int i = from; i < served; i++) {
             if (i > from) {
                 json.append(',');
             }
-            json.append("{\"t\":").append(f[0])
-                    .append(",\"r\":\"").append(f[1]).append('"')
-                    .append(",\"o\":[");
-            final String occ = f[2];
-            boolean first = true;
-            if (!occ.isEmpty()) {
-                for (final String token : occ.split(" ")) {
-                    final int colon = token.indexOf(':');
-                    if (colon < 0) {
-                        continue;
-                    }
-                    if (!first) {
-                        json.append(',');
-                    }
-                    first = false;
-                    json.append('[').append(token, 0, colon)
-                            .append(',').append(token.substring(colon + 1)).append(']');
+            appendFrameJson(json, frames.get(i));
+        }
+        json.append("]}");
+        return json.toString();
+    }
+
+    /** One frame: {@code {"t":, "r":"...", "units":[{cell,slot,lineage,gen,energy,genes:[...]}]}}. */
+    private void appendFrameJson(final StringBuilder json, final Frame f) {
+        json.append("{\"t\":").append(f.t)
+                .append(",\"r\":\"").append(f.r).append('"')
+                .append(",\"units\":[");
+        for (int i = 0; i < f.units.size(); i++) {
+            final String[] tok = f.units.get(i).split(" ");
+            if (tok.length < 6) {
+                continue;
+            }
+            if (i > 0) {
+                json.append(',');
+            }
+            // u line rest: cell slot lineage gen energy geneCount gene...
+            json.append("{\"cell\":").append(tok[0])
+                    .append(",\"slot\":").append(tok[1])
+                    .append(",\"lineage\":").append(tok[2])
+                    .append(",\"gen\":").append(tok[3])
+                    .append(",\"energy\":").append(tok[4])
+                    .append(",\"genes\":[");
+            final int geneCount = parseIntSafe(tok[5], 0);
+            for (int g = 0; g < geneCount && 6 + g < tok.length; g++) {
+                if (g > 0) {
+                    json.append(',');
                 }
+                json.append(tok[6 + g]);
+            }
+            json.append("],\"o\":[");
+            for (int t = 6 + geneCount, oi = 0; t < tok.length; t++, oi++) {
+                if (oi > 0) {
+                    json.append(',');
+                }
+                json.append(jnum(tok[t]));
             }
             json.append("]}");
         }
         json.append("]}");
-        return json.toString();
+    }
+
+    /** A frame token as a JSON number, or {@code null} if it is non-finite/unparseable (NaN/Inf are not valid JSON). */
+    private static String jnum(final String token) {
+        try {
+            return Double.isFinite(Double.parseDouble(token)) ? token : "null";
+        } catch (NumberFormatException e) {
+            return "null";
+        }
     }
 
     private static int parseIntSafe(final String s, final int fallback) {
@@ -176,6 +216,16 @@ public final class LiveServer {
         ex.sendResponseHeaders(code, body.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(body);
+        }
+    }
+
+    private static final class Frame {
+        final String t;
+        String r;
+        final List<String> units = new ArrayList<>();
+
+        Frame(final String t) {
+            this.t = t;
         }
     }
 }

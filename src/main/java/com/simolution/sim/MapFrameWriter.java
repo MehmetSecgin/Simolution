@@ -5,25 +5,41 @@ import java.io.IOException;
 import java.io.Writer;
 
 import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 /**
  * Streams sampled spatial frames of a run to a {@link Writer} for the map
- * scrub-player (report-v7). One frame per sampled tick, written and flushed
- * immediately — nothing is accumulated in memory (memory doctrine: footprint
- * constant in tick count; the trajectory lives on disk, like {@code --trace}).
+ * scrub-player (report-v7, extended in report-v9). One frame per sampled tick,
+ * built whole and flushed in a single write — nothing is accumulated in memory
+ * across frames (memory doctrine: footprint constant in tick count; the
+ * trajectory lives on disk, like {@code --trace}).
  * <p>
- * Format (line-oriented, parsed by {@code tools/mapviz.py}):
+ * The frame is just a <b>list</b>: the resource field (for the heatmap) plus one
+ * line per living unit carrying its cell, slot id, lineage, generation, energy and
+ * its <b>genome</b> (the raw genes). That is everything the viewer needs — map →
+ * cells → unit ids → genomes — with no reconstruction and no server-side state:
+ * grouping living units by genome gives the distinct genomes alive at a tick, and
+ * decoding a genome gives its circuit. The cost is that an unchanged genome is
+ * repeated each frame (genomes only change at birth); for long runs, sample fewer
+ * frames.
+ * <p>
+ * Format (line-oriented, parsed by {@link LiveServer} and {@code tools/mapviz.py}):
  * <pre>
  *   world &lt;W&gt;
  *   sample-every &lt;K&gt;
- *   t &lt;tick&gt;
+ *   t &lt;tick&gt;                                  --- one frame ---
  *   r &lt;W·W resource digits 0-9, quantized to CELL_CAPACITY&gt;
- *   o &lt;space-separated cell:lineageId for each living unit&gt;
- *   ... (t/r/o repeated per sampled frame)
+ *   u &lt;cell&gt; &lt;slot&gt; &lt;lineage&gt; &lt;generation&gt; &lt;energyRounded&gt; &lt;geneCount&gt; &lt;gene×geneCount&gt; &lt;nodeOutput×NodeLayout.TOTAL&gt;
+ *   ... (one u line per living unit)
  * </pre>
- * The resource line is dense (every cell, for the heatmap); occupants are sparse
- * (only living cells), since most of the grid is usually empty.
+ * {@code r} is dense (every cell); {@code u} lines are sparse (only living units).
+ * After the {@code geneCount} genes come the unit's {@code NodeLayout.TOTAL} node
+ * output values for this tick — enough for the viewer to compute each connection's
+ * live signal ({@code output[src] · weight}) and show which connections are actually
+ * carrying signal, with no reconstruction. (Non-finite outputs serialise to JSON
+ * {@code null} downstream.)
+ * A frame is built and written in one flush so a reader never sees it half-written.
  */
 public final class MapFrameWriter implements Closeable {
 
@@ -35,15 +51,16 @@ public final class MapFrameWriter implements Closeable {
                           final int targetFrames) throws IOException {
         this.out = out;
         this.sampleEvery = Math.max(1, targetFrames <= 0 ? totalTicks : totalTicks / targetFrames);
-        this.line = new StringBuilder(2 * worldWidth * worldWidth + 64);
+        this.line = new StringBuilder(4 * worldWidth * worldWidth + 64);
         out.write("world " + worldWidth + "\n");
         out.write("sample-every " + sampleEvery + "\n");
     }
 
     /**
      * Write a frame if this tick is a sample point. Call once per tick after
-     * {@code observe}; reads the snapshot's resource field and per-unit position
-     * / lineage (slot index irrelevant — a cell is {@code position[slot]}).
+     * {@code observe}; reads the snapshot's resource field and, for each living
+     * unit, its cell ({@code position[slot]}), slot, lineage, generation, energy
+     * and genome ({@code genes[slot·maxGenes .. +geneCount]}).
      */
     public void maybeFrame(final KernelSnapshot snapshot) throws IOException {
         if (snapshot.tick % sampleEvery != 0) {
@@ -52,10 +69,8 @@ public final class MapFrameWriter implements Closeable {
         line.setLength(0);
         line.append("t ").append(snapshot.tick).append('\n');
 
-        line.append('r');
-        line.append(' ');
-        final double[] field = snapshot.resourceField;
-        for (final double r : field) {
+        line.append('r').append(' ');
+        for (final double r : snapshot.resourceField) {
             int level = (int) Math.round(9.0 * r / KernelConfig.CELL_CAPACITY);
             if (level < 0) {
                 level = 0;
@@ -66,17 +81,35 @@ public final class MapFrameWriter implements Closeable {
         }
         line.append('\n');
 
-        line.append('o');
         final double[] energy = snapshot.energy;
         final int[] position = snapshot.position;
         final long[] lineageId = snapshot.lineageId;
+        final int[] generation = snapshot.generation;
+        final int[] genes = snapshot.genes;
+        final int[] geneCount = snapshot.geneCount;
+        final int maxGenes = snapshot.maxGenes;
         for (int slot = 0; slot < energy.length; slot++) {
             if (energy[slot] <= 0.0) {
                 continue;
             }
-            line.append(' ').append(position[slot]).append(':').append(lineageId[slot]);
+            final int count = geneCount[slot];
+            line.append('u')
+                .append(' ').append(position[slot])
+                .append(' ').append(slot)
+                .append(' ').append(lineageId[slot])
+                .append(' ').append(generation[slot])
+                .append(' ').append(Math.round(energy[slot]))
+                .append(' ').append(count);
+            final int base = slot * maxGenes;
+            for (int g = 0; g < count; g++) {
+                line.append(' ').append(genes[base + g]);
+            }
+            final int nodeBase = slot * NodeLayout.TOTAL;
+            for (int n = 0; n < NodeLayout.TOTAL; n++) {
+                line.append(' ').append(snapshot.outputs[nodeBase + n]);
+            }
+            line.append('\n');
         }
-        line.append('\n');
 
         out.write(line.toString());
         out.flush();

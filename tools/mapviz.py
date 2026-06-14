@@ -34,12 +34,11 @@ def parse(path):
                 cur = {"t": int(rest), "r": "", "o": []}
             elif tag == "r":
                 cur["r"] = rest
-            elif tag == "o":
-                pairs = []
-                for token in rest.split():
-                    cell, _, lineage = token.partition(":")
-                    pairs.append([int(cell), int(lineage)])
-                cur["o"] = pairs
+            elif tag == "u":
+                # u <cell> <slot> <lineage> <generation> <energy> <geneCount> <gene...>
+                tok = rest.split()
+                if len(tok) >= 3:
+                    cur["o"].append([int(tok[0]), int(tok[2])])
     if cur is not None:
         frames.append(cur)
     if world is None:
