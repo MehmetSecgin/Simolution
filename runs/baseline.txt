@@ -1,6 +1,6 @@
 # Simolution run report
-schema: report-v6
-kernel: v4
+schema: report-v10
+kernel: v5
 seed: 42
 units: 100
 world-width: 100
@@ -52,6 +52,16 @@ units-dead-at-end: 95
 death-tick-first: 9
 death-tick-median: 37
 death-tick-last: 974
+
+## mass
+initial-mass-total: 100.0
+final-mass-total: 5.0
+units-alive: 5
+final-mass-mean-alive: 1.0
+final-mass-p0: 1.0
+final-mass-p50: 1.0
+final-mass-p90: 1.0
+final-mass-p100: 1.0
 
 ## intake
 units-ever-harvested: 72
