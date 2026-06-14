@@ -8,8 +8,9 @@ divergence → new function; deletion → streamlining). Supersedes contract-v2 
 (v2 §12) is now used. No other v3 law changes: geometry, energy, intake, motility,
 death, determinism all stand.
 
-This is the design doc for the milestone (the indel ADR contract-v2 §9 delegated).
-Binding once implemented.
+Implemented in kernel v4 — `KernelConfig` constants, `Kernel.mutate`
+(operation-counter point-mutation + indels) and `Kernel.settleReproduction`
+(per-gene build cost), conformance in `IndelTest`. **Binding.**
 
 ## 1. Genome length is heritable and bounded
 
@@ -88,6 +89,15 @@ draws), keyed `(seed, childSlot, birthTick, opIndex)` and domain-separated from 
 is unique. Same seed → identical genomes, always; replay (report-v8) reproduces them
 exactly.
 
+Because the counter is **one monotone index across all of a birth's decisions**, point
+and indel draws occupy disjoint `opIndex` ranges and can never collide — so the
+implementation reuses the existing `Noise.mutationUniform(seed, slot, tick, opIndex)`
+stream for the indel draws rather than adding a separate stream. (The handover note
+suggested a distinct indel stream; that is unnecessary given the single-counter key
+this section mandates, and a second stream would contradict the one-key wording above.)
+The duplication draw is consumed for every survivor even when the `MAX_GENES` cap drops
+its effect, so a binding cap never desynchronises the counter.
+
 ## 5. Conservation and audit — unchanged
 
 Energy is still conserved. The new per-gene build cost flows to the sink exactly
@@ -105,16 +115,27 @@ complexity ceiling — the replication cost (§3), not the cap, is what bounds l
 
 ## New constants (world-harshness, set once, never tuned to an outcome)
 
-* `INDEL_RATE_DUP` — per-gene tandem-duplication probability at birth. Low (genome
-  growth is rarer and more disruptive than weight tuning), comparable to or below
-  `MUTATION_RATE_STRUCT`.
-* `INDEL_RATE_DEL` — per-gene deletion probability at birth. Set near `INDEL_RATE_DUP`
-  so length has no strong intrinsic drift up or down; selection (via §3) sets the
-  equilibrium length.
-* `BUILD_COST_PER_GENE` — replication cost per gene of the child's genome (§3).
+* `INDEL_RATE_DUP = 0.001` — **per-gene** tandem-duplication probability at birth. A
+  whole-gene structural event, so it is rarer per gene than point mutation, which
+  changes a gene with probability ≈ Σ of its per-bit rates ≈ 5·10⁻³ (16 weight bits
+  at `MUTATION_RATE_WEIGHT` + 16 structure bits at `MUTATION_RATE_STRUCT`). **The
+  meaningful comparison is per-gene, not against the raw `MUTATION_RATE_STRUCT`
+  constant** — that constant is a *per-bit* rate (≈5·10⁻⁵), and an indel rate set
+  to it would fire ≈100× less often than any single gene is point-mutated, so genome
+  growth would essentially never express in a run of practical length (an earlier
+  draft of this section made that error; see ADR 0026 "Calibration").
+* `INDEL_RATE_DEL = 0.001` — per-gene deletion probability at birth. Set equal to
+  `INDEL_RATE_DUP` so length has no intrinsic mutational drift up or down; selection
+  (via §3) sets the equilibrium length.
+* `BUILD_COST_PER_GENE = 0.25` — replication cost per gene of the child's genome (§3).
+  A 32-gene founder pays `buildCost = 18` vs the fixed `BUILD_COST = 10`, a clear
+  length gradient that selects against unused genes without collapsing reproduction.
 
 All three are set once to make an evolvable world, never tuned to hit a target
-genome length, complexity, or population.
+genome length, complexity, or population. `MAX_GENES` is a per-run capacity, not a
+kernel constant; the harness defaults it to **2× the founder gene count** (so the
+canonical baseline has headroom for duplication to express) and `--max-genes`
+overrides it.
 
 ## Biology grounding & modeling regime (non-normative, but assumptions on record)
 

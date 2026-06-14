@@ -63,9 +63,37 @@ grounding + omissions in contract-v4 "Biology grounding & modeling regime."
   baked-in deletion bias** — deferred (see contract-v4 omissions), not rejected on
   principle; each is a clean future knob, kept out to keep this milestone minimal.
 
+## Calibration (set once, per the §3 tuning discipline)
+- `INDEL_RATE_DUP = INDEL_RATE_DEL = 0.001`, `BUILD_COST_PER_GENE = 0.25`.
+- The design note said "≤ `MUTATION_RATE_STRUCT`" (5·10⁻⁵). That conflates a
+  *per-gene* indel rate with a *per-bit* point-mutation rate: at 5·10⁻⁵ per gene,
+  duplication fires ≈100× less often than any gene is point-mutated, so dosage growth
+  never expressed (first baseline + IndelTest: deletion fired, duplication never did).
+  Per contract-v4's own tuning rule ("no length change ever → rates too low → reset
+  once with an ADR, never toward a target"), the rate was reset **once** to 10⁻³ —
+  rarer per gene than point mutation (≈5·10⁻³/gene) but expressive. Not tuned to a
+  target length; the equilibrium remains selection-set via §3. contract-v4's constant
+  guidance was corrected to match.
+
+## Implementation deviations from the design notes
+1. **No separate `Noise` indel stream.** contract-v4 §4 mandates a *single* monotone
+   `opIndex` keyed `(seed, childSlot, birthTick, opIndex)` across all of a birth's
+   decisions. That makes point and indel draws occupy disjoint indices — collision is
+   impossible — so the implementation reuses `Noise.mutationUniform` rather than adding
+   a stream (the handover suggested one; it is redundant and would contradict §4's
+   single-key wording).
+2. **Default `MAX_GENES` = 2× founder gene count.** The harness previously defaulted
+   `--max-genes` to the founder count, leaving zero headroom — duplication could never
+   fire in the mandated baseline. Defaulting to double gives the canonical run room to
+   express growth (≈2× the per-slot `genes`/`connections` capacity; linear in units,
+   user-overridable via `--max-genes`). Rejected: keeping the no-headroom default (the
+   milestone's headline payoff would be invisible in the baseline).
+
 ## Status
-Design only (contract-v4). Implementation to follow: `INDEL_RATE_DUP` /
-`INDEL_RATE_DEL` / `BUILD_COST_PER_GENE` constants, indel logic in `Kernel.mutate`
-(operation-counter keying), per-gene build cost in `settleReproduction`, a new
-`Noise` indel stream, conformance + determinism tests, and a baseline regen with
-the diff explained. Roadmap: biomass / Pirt size-physics follows.
+Implemented (kernel v4). `INDEL_RATE_DUP`/`INDEL_RATE_DEL`/`BUILD_COST_PER_GENE` in
+`KernelConfig`; operation-counter point-mutation + indels in `Kernel.mutate`; per-gene
+build cost (build-then-charge) in `settleReproduction`; `installChild` split into
+`buildChildGenome` + `finishChild`; `IndelTest` (bounds, grow/shrink, empty-inert,
+conservation, determinism); `ObservabilityTest` replay-exactness unchanged. Baseline
+regenerated (digest `38e7da02ca42e804`); live genome length spans 29–33 in the
+baseline, both directions in IndelTest. Roadmap: biomass / Pirt size-physics follows.

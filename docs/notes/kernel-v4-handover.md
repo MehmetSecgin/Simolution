@@ -1,9 +1,29 @@
 # Kernel v4 — handover & next steps (variable-length genomes)
 
 Snapshot for whoever picks this up next. Branch `kernel-v4-genome-length` (off the
-`kernel-v3-space` tip). **v4 is designed, not built** — this branch currently holds
-only the design docs. Binding laws: `docs/contract/contract-v4.md` + ADR 0026.
-Non-binding notes below.
+`kernel-v3-space` tip). **v4 is now BUILT** — `KernelConfig` constants,
+`Kernel.mutate` (operation-counter point mutation + indels), `settleReproduction`
+(per-gene build cost, build-then-charge), `buildChildGenome`/`finishChild`,
+`IndelTest`, baseline regenerated (digest `38e7da02ca42e804`). Binding laws:
+`docs/contract/contract-v4.md` + ADR 0026 (both now "implemented"). The
+implementation checklist below is kept for the record; **two deviations from these
+notes** were made and recorded in ADR 0026:
+
+1. **No separate `Noise` indel stream** (checklist item 2). contract-v4 §4 mandates a
+   *single* monotone `opIndex` keyed `(seed, childSlot, birthTick, opIndex)` across all
+   of a birth's decisions — point and indel draws then occupy disjoint indices, so a
+   second stream is redundant and would contradict the one-key wording. `mutate` reuses
+   `Noise.mutationUniform`.
+2. **Indel rates calibrated to `1e-3`, not `5e-5`** (checklist item 1 / the "≤
+   `MUTATION_RATE_STRUCT`" guidance). At the per-bit struct rate, duplication fired
+   ≈100× less often than any gene is point-mutated and dosage growth never expressed.
+   Per the tuning discipline (item 7 below: "no length change ever → reset once with an
+   ADR"), the rate was reset once; contract-v4's constant guidance was corrected to
+   compare per-gene, not against the per-bit constant. Also: the harness now defaults
+   `--max-genes` to **2× founder count** (was = founder count, zero headroom — duplication
+   could never fire in the mandated baseline).
+
+Original non-binding notes below.
 
 ## Where we are
 
