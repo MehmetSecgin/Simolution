@@ -10,10 +10,12 @@ daughters. Geometry, intake wiring, motility geometry, indels, death-is-derived,
 and determinism all carry over from v3/v4; this contract changes the *economics
 of size and the act of dividing*, not the world's layout.
 
-**Status: design — not yet implemented.** This contract is the spec to build
-against (kernel v5, ADR 0028 at implementation). Where it supersedes earlier law
-it says so explicitly; until the kernel conforms, contract-v4 remains the
-implemented truth.
+**Status: implemented** in kernel v5 (ADR 0028) — `KernelConfig` constants,
+`NodeLayout` (`SELF_MASS` sensor, `GROW` action, `TOTAL`=24), `Kernel` (`mass[]`,
+`settleGrowth` phase 7, fission `settleReproduction`, mass-scaled
+maintenance/harvest/movement, `die()` mass dissipation), audit threaded through
+`KernelSnapshot`/`DynamicsObserver`/`DynamicsSummary`/`MetricsWriter`, conformance
+in `BiomassTest`. **Binding.**
 
 Scope note — this is **Axis A** (scalar mass on the existing one-unit-per-cell
 lattice). A unit's *size* is a number; it does **not** occupy more cells. The
@@ -279,6 +281,7 @@ mandatory baseline pass, not targets:
 * `α = 0.5` (`HARVEST_MASS_EXPONENT`) — the sublinear surface exponent on harvest
   (§4); the single hand-asserted surface law.
 * `GROW_MAX` — ceiling on energy converted to mass per tick (§2).
+* `GROW_HALF_SATURATION` — the σ half-saturation for the `GROW` drive (§2).
 * `GROW_YIELD` (< 1) — anabolic efficiency; `1 − GROW_YIELD` dissipates to sink.
 * `MOVE_COST_BASE` (renamed from `MOVE_COST`) and `MOVE_COST_PER_MASS` — locomotion
   cost floor plus the per-mass term (§3).
