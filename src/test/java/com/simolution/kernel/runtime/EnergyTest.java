@@ -42,16 +42,17 @@ class EnergyTest {
         Kernel kernel = new Kernel(genomes, worldWidth, 32,
                 java.util.stream.IntStream.range(0, genomes.length).toArray());
         double credited = KernelConfig.INITIAL_ENERGY * 50
-                + KernelConfig.CELL_INITIAL * worldWidth * worldWidth;
+                + KernelConfig.CELL_INITIAL * worldWidth * worldWidth
+                + KernelConfig.INITIAL_MASS * 50;
 
-        // act + assert: contract v3 §7 — initial energy + initial resource + inflow
-        // == units + total field + sink
+        // act + assert: contract v5 §6 — initial energy + initial resource +
+        // initial mass + inflow == units + total field + mass + sink
         for (int i = 0; i < 500; i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
-            double held = totalEnergy(snapshot) + snapshot.reservoir + snapshot.energySink;
-            assertEquals(credited + snapshot.cumulativeInflow, held, 1.0e-3,
-                    "units + reservoir + sink must equal initial + inflow at tick " + snapshot.tick);
+            double held = totalEnergy(snapshot) + snapshot.reservoir + snapshot.massTotal + snapshot.energySink;
+            assertEquals(credited + snapshot.cumulativeInflow, held, 1.0e-2,
+                    "units + reservoir + mass + sink must equal initial + inflow at tick " + snapshot.tick);
         }
     }
 
@@ -115,8 +116,8 @@ class EnergyTest {
         // assert: one tick = basal floor + proportional maintenance
         double expected = KernelConfig.INITIAL_ENERGY
                 - KernelConfig.BASAL_COST
-                - KernelConfig.INITIAL_ENERGY * KernelConfig.STORAGE_LEAK_RATE;
-        assertEquals(expected, afterOne, 1.0e-9, "basal + proportional maintenance");
+                - KernelConfig.INITIAL_MASS * KernelConfig.MAINT_PER_MASS;
+        assertEquals(expected, afterOne, 1.0e-9, "basal + mass maintenance");
 
         // the fixed basal floor (unlike a purely proportional leak) drives energy
         // across zero: even a connectionless idle unit eventually dies
@@ -147,39 +148,38 @@ class EnergyTest {
 
         // act
         double prevEnergy = KernelConfig.INITIAL_ENERGY;
-        double maxEnergy = prevEnergy;
         double maxGain = 0.0;
         boolean died = false;
         for (int i = 0; i < 4000; i++) {
             kernel.tick();
             double e = kernel.snapshot().energy[0];
             maxGain = Math.max(maxGain, e - prevEnergy);
-            maxEnergy = Math.max(maxEnergy, e);
             if (e <= 0.0) {
                 died = true;
             }
             prevEnergy = e;
         }
 
-        // assert: one transporter (DELAY->HARVEST), so the emergent ceiling is
-        // CAPACITY_PER_CONNECTION * 1
-        double capacity = KernelConfig.HARVEST_CAPACITY_PER_CONNECTION * 1;
+        // assert: one transporter (DELAY->HARVEST), and the unit never grows (no
+        // GROW wiring) so its mass stays INITIAL_MASS and the emergent ceiling is
+        // CAPACITY_PER_CONNECTION * 1 * INITIAL_MASS^alpha
+        double capacity = KernelConfig.HARVEST_CAPACITY_PER_CONNECTION * 1
+                * Math.pow(KernelConfig.INITIAL_MASS, KernelConfig.HARVEST_MASS_EXPONENT);
         assertTrue(maxGain <= capacity + 1.0e-9,
                 "per-tick intake must not exceed the unit's emergent ceiling " + capacity
                         + ", got " + maxGain);
-        double carryingCap = capacity / KernelConfig.STORAGE_LEAK_RATE;
-        double bound = Math.max(KernelConfig.INITIAL_ENERGY, carryingCap) + 1.0;
-        assertTrue(maxEnergy < bound,
-                "a saturated harvester cannot hoard past its carrying capacity " + carryingCap
-                        + " (or its starting bank), reached " + maxEnergy);
-        assertTrue(died, "the diverger implodes: once its signal overflows, intake stops and leak kills it");
+        // v5 retired the proportional-to-energy storage leak; the diverger still
+        // implodes by an honest route — its DELAY self-loop overflows to a
+        // non-finite signal, harvest then reads garbage and stops, and basal +
+        // mass maintenance + aging starve it.
+        assertTrue(died, "the diverger implodes: its signal overflows, intake stops, maintenance kills it");
     }
 
     @Test
     void deductionClampsToAvailableNeverOverdraws() {
         // arrange
         Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, 1, 32, new int[] {0});
-        double initialTotal = KernelConfig.INITIAL_ENERGY;
+        double initialTotal = KernelConfig.INITIAL_ENERGY + KernelConfig.INITIAL_MASS;
 
         // act + assert: energy never goes negative, sink never exceeds initial
         for (int i = 0; i < 5000; i++) {

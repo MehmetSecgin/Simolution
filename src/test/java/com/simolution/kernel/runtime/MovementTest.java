@@ -39,7 +39,8 @@ class MovementTest {
     void motileUnitStepsEastEachTickAndConservesEnergy() {
         // arrange: one mover on a 4x4 torus, founder at cell 0
         Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}}, 4, 32, new int[] {0});
-        double credited = KernelConfig.INITIAL_ENERGY + KernelConfig.CELL_INITIAL * 16;
+        double credited = KernelConfig.INITIAL_ENERGY + KernelConfig.CELL_INITIAL * 16
+                + KernelConfig.INITIAL_MASS;
 
         // act + assert
         // tick 1: CONST only just became 1.0 this tick, so MOVE_E read (outputsPrev)
@@ -53,7 +54,7 @@ class MovementTest {
             KernelSnapshot s = kernel.snapshot();
             assertEquals(expected, s.position[0], "east step at tick " + s.tick);
             // conservation holds with MOVE_COST flowing unit -> sink (contract v3 §7)
-            double held = totalEnergy(s) + totalField(s) + s.energySink;
+            double held = totalEnergy(s) + totalField(s) + s.massTotal + s.energySink;
             assertEquals(credited + s.cumulativeInflow, held, 1.0e-6,
                     "energy conserved through movement at tick " + s.tick);
         }

@@ -29,6 +29,7 @@ public final class Kernel {
     private final int[] mulInDegree;
 
     private final double[] energy;
+    private final double[] mass;
     private final double[] damage;
     private final int[] harvestConnCount;
     private final int[] activeThisTick;
@@ -39,6 +40,7 @@ public final class Kernel {
     private long birthsTotal;
     private int maxGeneration;
     private final double creditedInitialEnergy;
+    private final double creditedInitialMass;
 
     private double[] resourceField;
     private double[] resourceFieldNext;
@@ -105,6 +107,7 @@ public final class Kernel {
         // empty slots start dead (energy 0, contract v2 §5): they are skipped
         // by every phase exactly as corpses are, and a birth may claim them.
         this.energy = new double[maxUnits];
+        this.mass = new double[maxUnits];
         this.damage = new double[maxUnits];
         this.harvestConnCount = new int[maxUnits];
         this.activeThisTick = new int[maxUnits];
@@ -115,6 +118,7 @@ public final class Kernel {
         this.birthsTotal = 0L;
         this.maxGeneration = 0;
         this.creditedInitialEnergy = KernelConfig.INITIAL_ENERGY * seededCount;
+        this.creditedInitialMass = KernelConfig.INITIAL_MASS * seededCount;
 
         this.resourceField = new double[maxUnits];
         this.resourceFieldNext = new double[maxUnits];
@@ -148,6 +152,7 @@ public final class Kernel {
                 System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
                 geneCount[unit] = genome.length;
                 energy[unit] = KernelConfig.INITIAL_ENERGY;
+                mass[unit] = KernelConfig.INITIAL_MASS;
                 lineageId[unit] = unit;
                 final int cell = founderCells[unit];
                 if (cell < 0 || cell >= maxUnits) {
@@ -281,10 +286,12 @@ public final class Kernel {
         // Phase 6
         settleCost();
         // Phase 7
-        settleReproduction();
+        settleGrowth();
         // Phase 8
-        settleMovement();
+        settleReproduction();
         // Phase 9
+        settleMovement();
+        // Phase 10
         settleDiffusion();
 
         tick++;
@@ -368,12 +375,14 @@ public final class Kernel {
 
         final int localResourceIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.LOCAL_RESOURCE * NodeLayout.Sensor.INSTANCES_PER_TYPE);
         final int selfEnergyIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_ENERGY * NodeLayout.Sensor.INSTANCES_PER_TYPE);
+        final int selfMassIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_MASS * NodeLayout.Sensor.INSTANCES_PER_TYPE);
 
         outputsNext[constIdx] = 1.0;
         outputsNext[randIdx] = Noise.sample(KernelConfig.RANDOM_SEED, unit, tick);
         // a unit senses only the cell it currently occupies (contract v3 §3)
         outputsNext[localResourceIdx] = Math.min(1.0, resourceField[position[unit]] / KernelConfig.CELL_CAPACITY);
         outputsNext[selfEnergyIdx] = Math.min(1.0, energy[unit] / KernelConfig.SELF_ENERGY_SCALE);
+        outputsNext[selfMassIdx] = Math.min(1.0, mass[unit] / KernelConfig.SELF_MASS_SCALE);
 
         final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[addIdx] = accumulators[addIdx];
@@ -417,6 +426,9 @@ public final class Kernel {
         outputsNext[moveSIdx] = accumulators[moveSIdx];
         outputsNext[moveEIdx] = accumulators[moveEIdx];
         outputsNext[moveWIdx] = accumulators[moveWIdx];
+
+        final int growIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.GROW * NodeLayout.Action.INSTANCES_PER_TYPE);
+        outputsNext[growIdx] = accumulators[growIdx];
     }
 
     private void swapBuffers() {
@@ -498,7 +510,8 @@ public final class Kernel {
         if (!Double.isFinite(output) || output <= 0.0) {
             return 0.0;
         }
-        final double capacity = KernelConfig.HARVEST_CAPACITY_PER_CONNECTION * transporters;
+        final double capacity = KernelConfig.HARVEST_CAPACITY_PER_CONNECTION * transporters
+                * Math.pow(mass[unit], KernelConfig.HARVEST_MASS_EXPONENT);
         // capacity · output/(HALF+output), rearranged to avoid overflow when
         // output is a huge (divergent) finite value.
         return capacity / (1.0 + KernelConfig.HARVEST_HALF_SATURATION / output);
@@ -550,7 +563,7 @@ public final class Kernel {
                 continue;
             }
             final double activity = activeThisTick[unit] * KernelConfig.COST_PER_PROPAGATION;
-            final double maintenance = energy[unit] * KernelConfig.STORAGE_LEAK_RATE;
+            final double maintenance = mass[unit] * KernelConfig.MAINT_PER_MASS;
             final double aging = damage[unit] * KernelConfig.AGING_COST;
             final double charge = Math.min(
                     KernelConfig.BASAL_COST + activity + maintenance + aging, energy[unit]);
@@ -558,53 +571,93 @@ public final class Kernel {
             energySink += charge;
             damage[unit] += charge;
             if (energy[unit] <= 0.0) {
-                cellOccupant[position[unit]] = -1;
+                die(unit);
             }
         }
     }
 
     /**
-     * Phase 7 — reproduction (contract v2 §2/§4/§5/§11). Each unit still alive
-     * after paying this tick's bill drives its REPRODUCE channel; the world
-     * converts that output to a saturating energy commitment, draws it from the
-     * parent, and installs a mutated copy into a free slot. The child is inert
-     * until next tick (its node state is zeroed on install), so it cannot
-     * reproduce again this tick. Energy is conserved: the child receives
-     * {@code REPRODUCE_YIELD} of the commitment and the lossy remainder flows to
-     * the sink. Placement is <b>spatial</b> (contract v3 §5, supersedes v2 §5's
-     * halt-on-full): the child is installed in the lowest-indexed free Moore
-     * neighbour of the parent's cell; if every neighbour is occupied the unit
-     * simply does not reproduce this tick — a physical, local constraint (no room
-     * to build), not a denied birth from a global cap, so there is no run halt.
-     * Parents are scanned in ascending slot order and the child is installed
-     * immediately, so a later parent sees the cell occupied and the whole
-     * genealogy + geography is deterministic.
+     * Death bookkeeping (contract v0 §9, contract v5 §6). Death stays derived
+     * ({@code energy ≤ 0}, never a stored flag); this only settles its
+     * consequences. A unit's biomass is crystallized energy (contract v5 §1), so
+     * on death it dissipates to the sink — keeping the audit exact — and
+     * {@code mass} is zeroed so {@code Σ mass} tracks the living only. The cell is
+     * freed (contract v3 §5: "death frees a cell", no carve-out for cause).
+     * Called wherever a charge can cross a unit to {@code energy ≤ 0}: the
+     * metabolic bill ({@link #settleCost}) and all-in growth ({@link #settleGrowth}).
+     */
+    private void die(final int unit) {
+        energySink += mass[unit];
+        mass[unit] = 0.0;
+        cellOccupant[position[unit]] = -1;
+    }
+
+    /**
+     * Phase 7 — growth (contract v5 §2). Each living unit drives its {@code GROW}
+     * effector to convert spendable energy into structural mass (anabolism). The
+     * commitment is {@code GROW_MAX · σ(output)} with the saturating shape shared
+     * by harvest and the division trigger (a runaway signal only approaches the
+     * ceiling), clamped to available energy. Conversion is lossy: the unit gains
+     * {@code GROW_YIELD} of the commitment as mass and the remainder dissipates to
+     * the sink, so no energy is created — mass is energy in structural form
+     * (contract v5 §1) and the audit (contract v5 §6) stays exact. Growth is an
+     * evolved choice, never automatic: a unit with no positive {@code GROW} drive
+     * grows nothing. A unit that pours its last energy into mass dies here (its
+     * fresh mass then dissipates via {@link #die}) — the kernel does not protect
+     * against suicidal growth wiring; selection does.
+     */
+    private void settleGrowth() {
+        for (int unit = 0; unit < unitCount; unit++) {
+            if (energy[unit] <= 0.0) {
+                continue;
+            }
+            final int growIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
+                    + (NodeLayout.Action.GROW * NodeLayout.Action.INSTANCES_PER_TYPE);
+            final double output = outputsPrev[growIdx];
+            if (!Double.isFinite(output) || output <= 0.0) {
+                continue;
+            }
+            double commit = KernelConfig.GROW_MAX
+                    / (1.0 + KernelConfig.GROW_HALF_SATURATION / output);
+            if (commit > energy[unit]) {
+                commit = energy[unit];
+            }
+            energy[unit] -= commit;
+            final double gained = KernelConfig.GROW_YIELD * commit;
+            mass[unit] += gained;
+            energySink += commit - gained;
+            if (energy[unit] <= 0.0) {
+                die(unit);
+            }
+        }
+    }
+
+    /**
+     * Phase 8 — reproduction as symmetric binary fission (contract v5 §5,
+     * supersedes the contract-v2 investment/budding model). A unit that wants to
+     * divide ({@code REPRODUCE} output {@code > 0} — a bare trigger now, its
+     * magnitude no longer an investment amount) and can afford the replication
+     * work splits its body in two: the child receives <i>half</i> the parent's
+     * energy and <i>half</i> its mass, and the parent keeps the other half. There
+     * is no viability gate (contract v5 §5) — an undersized daughter simply cannot
+     * pay its maintenance against its sublinear harvest and dies on its own, and a
+     * unit that fires {@code REPRODUCE} blindly wastes {@code buildCost} and halves
+     * itself toward corpses, so the size-control checkpoint is left to evolve via
+     * {@code SELF_MASS} rather than coded here.
      * <p>
-     * Each birth also burns {@code buildCost = BUILD_COST + BUILD_COST_PER_GENE ·
-     * childGeneCount} to the sink (contract v4 §3): the fixed irreducible
-     * biosynthesis overhead (ADR 0015) plus a term proportional to the child's
-     * <i>post-indel</i> genome length. The length term is the anti-bloat pressure
-     * — carrying genes you don't use costs more to replicate, so neutral indel
-     * drift cannot silently fill a genome to {@code maxGenes} — and it is a
-     * build-time charge only, never a per-tick per-gene tax (that invariant
-     * stands). It keeps the Pirt-shaped bill (fixed + proportional) and adds size
-     * to the proportional part, so spamming tiny offspring stays net-lethal and
-     * total births are bounded by the energy in the system. Because the length
-     * term needs the child's post-indel count, the child genome is built first
-     * ({@link #buildChildGenome}), then {@code buildCost} is known, then the
-     * parent is charged; a parent that cannot afford {@code buildCost} on top of
-     * its commitment simply does not reproduce — an energy constraint, not a
-     * denied birth. (The cheap pre-filter {@code energy ≤ BUILD_COST} skips
-     * parents too poor for even an empty child without claiming a slot.)
-     * <p>
-     * A parent may commit down to exactly zero energy (the {@code min} cap
-     * permits {@code commit == energy − BUILD_COST}): terminal, semelparous
-     * reproduction — invest everything in one final child and die. Such a parent
-     * is dead ({@code energy ≤ 0}) the instant it pays, so it vacates its cell
-     * here, mirroring {@link #settleCost} (contract v3 §5: "death frees a cell",
-     * with no carve-out for cause). Without this, a reproductive corpse would
-     * hold its cell until its slot was reused, blocking births/moves into it and
-     * making {@code cellOccupant} no longer a pure function of living positions.
+     * The act of copying still costs {@code buildCost = BUILD_COST +
+     * BUILD_COST_PER_GENE · childGeneCount} (contract v4 §3), charged to the sink
+     * before the split; the child genome is built first so its post-indel length
+     * is known to price it. A parent that cannot afford {@code buildCost} does not
+     * divide (an energy constraint, not a denied birth); the cheap pre-filter
+     * {@code energy ≤ BUILD_COST} skips parents too poor for even an empty child
+     * without claiming a slot. Because the parent always retains
+     * {@code (energy − buildCost)/2 > 0}, fission is never terminal — the parent
+     * cannot die dividing (no semelparity), so this phase frees no cell (unlike
+     * the contract-v2 model, where an all-in commit could). Placement is spatial
+     * (contract v3 §5): the lowest-indexed free Moore neighbour, or no birth if
+     * none is free. Parents scan in ascending slot order with the child installed
+     * immediately, so the genealogy + geography stay deterministic.
      */
     private void settleReproduction() {
         freeSlotCursor = 0;
@@ -612,8 +665,7 @@ public final class Kernel {
             if (energy[parent] <= KernelConfig.BUILD_COST) {
                 continue;
             }
-            final double drive = reproduceDrive(parent);
-            if (drive <= 0.0) {
+            if (!wantsToDivide(parent)) {
                 continue;
             }
             final int childCell = freeMooreNeighbour(position[parent]);
@@ -627,19 +679,17 @@ public final class Kernel {
             buildChildGenome(childSlot, parent);
             final double buildCost = KernelConfig.BUILD_COST
                     + KernelConfig.BUILD_COST_PER_GENE * geneCount[childSlot];
-            final double commit = Math.min(drive, energy[parent] - buildCost);
-            if (commit <= 0.0) {
+            if (energy[parent] <= buildCost) {
                 continue;
             }
-            energy[parent] -= commit + buildCost;
-            if (energy[parent] <= 0.0) {
-                cellOccupant[position[parent]] = -1;
-            }
-            final double childEnergy = KernelConfig.REPRODUCE_YIELD * commit;
-            final double dissipated = (commit - childEnergy) + buildCost;
-            energySink += dissipated;
-            damage[parent] += dissipated;
-            finishChild(childSlot, childCell, parent, childEnergy);
+            energy[parent] -= buildCost;
+            energySink += buildCost;
+            damage[parent] += buildCost;
+            final double childEnergy = energy[parent] * 0.5;
+            final double childMass = mass[parent] * 0.5;
+            energy[parent] = childEnergy;
+            mass[parent] = childMass;
+            finishChild(childSlot, childCell, parent, childEnergy, childMass);
             birthsTotal++;
             if (generation[childSlot] > maxGeneration) {
                 maxGeneration = generation[childSlot];
@@ -648,22 +698,17 @@ public final class Kernel {
     }
 
     /**
-     * The raw reproduction drive: {@code REPRODUCE_MAX · σ(output)} with the
-     * same saturating shape as harvest demand (contract v2 §4) — a runaway
-     * signal buys no extra investment. {@code max(0, …)}: you cannot
-     * un-reproduce; a non-finite output is garbage, not an action, so it drives
-     * nothing. Affordability (the parent reserving BUILD_COST and not
-     * overdrawing) is applied by the caller.
+     * Whether a unit drives its {@code REPRODUCE} effector to divide this tick
+     * (contract v5 §5). Fission has no investment amount, so this is a bare
+     * trigger: a finite, positive output means "divide now"; a non-finite output
+     * is garbage, not an action. Affordability (reserving {@code buildCost}) is
+     * applied by the caller.
      */
-    private double reproduceDrive(final int unit) {
+    private boolean wantsToDivide(final int unit) {
         final int reproduceIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
                 + (NodeLayout.Action.REPRODUCE * NodeLayout.Action.INSTANCES_PER_TYPE);
         final double output = outputsPrev[reproduceIdx];
-        if (!Double.isFinite(output) || output <= 0.0) {
-            return 0.0;
-        }
-        return KernelConfig.REPRODUCE_MAX
-                / (1.0 + KernelConfig.REPRODUCE_HALF_SATURATION / output);
+        return Double.isFinite(output) && output > 0.0;
     }
 
     /**
@@ -718,7 +763,7 @@ public final class Kernel {
     }
 
     /**
-     * Phase 8 — resource diffusion (contract v3 §4/§6). A mass-conserving explicit
+     * Phase 10 — resource diffusion (contract v3 §4/§6). A mass-conserving explicit
      * discrete Laplacian over the 4 von-Neumann neighbours on the torus:
      * {@code next = here + DIFFUSION_RATE · (Σ neighbours − 4·here)}. Double-buffered
      * (whole field read, next written, then swapped) so the update is
@@ -751,26 +796,29 @@ public final class Kernel {
     }
 
     /**
-     * Phase 8 — motility (contract v3 §9, ADR 0020). Each living unit reads its
-     * four MOVE effectors (from outputsPrev, the swapped current tick) and takes
-     * at most one Moore step: {@code dx} from {@code MOVE_E − MOVE_W}, {@code dy}
-     * from {@code MOVE_N − MOVE_S} (N = −y, up), each thresholded by
-     * {@code MOVE_DEADZONE} so a quiet circuit stays put. Diagonals are emergent
-     * (both axes firing). A step is taken only into a free cell
-     * ({@code cellOccupant < 0}); a blocked or zero step does nothing and costs
-     * nothing. An actual step charges {@code MOVE_COST} to the sink (and damage —
-     * motility is dissipation); the afford check ({@code energy > MOVE_COST})
-     * means a step never kills, so no cell is freed here. Units are scanned in
-     * ascending slot order with occupancy updated immediately, so two units
-     * targeting one free cell resolve by lowest slot, and a cell vacated this tick
-     * can be entered this tick — all deterministic. The slot never changes, so the
-     * connection store is untouched and nothing is allocated.
+     * Phase 9 — motility (contract v3 §9, ADR 0020; mass-scaled cost contract
+     * v5 §3). Each living unit reads its four MOVE effectors (from outputsPrev,
+     * the swapped current tick) and takes at most one Moore step: {@code dx} from
+     * {@code MOVE_E − MOVE_W}, {@code dy} from {@code MOVE_N − MOVE_S} (N = −y, up),
+     * each thresholded by {@code MOVE_DEADZONE} so a quiet circuit stays put.
+     * Diagonals are emergent (both axes firing). A step is taken only into a free
+     * cell ({@code cellOccupant < 0}); a blocked or zero step does nothing and
+     * costs nothing. An actual step charges {@code MOVE_COST_BASE +
+     * MOVE_COST_PER_MASS · mass} to the sink (and damage — motility is
+     * dissipation): a heavier body is sluggish, paying more per step. The afford
+     * check ({@code energy > moveCost}) is applied only once a step is actually
+     * about to happen and means a step never kills, so no cell is freed here.
+     * Units are scanned in ascending slot order with occupancy updated
+     * immediately, so two units targeting one free cell resolve by lowest slot,
+     * and a cell vacated this tick can be entered this tick — all deterministic.
+     * The slot never changes, so the connection store is untouched and nothing is
+     * allocated.
      */
     private void settleMovement() {
         final int w = worldWidth;
         final double theta = KernelConfig.MOVE_DEADZONE;
         for (int unit = 0; unit < unitCount; unit++) {
-            if (energy[unit] <= KernelConfig.MOVE_COST) {
+            if (energy[unit] <= 0.0) {
                 continue;
             }
             final int actionBase = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET;
@@ -800,12 +848,17 @@ public final class Kernel {
             if (cellOccupant[target] >= 0) {
                 continue;
             }
+            final double moveCost = KernelConfig.MOVE_COST_BASE
+                    + KernelConfig.MOVE_COST_PER_MASS * mass[unit];
+            if (energy[unit] <= moveCost) {
+                continue;
+            }
             cellOccupant[cell] = -1;
             position[unit] = target;
             cellOccupant[target] = unit;
-            energy[unit] -= KernelConfig.MOVE_COST;
-            energySink += KernelConfig.MOVE_COST;
-            damage[unit] += KernelConfig.MOVE_COST;
+            energy[unit] -= moveCost;
+            energySink += moveCost;
+            damage[unit] += moveCost;
         }
     }
 
@@ -834,14 +887,16 @@ public final class Kernel {
      * Finish installing a child whose genome {@link #buildChildGenome} has
      * already written and compiled (contract v2 §6). Node state (outputs, delay
      * memory) is zeroed so the child starts inert and first acts next tick;
-     * energy, {@code damage} (reset to 0 — germline renewal, contract v2 §7),
+     * energy, mass (each half the parent's — symmetric fission, contract v5 §5),
+     * {@code damage} (reset to 0 — germline renewal, contract v2 §7),
      * {@code lineageId} (inherited unchanged — the root ancestor), {@code
      * generation} (parent's + 1), and cell are set. The child takes storage slot
      * {@code child} and cell {@code childCell} (a free Moore neighbour, §5); slot
      * and cell are independent (ADR 0020). Called only after the parent has been
      * charged, so an unaffordable build never installs a living unit.
      */
-    private void finishChild(final int child, final int childCell, final int parent, final double childEnergy) {
+    private void finishChild(final int child, final int childCell, final int parent,
+            final double childEnergy, final double childMass) {
         final int nodeBase = child * NodeLayout.TOTAL;
         for (int n = 0; n < NodeLayout.TOTAL; n++) {
             outputsPrev[nodeBase + n] = 0.0;
@@ -851,6 +906,7 @@ public final class Kernel {
         activeThisTick[child] = 0;
 
         energy[child] = childEnergy;
+        mass[child] = childMass;
         damage[child] = 0.0;
         lineageId[child] = lineageId[parent];
         generation[child] = generation[parent] + 1;
@@ -992,10 +1048,14 @@ public final class Kernel {
         for (final double r : resourceField) {
             resourceTotal += r;
         }
+        double massTotal = 0.0;
+        for (final double m : mass) {
+            massTotal += m;
+        }
         return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, damage, energySink,
                 resourceTotal, resourceField, worldWidth, position, initialResourceTotal, cumulativeInflow,
                 lineageId, generation, birthsTotal, maxGeneration, creditedInitialEnergy,
-                genes, geneCount, maxGenes);
+                genes, geneCount, maxGenes, mass, massTotal, creditedInitialMass);
     }
 
     /**
@@ -1032,6 +1092,7 @@ public final class Kernel {
                 out.writeInt(genes[base + g]);
             }
             out.writeDouble(energy[slot]);
+            out.writeDouble(mass[slot]);
             out.writeDouble(damage[slot]);
             out.writeLong(lineageId[slot]);
             out.writeInt(generation[slot]);
@@ -1081,6 +1142,7 @@ public final class Kernel {
                 genes[base + g] = in.readInt();
             }
             energy[slot] = in.readDouble();
+            mass[slot] = in.readDouble();
             damage[slot] = in.readDouble();
             lineageId[slot] = in.readLong();
             generation[slot] = in.readInt();

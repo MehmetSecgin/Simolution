@@ -34,7 +34,9 @@ public record DynamicsSummary(
         int finalPopulation,
         int distinctLineagesAlive,
         long birthsTotal,
-        int maxGeneration
+        int maxGeneration,
+        double creditedInitialMass,
+        double finalMassTotal
 ) {
 
     public static final double DIVERGENCE_CUTOFF = 1.0e6;
@@ -126,8 +128,8 @@ public record DynamicsSummary(
      * to floating-point exactness.
      */
     public double energyAuditError() {
-        final double credited = initialEnergyTotal + initialReservoir + cumulativeInflow;
-        final double held = finalEnergyTotal + finalReservoir + finalEnergySink;
+        final double credited = initialEnergyTotal + initialReservoir + creditedInitialMass + cumulativeInflow;
+        final double held = finalEnergyTotal + finalReservoir + finalMassTotal + finalEnergySink;
         return Math.abs(credited - held);
     }
 

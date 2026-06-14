@@ -21,13 +21,17 @@ public final class KernelSnapshot {
     public final int[] genes;
     public final int[] geneCount;
     public final int maxGenes;
+    public final double[] mass;
+    public final double massTotal;
+    public final double creditedInitialMass;
 
     public KernelSnapshot(int tick, double[] outputs, double[] delayMemory, double[] energy,
                           double[] damage, double energySink, double reservoir, double[] resourceField,
                           int worldWidth, int[] position, double initialResourceTotal, double cumulativeInflow,
                           long[] lineageId, int[] generation, long birthsTotal,
                           int maxGeneration, double creditedInitialEnergy,
-                          int[] genes, int[] geneCount, int maxGenes) {
+                          int[] genes, int[] geneCount, int maxGenes,
+                          double[] mass, double massTotal, double creditedInitialMass) {
         this.tick = tick;
         this.outputs = outputs;
         this.delayMemory = delayMemory;
@@ -48,5 +52,8 @@ public final class KernelSnapshot {
         this.genes = genes;
         this.geneCount = geneCount;
         this.maxGenes = maxGenes;
+        this.mass = mass;
+        this.massTotal = massTotal;
+        this.creditedInitialMass = creditedInitialMass;
     }
 }

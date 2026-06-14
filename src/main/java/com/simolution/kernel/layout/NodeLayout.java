@@ -10,8 +10,9 @@ public final class NodeLayout {
         public static final int RAND = 1;
         public static final int LOCAL_RESOURCE = 2;
         public static final int SELF_ENERGY = 3;
+        public static final int SELF_MASS = 4;
 
-        public static final int MEANINGFUL_COUNT = 4;
+        public static final int MEANINGFUL_COUNT = 5;
 
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + KernelConfig.SENSOR_JUNK_COUNT;
@@ -48,8 +49,9 @@ public final class NodeLayout {
         public static final int MOVE_S = 4;
         public static final int MOVE_E = 5;
         public static final int MOVE_W = 6;
+        public static final int GROW = 7;
 
-        public static final int MEANINGFUL_COUNT = 7;
+        public static final int MEANINGFUL_COUNT = 8;
 
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + KernelConfig.ACTION_JUNK_COUNT;
@@ -94,6 +96,7 @@ public final class NodeLayout {
                 case Sensor.RAND -> "RAND";
                 case Sensor.LOCAL_RESOURCE -> "LOCAL_RESOURCE";
                 case Sensor.SELF_ENERGY -> "SELF_ENERGY";
+                case Sensor.SELF_MASS -> "SELF_MASS";
                 default -> "JUNK-S" + s;
             };
         }
@@ -117,6 +120,7 @@ public final class NodeLayout {
             case Action.MOVE_S -> "MOVE_S";
             case Action.MOVE_E -> "MOVE_E";
             case Action.MOVE_W -> "MOVE_W";
+            case Action.GROW -> "GROW";
             default -> "JUNK-A" + a;
         };
     }

@@ -31,6 +31,8 @@ public final class DynamicsObserver {
     private long birthsTotal;
     private int maxGeneration;
     private double creditedInitialEnergy;
+    private double creditedInitialMass;
+    private double finalMassTotal;
 
     // per-lineage running aggregates, indexed by lineageId (= the founder slot
     // index a lineage descends from, always < founder count). Bounded by the
@@ -275,10 +277,12 @@ public final class DynamicsObserver {
         birthsTotal = snapshot.birthsTotal;
         maxGeneration = snapshot.maxGeneration;
         creditedInitialEnergy = snapshot.creditedInitialEnergy;
+        creditedInitialMass = snapshot.creditedInitialMass;
 
         foldDigest(snapshot);
 
         finalEnergyTotal = sum(snapshot.energy);
+        finalMassTotal = snapshot.massTotal;
         finalEnergySink = snapshot.energySink;
         finalReservoir = snapshot.reservoir;
         initialReservoir = snapshot.initialResourceTotal;
@@ -337,6 +341,9 @@ public final class DynamicsObserver {
             h = Noise.mix(h ^ Double.doubleToLongBits(v));
         }
         for (final double v : snapshot.energy) {
+            h = Noise.mix(h ^ Double.doubleToLongBits(v));
+        }
+        for (final double v : snapshot.mass) {
             h = Noise.mix(h ^ Double.doubleToLongBits(v));
         }
         for (final double v : snapshot.resourceField) {
@@ -400,7 +407,9 @@ public final class DynamicsObserver {
                 finalPopulation,
                 distinctLineagesAlive,
                 birthsTotal,
-                maxGeneration
+                maxGeneration,
+                creditedInitialMass,
+                finalMassTotal
         );
     }
 }

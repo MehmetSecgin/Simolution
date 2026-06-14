@@ -60,8 +60,9 @@ public final class MetricsWriter implements Closeable {
         final double fieldTotal = snapshot.reservoir;
         final double sink = snapshot.energySink;
         final double inflow = snapshot.cumulativeInflow;
-        final double auditError = (snapshot.creditedInitialEnergy + snapshot.initialResourceTotal + inflow)
-                - (energyTotal + fieldTotal + sink);
+        final double auditError = (snapshot.creditedInitialEnergy + snapshot.initialResourceTotal
+                + snapshot.creditedInitialMass + inflow)
+                - (energyTotal + fieldTotal + sink + snapshot.massTotal);
 
         line.setLength(0);
         line.append(snapshot.tick).append(',')

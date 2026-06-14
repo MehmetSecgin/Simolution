@@ -105,8 +105,8 @@ class IndelTest {
             for (double e : s.energy) {
                 held += e;
             }
-            held += s.reservoir + s.energySink;
-            double credited = s.creditedInitialEnergy + s.initialResourceTotal + s.cumulativeInflow;
+            held += s.reservoir + s.energySink + s.massTotal;
+            double credited = s.creditedInitialEnergy + s.initialResourceTotal + s.creditedInitialMass + s.cumulativeInflow;
             assertEquals(credited, held, 1.0e-2,
                     "initial + inflow must equal units + field + sink at tick " + s.tick);
         }
