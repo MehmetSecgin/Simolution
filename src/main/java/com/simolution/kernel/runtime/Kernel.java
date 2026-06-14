@@ -2,6 +2,7 @@ package com.simolution.kernel.runtime;
 
 import java.util.Arrays;
 
+import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.config.KernelConfig;
 import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.layout.CompiledConnection;
@@ -55,6 +56,8 @@ public final class Kernel {
     private final int[] cellOccupant;
 
     private int tick = 0;
+
+    private InflowConfig inflow = InflowConfig.UNIFORM;
 
     /**
      * The substrate is a fixed pool of {@code genomes.length} slots; a slot is
@@ -168,6 +171,16 @@ public final class Kernel {
             }
             compileSlot(unit);
         }
+    }
+
+    /**
+     * Set the resource-inflow pattern (contract v6). Call once before ticking;
+     * the default is {@link InflowConfig#UNIFORM} (the v1–v5 uniform law), so an
+     * unconfigured kernel — and every existing test — stays byte-identical. The
+     * harness calls this only when {@code --resource-cycle} is requested.
+     */
+    public void configureInflow(final InflowConfig inflow) {
+        this.inflow = inflow;
     }
 
     /**
@@ -472,7 +485,8 @@ public final class Kernel {
         }
 
         for (int cell = 0; cell < unitCount; cell++) {
-            final double admitted = Math.min(KernelConfig.CELL_INFLOW,
+            final double cap = inflow.inflowCap(cell, tick, worldWidth);
+            final double admitted = Math.min(cap,
                     Math.max(0.0, KernelConfig.CELL_CAPACITY - resourceField[cell]));
             resourceField[cell] += admitted;
             cumulativeInflow += admitted;

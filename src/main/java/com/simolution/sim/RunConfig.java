@@ -1,5 +1,7 @@
 package com.simolution.sim;
 
+import com.simolution.kernel.config.InflowConfig;
+
 public record RunConfig(
         int units,
         int ticks,
@@ -13,7 +15,8 @@ public record RunConfig(
         int mapFrames,
         int servePort,
         boolean observe,
-        int checkpointEvery
+        int checkpointEvery,
+        InflowConfig inflow
 ) {
 
     public static RunConfig parse(String[] args) {
@@ -25,9 +28,13 @@ public record RunConfig(
         Integer mapFrames = null;
         Integer servePort = null;
         Integer checkpointEvery = null;
+        Integer cyclePeriod = null;
+        Integer cycleRadius = null;
+        Double cyclePeak = null;
         long seed = 0L;
         boolean trace = false;
         boolean observe = false;
+        boolean resourceCycle = false;
         String outPath = null;
 
         for (int i = 0; i < args.length; i++) {
@@ -43,6 +50,10 @@ public record RunConfig(
                 case "--seed" -> seed = Long.parseLong(args[++i]);
                 case "--trace" -> trace = true;
                 case "--observe" -> observe = true;
+                case "--resource-cycle" -> resourceCycle = true;
+                case "--cycle-period" -> cyclePeriod = Integer.parseInt(args[++i]);
+                case "--cycle-radius" -> cycleRadius = Integer.parseInt(args[++i]);
+                case "--cycle-peak" -> cyclePeak = Double.parseDouble(args[++i]);
                 case "--out" -> outPath = args[++i];
                 default -> throw new IllegalArgumentException("Unknown argument: " + args[i]);
             }
@@ -51,11 +62,16 @@ public record RunConfig(
         if (observe && outPath == null) {
             throw new IllegalArgumentException("--observe requires --out (the .obs/ dir sits beside it)");
         }
+        if (resourceCycle && observe) {
+            throw new IllegalArgumentException(
+                    "--resource-cycle with --observe is not supported yet "
+                    + "(the replay manifest does not carry the inflow pattern)");
+        }
 
         boolean demo = units == null && genes == null;
         if (demo) {
             return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, 0, 0,
-                    observe, checkpointEvery == null ? 2000 : checkpointEvery);
+                    observe, checkpointEvery == null ? 2000 : checkpointEvery, InflowConfig.UNIFORM);
         }
         int u = units == null ? 1 : units;
         int g = genes == null ? 32 : genes;
@@ -65,6 +81,12 @@ public record RunConfig(
                     "world " + w + "x" + w + " (" + ((long) w * w) + " cells) cannot hold "
                     + u + " founders");
         }
+        InflowConfig inflow = resourceCycle
+                ? InflowConfig.cyclic(
+                        cyclePeriod == null ? 2000 : cyclePeriod,
+                        cycleRadius == null ? Math.max(1, w / 5) : cycleRadius,
+                        cyclePeak == null ? 6.0 : cyclePeak)
+                : InflowConfig.UNIFORM;
         return new RunConfig(
                 u,
                 ticks == null ? 1000 : ticks,
@@ -78,7 +100,8 @@ public record RunConfig(
                 mapFrames == null ? 120 : mapFrames,
                 servePort == null ? 0 : servePort,
                 observe,
-                checkpointEvery == null ? 2000 : checkpointEvery
+                checkpointEvery == null ? 2000 : checkpointEvery,
+                inflow
         );
     }
 

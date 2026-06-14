@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
@@ -31,7 +32,7 @@ class RunReportTest {
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 42L, 16, 64, 16, false, false, null, 0, 0, false, 0);
+        RunConfig config = new RunConfig(25, 200, 42L, 16, 64, 16, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM);
 
         // act
         String first = runAndRender(config);
@@ -44,7 +45,7 @@ class RunReportTest {
     @Test
     void reportPointsToCsvInsteadOfInliningUnits() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 1L, 8, 64, 8, false, false, null, 0, 0, false, 0));
+        String report = runAndRender(new RunConfig(25, 50, 1L, 8, 64, 8, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM));
 
         // assert
         assertFalse(report.contains("## units"));
@@ -54,7 +55,7 @@ class RunReportTest {
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 9L, 8, 64, 8, false, false, null, 0, 0, false, 0));
+        String report = runAndRender(new RunConfig(5, 50, 9L, 8, 64, 8, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM));
 
         // assert
         assertTrue(report.contains("schema: report-v10"));

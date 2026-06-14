@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.config.KernelConfig;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
@@ -33,7 +34,7 @@ class UnitCsvReportTest {
     @Test
     void csvIsDeterministicAndHasRowPerUnit() {
         // arrange
-        RunConfig config = new RunConfig(30, 800, 42L, 16, 90, 16, false, false, null, 0, 0, false, 0);
+        RunConfig config = new RunConfig(30, 800, 42L, 16, 90, 16, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM);
 
         // act
         Run a = run(config);
@@ -51,7 +52,7 @@ class UnitCsvReportTest {
     @Test
     void deadUnitConsumedAllEnergyAndHasDeathTick() {
         // arrange: long run so units die
-        RunConfig config = new RunConfig(20, 1500, 7L, 32, 90, 32, false, false, null, 0, 0, false, 0);
+        RunConfig config = new RunConfig(20, 1500, 7L, 32, 90, 32, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM);
         Run r = run(config);
         DynamicsSummary dynamics = r.dynamics();
 
@@ -71,7 +72,7 @@ class UnitCsvReportTest {
     @Test
     void burnRateIsConsumedOverLifespan() {
         // arrange
-        RunConfig config = new RunConfig(10, 1000, 3L, 16, 90, 16, false, false, null, 0, 0, false, 0);
+        RunConfig config = new RunConfig(10, 1000, 3L, 16, 90, 16, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM);
         Run r = run(config);
         DynamicsSummary dynamics = r.dynamics();
 

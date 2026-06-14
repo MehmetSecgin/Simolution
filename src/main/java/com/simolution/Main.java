@@ -60,6 +60,7 @@ public class Main {
         int maxUnits = worldWidth * worldWidth;
         int[] founderCells = Kernel.scatterFounders(genomes.length, worldWidth);
         Kernel kernel = new Kernel(genomes, worldWidth, maxGenes, founderCells);
+        kernel.configureInflow(config.inflow());
         DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
