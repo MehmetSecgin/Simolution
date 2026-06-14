@@ -33,6 +33,7 @@ public final class DynamicsObserver {
     private double creditedInitialEnergy;
     private double creditedInitialMass;
     private double finalMassTotal;
+    private double finalMassMax;
 
     // per-lineage running aggregates, indexed by lineageId (= the founder slot
     // index a lineage descends from, always < founder count). Bounded by the
@@ -287,6 +288,7 @@ public final class DynamicsObserver {
 
         finalEnergyTotal = sum(snapshot.energy);
         finalMassTotal = snapshot.massTotal;
+        finalMassMax = maxLivingMass(snapshot);
         finalEnergySink = snapshot.energySink;
         finalReservoir = snapshot.reservoir;
         initialReservoir = snapshot.initialResourceTotal;
@@ -303,6 +305,21 @@ public final class DynamicsObserver {
             total += value;
         }
         return total;
+    }
+
+    /**
+     * Largest mass among the living (energy &gt; 0) over the whole slot pool —
+     * descendants included, unlike the founder-indexed per-unit arrays. One
+     * O(slots) pass, like {@link #sum}; the last tick's value is the final max.
+     */
+    private static double maxLivingMass(final KernelSnapshot snapshot) {
+        double max = 0.0;
+        for (int slot = 0; slot < snapshot.energy.length; slot++) {
+            if (snapshot.energy[slot] > 0.0 && snapshot.mass[slot] > max) {
+                max = snapshot.mass[slot];
+            }
+        }
+        return max;
     }
 
     /**
@@ -414,7 +431,8 @@ public final class DynamicsObserver {
                 maxGeneration,
                 creditedInitialMass,
                 finalMassTotal,
-                finalMass
+                finalMass,
+                finalMassMax
         );
     }
 }

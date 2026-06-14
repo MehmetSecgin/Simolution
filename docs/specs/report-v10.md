@@ -9,14 +9,14 @@ read, diffed, and watched. Kernel stays pure; this is all in the harness + viewe
 ## Run report (`<base>.txt`)
 
 - `schema:` bumped `report-v6` → `report-v10`; `kernel:` line now `v5`.
-- New **`## mass`** section, after `## energy`:
+- New **`## mass`** section, after `## energy`, reported over the **full living
+  population** (descendants included — *not* the founder-indexed per-unit arrays,
+  which go stale once slots are reused by births):
   - `initial-mass-total` — `Σ` founder mass (`INITIAL_MASS · founders`).
   - `final-mass-total` — `Σ` mass of the living at end (corpses dissipate mass to
     the sink, contract-v5 §6, so they contribute 0).
-  - `units-alive` — count of living units (denominator for the mean).
-  - `final-mass-mean-alive`, and `final-mass-p0/p50/p90/p100` — distribution of
-    mass over the **living** units only (sorted, nearest-rank quantiles, same as
-    the other percentile blocks).
+  - `final-mass-mean` — `final-mass-total / final-population`.
+  - `final-mass-max` — largest mass among the living over the whole slot pool.
 
 ## Per-unit CSV (`<base>.units.csv`)
 
