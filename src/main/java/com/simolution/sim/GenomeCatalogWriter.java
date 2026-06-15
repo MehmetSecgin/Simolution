@@ -6,49 +6,46 @@ import java.io.Writer;
 import java.util.HashMap;
 
 /**
- * The genome dictionary for report-v13 frames. A genome changes only at birth,
- * yet report-v9/v11 carried the raw genes in (or alongside) every frame; this
- * writer dedups them <b>globally</b> across the whole run: each distinct gene
- * list is written once as {@code g <id> <count> <gene×count>} and thereafter
- * referenced by its small integer {@code id} on the lean {@code u} frame line.
+ * The genome dictionary for the frame stream. A genome changes only at birth, yet
+ * report-v9/v11 carried the raw genes in (or alongside) every frame; this writer
+ * dedups them <b>globally</b> across the whole run: each distinct gene list is written
+ * once as {@code g <id> <count> <gene×count>} and thereafter referenced by its small
+ * integer {@code id} on the lean {@code u} frame line.
  * <p>
- * The viewer joins {@code u.genomeId → catalog → genes → circuit} client-side, so
- * the heavy genome bytes leave the per-tick frame stream entirely. Living distinct
- * genomes are few (dozens) even when births number in the millions — most births
- * are clones — so the catalog stays small.
+ * The viewer joins {@code u.genomeId → catalog → genes → circuit} client-side, so the
+ * heavy genome bytes leave the per-tick frame stream entirely. Living distinct genomes
+ * are few (dozens) even when births number in the millions — most births are clones.
  * <p>
- * Memory: an {@code O(distinct genomes)} map, the irreducible cost of dedup (it is
- * the catalog's whole purpose) and constant in tick count, not per-tick history.
- * This is a sidecar disk writer (like {@code --trace}), not the kernel hot path, so
- * the per-call key {@code String} allocation is acceptable; callers further avoid it
- * by caching the last id per slot and only re-resolving when a slot's genome changes.
+ * report-v14: the catalog is near-duplicate genomes (they differ from a sibling by ~1
+ * gene), so the whole file gzips ~20× — the caller wraps {@code out} in a
+ * {@code GZIPOutputStream} and the viewer whole-loads + native-gunzips it once. The
+ * per-genome byte-offset index (report-v13) is gone: at ~0.5 MB gzipped the catalog
+ * never needs Range-fetching.
+ * <p>
+ * Memory: an {@code O(distinct genomes)} map, the irreducible cost of dedup (it is the
+ * catalog's whole purpose) and constant in tick count, not per-tick history. This is a
+ * sidecar disk writer (like {@code --trace}), not the kernel hot path, so the per-call
+ * key {@code String} allocation is acceptable; callers further avoid it by caching the
+ * last id per slot and only re-resolving when a slot's genome changes.
  */
 public final class GenomeCatalogWriter implements Closeable {
 
     private final Writer out;
-    private final Writer idx;
     private final StringBuilder key = new StringBuilder(256);
     private final HashMap<String, Integer> idByGenome = new HashMap<>();
     private int nextId;
-    private long byteOffset;
 
     /**
-     * @param out the {@code .catalog} stream ({@code g <id> <count> <genes>} lines)
-     * @param idx the {@code .catalog.idx} stream — one line per genome
-     *            {@code <gid> <count> <byteOffset> <byteLen>}, so a viewer can
-     *            Range-fetch a single genome's genes on demand (report-v13 §index)
-     *            and list genomes by gene-count without fetching their genes.
-     *            All content is ASCII, so char length == byte length.
+     * @param out the catalog stream ({@code g <id> <count> <genes>} lines), typically a
+     *            {@code GZIPOutputStream}-backed writer ({@code <base>.catalog.gz}).
      */
-    public GenomeCatalogWriter(final Writer out, final Writer idx) {
+    public GenomeCatalogWriter(final Writer out) {
         this.out = out;
-        this.idx = idx;
     }
 
     /**
-     * Resolve a genome (the {@code count} genes at {@code genes[base..base+count]})
-     * to its catalog id, writing a new {@code g} line + index entry the first time
-     * it is seen.
+     * Resolve a genome (the {@code count} genes at {@code genes[base..base+count]}) to its
+     * catalog id, writing a new {@code g} line the first time it is seen.
      */
     public int idOf(final int[] genes, final int base, final int count) throws IOException {
         key.setLength(0);
@@ -63,11 +60,7 @@ public final class GenomeCatalogWriter implements Closeable {
         }
         final int id = nextId++;
         idByGenome.put(k, id);
-        final String gline = "g " + id + ' ' + k + '\n';
-        idx.write(id + " " + count + " " + byteOffset + " " + gline.length() + "\n");
-        idx.flush();
-        byteOffset += gline.length();
-        out.write(gline);
+        out.write("g " + id + ' ' + k + '\n');
         out.flush();
         return id;
     }
@@ -76,7 +69,5 @@ public final class GenomeCatalogWriter implements Closeable {
     public void close() throws IOException {
         out.flush();
         out.close();
-        idx.flush();
-        idx.close();
     }
 }

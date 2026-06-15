@@ -73,17 +73,18 @@ public class Main {
                 Files.createDirectories(out.getParent());
             }
             catalogWriter = new GenomeCatalogWriter(
-                    Files.newBufferedWriter(sibling(out, ".catalog")),
-                    Files.newBufferedWriter(sibling(out, ".catalog.idx")));
+                    new java.io.OutputStreamWriter(
+                            new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".catalog.gz"))),
+                            java.nio.charset.StandardCharsets.UTF_8));
             birthLog = new BirthLogWriter(
                     new java.io.OutputStreamWriter(
                             new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".births.csv.gz"))),
                             java.nio.charset.StandardCharsets.UTF_8),
                     catalogWriter, maxUnits, genomes.length, worldWidth, founderCells);
             if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
-                Path framesPath = sibling(out, ".frames");
+                Path framesPath = sibling(out, ".frames.zst");
                 mapWriter = new MapFrameWriter(
-                        Files.newBufferedWriter(framesPath),
+                        Files.newOutputStream(framesPath),
                         Files.newBufferedWriter(sibling(out, ".frames.idx")), catalogWriter,
                         worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
             }
@@ -172,11 +173,11 @@ public class Main {
                     + " (query: duckdb -c \"SELECT * FROM '" + birthsGz + "'\")");
 
             if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
-                Path framesTxt = sibling(out, ".frames");
-                Path catalogTxt = sibling(out, ".catalog");
-                System.out.println("spatial map frames written to " + framesTxt + " (genome catalog: " + catalogTxt + ")");
+                Path framesZst = sibling(out, ".frames.zst");
+                Path catalogGz = sibling(out, ".catalog.gz");
+                System.out.println("spatial map frames written to " + framesZst + " (chunked zstd; genome catalog: " + catalogGz + ")");
                 System.out.println("  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails these files)");
-                System.out.println("  bake offline:     python3 tools/mapviz.py " + framesTxt + "  (self-contained .map.html)");
+                System.out.println("  bake offline:     python3 tools/mapviz.py " + framesZst + "  (self-contained .map.html)");
             }
         }
     }

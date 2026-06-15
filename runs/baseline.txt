@@ -1,5 +1,5 @@
 # Simolution run report
-schema: report-v10
+schema: report-v14
 kernel: v5
 seed: 42
 units: 100

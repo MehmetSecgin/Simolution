@@ -2,68 +2,81 @@ package com.simolution.sim;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+
+import com.github.luben.zstd.Zstd;
 
 import com.simolution.kernel.config.KernelConfig;
-import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 /**
- * Streams lean every-tick spatial frames of a run for the map scrub/live player
- * (report-v13). One frame per sampled tick, built whole and flushed in a single
- * write — nothing accumulates in memory across frames (memory doctrine: footprint
- * constant in tick count; the trajectory lives on disk, like {@code --trace}).
+ * Streams every-tick spatial frames of a run for the map scrub/live player, as a
+ * <b>chunked, zstd-compressed</b> binary stream (report-v14). Nothing accumulates
+ * across the whole run — at most one open chunk lives in memory (memory doctrine:
+ * footprint constant in tick count; the trajectory lives on disk, like {@code --trace}).
  * <p>
- * report-v13 makes the frame <b>lean</b>. The churn measurement that drove the
- * redesign: standing population is tiny (~33–56) while births run to thousands per
- * tick, so a <i>full</i> frame every tick is cheap, but the old {@code u} line was
- * fat — it re-emitted the unit's 32-gene genome and all 24 node-output floats every
- * frame (~84 MB/run, 96 % of it here). Now:
- * <ul>
- *   <li><b>Genome → catalog id.</b> The raw genes leave the frame entirely; the
- *       {@code u} line carries a small {@code genomeId} into {@link GenomeCatalogWriter}
- *       (global write-once dedup). The per-slot cache below resolves the id only when
- *       a slot's genome actually changes (birth), not every frame.</li>
- *   <li><b>No node outputs.</b> The viewer does not need per-node activations
- *       ("not extreme details"); they are gone.</li>
- *   <li><b>Fired action.</b> A single tag per unit — the dominant action node
- *       (argmax over the meaningful effectors, {@code .} if none drives) — derived in
- *       the harness from the post-evaluate snapshot. This is interpretation, not a
- *       kernel concept; the kernel still privileges no effector.</li>
- *   <li><b>RLE resource field.</b> The dense {@code r} digit field is run-length
- *       encoded ({@code DxN} tokens), so a uniform or smoothly-graded field costs a
- *       handful of tokens instead of {@code W·W} digits.</li>
- * </ul>
- * Format (line-oriented, parsed client-side by {@code live.html} / {@code tools/mapviz.py}):
+ * <b>Lean row (report-v14).</b> The frame {@code u} line is now
+ * {@code u <cell> <slot> <genomeId>} — {@code mass} and the fired {@code action} are
+ * <b>gone</b> (the two high-entropy, fast-churning fields; not needed to seek — the
+ * owner watches map + location + genome/lineage). The genome is a small {@code genomeId}
+ * into {@link GenomeCatalogWriter}; the per-slot cache below resolves the id only when a
+ * slot's genome actually changes (birth), not every frame.
+ * <p>
+ * <b>Chunked zstd (report-v14).</b> Frames are grouped into {@link #CHUNK_FRAMES}-frame
+ * chunks, each independently {@code zstd-19}-compressed and appended to
+ * {@code <base>.frames.zst}. A chunk decompresses to the familiar text block:
  * <pre>
- *   format v13
- *   world &lt;W&gt;
- *   sample-every &lt;K&gt;
- *   t &lt;tick&gt;                                  --- one frame ---
- *   r &lt;DxN tokens, digit 0-9 quantized to CELL_CAPACITY, run-length encoded&gt;
- *   u &lt;cell&gt; &lt;slot&gt; &lt;massRounded&gt; &lt;action&gt; &lt;genomeId&gt;
+ *   t &lt;tick&gt;
+ *   r &lt;DxN RLE resource tokens&gt;
+ *   u &lt;cell&gt; &lt;slot&gt; &lt;genomeId&gt;
  *   ... (one u line per living unit)
  * </pre>
- * A frame is built and written in one flush so a reader never sees it half-written.
- * {@link #close()} appends a final {@code end} line so a client tailing the file knows
- * the run finished (report-v12 trailer semantics).
+ * Multi-frame chunks are what let zstd's window span frames and reach the run's ~30×
+ * redundancy (a single frame compresses only ~3×). The {@code <base>.frames.idx} sidecar
+ * is ASCII, one header line then one line per <b>chunk</b>:
+ * <pre>
+ *   format v14 world &lt;W&gt; sample-every &lt;K&gt; chunk &lt;CHUNK_FRAMES&gt;
+ *   &lt;firstTick&gt; &lt;lastTick&gt; &lt;byteOffset&gt; &lt;byteLen&gt; &lt;frameCount&gt;
+ *   ...
+ *   end &lt;finalTick&gt;
+ * </pre>
+ * A viewer maps a tick to the chunk whose {@code [firstTick,lastTick]} contains it,
+ * HTTP-Range-fetches {@code [byteOffset, byteOffset+byteLen)}, zstd-decompresses, and
+ * scans the {@code t} lines to the frame — browser RAM is one decompressed chunk,
+ * independent of run length. Live tail: the writer seals a chunk every
+ * {@link #CHUNK_FRAMES} frames and flushes the idx line; a follower polls the idx for
+ * new chunk lines (so follow-live lags by at most {@link #CHUNK_FRAMES} ticks). The open
+ * chunk is sealed by {@link #close()}, which also writes the {@code end <finalTick>} idx
+ * trailer (report-v12 trailer semantics).
  */
 public final class MapFrameWriter implements Closeable {
 
-    private final Writer out;
+    /** Frames per zstd chunk — the cross-frame window zstd compresses over (also seek/live granularity). */
+    public static final int CHUNK_FRAMES = 256;
+
+    private static final int ZSTD_LEVEL = 19;
+
+    private final OutputStream out;
     private final Writer idx;
     private final GenomeCatalogWriter catalog;
     private final int sampleEvery;
     private final int windowFrom;
     private final int windowTo;
-    private final StringBuilder line;
+
+    private final StringBuilder chunk;
+    private int firstTickInChunk = -1;
+    private int lastTickInChunk = -1;
+    private int framesInChunk;
+    private int lastTickOverall = -1;
     private long byteOffset;
 
     /**
-     * Per-slot dedup of genomes: the last gene list emitted for each slot and the
-     * catalog id it resolved to, so the id is re-resolved (and hashed) only when a
-     * slot's genome changes (birth), never every frame. Lazily allocated on the
-     * first frame — O(slots), bounded and constant in tick count (memory doctrine).
+     * Per-slot dedup of genomes: the last gene list emitted for each slot and the catalog
+     * id it resolved to, so the id is re-resolved (and hashed) only when a slot's genome
+     * changes (birth), never every frame. Lazily allocated on the first frame — O(slots),
+     * bounded and constant in tick count (memory doctrine).
      */
     private int[] lastGenes;
     private int[] lastCount;
@@ -72,19 +85,15 @@ public final class MapFrameWriter implements Closeable {
     private int cacheStride;
 
     /**
-     * {@code windowFrom >= 0} selects <b>window mode</b>: a frame every tick in
-     * {@code [windowFrom, windowTo]} and nothing outside. Otherwise
-     * {@code targetFrames} sets the across-run downsampling — {@code <= 0} means a
-     * frame <b>every tick</b> (report-v13 default; cheap now that frames are lean).
+     * {@code windowFrom >= 0} selects window mode: a frame every tick in
+     * {@code [windowFrom, windowTo]} and nothing outside. Otherwise {@code targetFrames}
+     * sets the across-run downsampling — {@code <= 0} means a frame <b>every tick</b>
+     * (default; per-tick is the owner's requirement, the size win is the lean row + zstd).
+     *
+     * @param out the {@code .frames.zst} stream — appended zstd chunks (binary).
+     * @param idx the {@code .frames.idx} stream — one ASCII line per chunk.
      */
-    /**
-     * @param idx the {@code .frames.idx} stream — one line per frame
-     *            {@code <tick> <byteOffset> <byteLen>} into {@code .frames}, so a
-     *            viewer can Range-fetch a single frame on demand (report-v13 §index)
-     *            instead of loading the whole run. All content is ASCII, so char
-     *            length == byte length; offsets start after the header block.
-     */
-    public MapFrameWriter(final Writer out, final Writer idx, final GenomeCatalogWriter catalog,
+    public MapFrameWriter(final OutputStream out, final Writer idx, final GenomeCatalogWriter catalog,
                           final int worldWidth, final int totalTicks, final int targetFrames,
                           final int windowFrom, final int windowTo) throws IOException {
         this.out = out;
@@ -95,16 +104,16 @@ public final class MapFrameWriter implements Closeable {
         this.sampleEvery = windowFrom >= 0
                 ? 1
                 : (targetFrames <= 0 ? 1 : Math.max(1, totalTicks / targetFrames));
-        this.line = new StringBuilder(4 * worldWidth + 256);
-        final String header = "format v13\nworld " + worldWidth + "\nsample-every " + sampleEvery + "\n";
-        out.write(header);
-        byteOffset = header.length();
+        this.chunk = new StringBuilder(8 * worldWidth + 4096);
+        idx.write("format v14 world " + worldWidth + " sample-every " + sampleEvery
+                + " chunk " + CHUNK_FRAMES + "\n");
+        idx.flush();
     }
 
     /**
-     * Write a frame if this tick is a sample point. Call once per tick after
-     * {@code observe}; reads the snapshot's resource field and, for each living
-     * unit, its cell ({@code position[slot]}), slot, mass, fired action and genome id.
+     * Buffer a frame if this tick is a sample point; seal the chunk when it fills. Call
+     * once per tick after {@code observe}; reads the snapshot's resource field and, for
+     * each living unit, its cell ({@code position[slot]}), slot and genome id.
      */
     public void maybeFrame(final KernelSnapshot snapshot) throws IOException {
         if (windowFrom >= 0) {
@@ -114,9 +123,7 @@ public final class MapFrameWriter implements Closeable {
         } else if (snapshot.tick % sampleEvery != 0) {
             return;
         }
-        line.setLength(0);
-        line.append("t ").append(snapshot.tick).append('\n');
-
+        chunk.append("t ").append(snapshot.tick).append('\n');
         appendResourceRle(snapshot.resourceField);
 
         final double[] energy = snapshot.energy;
@@ -144,30 +151,50 @@ public final class MapFrameWriter implements Closeable {
                 genomeId = catalog.idOf(genes, base, count);
                 rememberGenome(slot, base, count, genes, genomeId);
             }
-            line.append('u')
+            chunk.append('u')
                 .append(' ').append(position[slot])
                 .append(' ').append(slot)
-                .append(' ').append(Math.round(snapshot.mass[slot] * 1000.0) / 1000.0)
-                .append(' ').append(firedAction(snapshot.outputs, slot))
                 .append(' ').append(genomeId)
                 .append('\n');
         }
 
-        final String frame = line.toString();
-        idx.write(snapshot.tick + " " + byteOffset + " " + frame.length() + "\n");
-        idx.flush();
-        byteOffset += frame.length();
-        out.write(frame);
+        if (firstTickInChunk < 0) {
+            firstTickInChunk = snapshot.tick;
+        }
+        lastTickInChunk = snapshot.tick;
+        lastTickOverall = snapshot.tick;
+        framesInChunk++;
+        if (framesInChunk >= CHUNK_FRAMES) {
+            sealChunk();
+        }
+    }
+
+    /** zstd-compress the open chunk, append it to the frame stream and record its index line. */
+    private void sealChunk() throws IOException {
+        if (framesInChunk == 0) {
+            return;
+        }
+        final byte[] raw = chunk.toString().getBytes(StandardCharsets.UTF_8);
+        final byte[] compressed = Zstd.compress(raw, ZSTD_LEVEL);
+        out.write(compressed);
         out.flush();
+        idx.write(firstTickInChunk + " " + lastTickInChunk + " " + byteOffset
+                + " " + compressed.length + " " + framesInChunk + "\n");
+        idx.flush();
+        byteOffset += compressed.length;
+        chunk.setLength(0);
+        firstTickInChunk = -1;
+        lastTickInChunk = -1;
+        framesInChunk = 0;
     }
 
     /**
-     * Append the resource field as run-length-encoded digit tokens {@code DxN}: each
-     * cell quantized to 0-9 of {@code CELL_CAPACITY}, consecutive equal levels collapsed.
-     * A uniform field → one token; a smooth gradient → a few.
+     * Append the resource field as run-length-encoded digit tokens {@code DxN}: each cell
+     * quantized to 0-9 of {@code CELL_CAPACITY}, consecutive equal levels collapsed. A
+     * uniform field → one token; a smooth gradient → a few.
      */
     private void appendResourceRle(final double[] field) {
-        line.append('r');
+        chunk.append('r');
         int runLevel = -1;
         int runLen = 0;
         for (final double r : field) {
@@ -181,45 +208,16 @@ public final class MapFrameWriter implements Closeable {
                 runLen++;
             } else {
                 if (runLen > 0) {
-                    line.append(' ').append((char) ('0' + runLevel)).append('x').append(runLen);
+                    chunk.append(' ').append((char) ('0' + runLevel)).append('x').append(runLen);
                 }
                 runLevel = level;
                 runLen = 1;
             }
         }
         if (runLen > 0) {
-            line.append(' ').append((char) ('0' + runLevel)).append('x').append(runLen);
+            chunk.append(' ').append((char) ('0' + runLevel)).append('x').append(runLen);
         }
-        line.append('\n');
-    }
-
-    /**
-     * The dominant action this tick: argmax over the meaningful effector outputs of
-     * this slot, mapped to a single letter ({@code y H R N S E W G}); {@code .} when
-     * no effector carries a positive signal. A harness-side summary, not a kernel concept.
-     */
-    private static char firedAction(final double[] outputs, final int slot) {
-        final int base = slot * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET;
-        double best = 0.0;
-        int bestA = -1;
-        for (int a = 0; a < NodeLayout.Action.MEANINGFUL_COUNT; a++) {
-            final double v = outputs[base + a];
-            if (v > best) {
-                best = v;
-                bestA = a;
-            }
-        }
-        return switch (bestA) {
-            case NodeLayout.Action.Y -> 'y';
-            case NodeLayout.Action.HARVEST -> 'H';
-            case NodeLayout.Action.REPRODUCE -> 'R';
-            case NodeLayout.Action.MOVE_N -> 'N';
-            case NodeLayout.Action.MOVE_S -> 'S';
-            case NodeLayout.Action.MOVE_E -> 'E';
-            case NodeLayout.Action.MOVE_W -> 'W';
-            case NodeLayout.Action.GROW -> 'G';
-            default -> '.';
-        };
+        chunk.append('\n');
     }
 
     /** True if this slot's current genome equals the last one resolved for it (→ reuse cached id). */
@@ -250,10 +248,10 @@ public final class MapFrameWriter implements Closeable {
 
     @Override
     public void close() throws IOException {
-        out.write("end\n");
+        sealChunk();
         out.flush();
         out.close();
-        idx.write("end\n");
+        idx.write("end " + lastTickOverall + "\n");
         idx.flush();
         idx.close();
     }

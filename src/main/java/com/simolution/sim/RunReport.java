@@ -11,7 +11,7 @@ import java.util.Arrays;
  */
 public final class RunReport {
 
-    public static final String SCHEMA = "report-v10";
+    public static final String SCHEMA = "report-v14";
 
     private RunReport() {}
 

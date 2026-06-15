@@ -21,7 +21,7 @@ class BirthLogWriterTest {
     void headerThenBirthRowsWithSharedCatalogIds() throws Exception {
         StringWriter births = new StringWriter();
         StringWriter catalog = new StringWriter();
-        GenomeCatalogWriter cat = new GenomeCatalogWriter(catalog, new StringWriter());
+        GenomeCatalogWriter cat = new GenomeCatalogWriter(catalog);
         int world = 8;
         int[] founders = Kernel.scatterFounders(6, world);
         Kernel k = new Kernel(GenomeFactory.random(3L, 6, 8), world, 8, founders);

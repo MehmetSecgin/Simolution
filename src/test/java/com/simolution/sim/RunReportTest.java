@@ -59,7 +59,7 @@ class RunReportTest {
         String report = runAndRender(new RunConfig(5, 50, 9L, 8, 64, 8, false, false, null, 0, false, 0, InflowConfig.UNIFORM, -1, -1));
 
         // assert
-        assertTrue(report.contains("schema: report-v10"));
+        assertTrue(report.contains("schema: report-v14"));
         assertTrue(report.contains("## structure"));
         assertTrue(report.contains("## dynamics"));
         assertTrue(report.contains("## energy"));
