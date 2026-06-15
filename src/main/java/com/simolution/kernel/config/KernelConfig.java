@@ -16,9 +16,10 @@ public final class KernelConfig {
     public static final double HARVEST_MASS_EXPONENT = 0.5;
 
     public static final double CELL_CAPACITY = 100.0;
-    public static final double CELL_INITIAL = CELL_CAPACITY;
+    public static final double CELL_INITIAL = 0.0;
     public static final double CELL_INFLOW = 1.0;
     public static final double DIFFUSION_RATE = 0.1;
+    public static final double RESOURCE_DECAY_RATE = 0.02;
 
     public static final double MOVE_COST_BASE = 0.2;
     public static final double MOVE_COST_PER_MASS = 0.1;

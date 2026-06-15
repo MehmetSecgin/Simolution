@@ -308,6 +308,8 @@ public final class Kernel {
         settleMovement();
         // Phase 10
         settleDiffusion();
+        // Phase 11
+        settleDecay();
 
         tick++;
     }
@@ -788,6 +790,28 @@ public final class Kernel {
      * creates and destroys nothing; only inflow (phase 5) is capped. One O(cells)
      * pass per tick, no allocation.
      */
+    /**
+     * Phase 11 — resource decay (contract v7.1/v8). Standing resource is not
+     * permanent: each tick every cell dissipates a fixed fraction
+     * {@code RESOURCE_DECAY_RATE} of its field to the energy sink, so unconsumed
+     * resource fades instead of accumulating forever. This is what makes the inflow
+     * pattern matter — a cell with no inflow source relaxes to 0, and a moving
+     * source leaves a fading trail. Conservative: the decayed amount goes to
+     * {@code energySink} (the audit's dissipation term), so the closed-system
+     * balance (contract v5 §6) is untouched — only resource leaves the field.
+     */
+    private void settleDecay() {
+        final double rate = KernelConfig.RESOURCE_DECAY_RATE;
+        if (rate <= 0.0) {
+            return;
+        }
+        for (int cell = 0; cell < unitCount; cell++) {
+            final double lost = resourceField[cell] * rate;
+            resourceField[cell] -= lost;
+            energySink += lost;
+        }
+    }
+
     private void settleDiffusion() {
         final int w = worldWidth;
         final double d = KernelConfig.DIFFUSION_RATE;

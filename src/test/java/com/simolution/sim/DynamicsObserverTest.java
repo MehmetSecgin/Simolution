@@ -52,10 +52,13 @@ class DynamicsObserverTest {
         // act
         DynamicsSummary summary = runAndSummarize(new int[][] {{}}, 10);
 
-        // assert
+        // assert: no genes -> no propagation, dormant from birth. Regime is BOUNDED,
+        // not FIXED_POINT: the LOCAL_RESOURCE sensor node is a live input that ramps
+        // from 0 as inflow fills against decay (contract v7.1), so the observed node
+        // trajectory varies even though the unit computes nothing.
         assertEquals(1, summary.countDormantFromBirth());
         assertEquals(1, summary.countDormantAtEnd());
-        assertEquals(DynamicsSummary.Regime.FIXED_POINT, summary.regime(0));
+        assertEquals(DynamicsSummary.Regime.BOUNDED, summary.regime(0));
         assertEquals(0, summary.propagationsTotal());
     }
 
@@ -64,8 +67,10 @@ class DynamicsObserverTest {
         // act
         DynamicsSummary summary = runAndSummarize(new int[][] {FEEDBACK_GENOME}, 50);
 
-        // assert
-        assertEquals(DynamicsSummary.Regime.FIXED_POINT, summary.regime(0));
+        // assert: the feedback loop itself settles, but the regime is BOUNDED (not
+        // FIXED_POINT) because the LOCAL_RESOURCE sensor node ramps as inflow fills
+        // against decay (contract v7.1) — the field is no longer a static input.
+        assertEquals(DynamicsSummary.Regime.BOUNDED, summary.regime(0));
         assertEquals(2, summary.firstActivityTick()[0]);
         assertEquals(false, summary.dormantAtEnd()[0]);
         assertEquals(0, summary.countDormantFromBirth());

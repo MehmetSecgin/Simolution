@@ -23,62 +23,62 @@ units-rand-wired: 82
 
 ## dynamics
 ticks-with-any-activity: 999
-signal-propagations-total: 411248
-junk-sink-propagations: 99330
-junk-sink-propagation-fraction: 0.2415330895226238
-clamp-saturation-events: 9943
-thresh-flips-total: 1811
+signal-propagations-total: 360492
+junk-sink-propagations: 89273
+junk-sink-propagation-fraction: 0.2476421113367287
+clamp-saturation-events: 9004
+thresh-flips-total: 1836
 units-dormant-from-birth: 0
-units-dormant-at-end: 95
+units-dormant-at-end: 97
 
 ## reproduction
-births-total: 1363
+births-total: 1371
 max-generation: 5
-peak-population: 1016
-final-population: 5
-distinct-lineages-alive: 5
+peak-population: 976
+final-population: 3
+distinct-lineages-alive: 3
 
 ## energy
 initial-energy-total: 100000.0
-final-energy-total: 8842.705237810173
-energy-sink: 127144.88274684794
-initial-reservoir: 1000000.0
-final-reservoir: 999981.0989804763
-cumulative-inflow: 35873.68696508241
-intake-total: 35892.58798460616
-energy-audit-error: 5.21540641784668E-8
-units-alive-at-end: 5
-units-dead-at-end: 95
-death-tick-first: 9
+final-energy-total: 4413.704449764854
+energy-sink: 9606214.373491783
+initial-reservoir: 0.0
+final-reservoir: 489468.9220574856
+cumulative-inflow: 1.0E7
+intake-total: 9510531.077942515
+energy-audit-error: 9.667128324508667E-7
+units-alive-at-end: 3
+units-dead-at-end: 97
+death-tick-first: 10
 death-tick-median: 37
-death-tick-last: 974
+death-tick-last: 907
 
 ## mass
 initial-mass-total: 100.0
-final-mass-total: 5.0
+final-mass-total: 3.0
 final-mass-mean: 1.0
 final-mass-max: 1.0
 
 ## intake
 units-ever-harvested: 73
-harvest-active-ticks-total: 11868
+harvest-active-ticks-total: 10164
 
 ## burn-rate
-mean-burn-rate-p0: -2.3263680191896765
-mean-burn-rate-p50: 25.0
-mean-burn-rate-p90: 35.714285714285715
-mean-burn-rate-p100: 111.11111111111111
+mean-burn-rate-p0: -1.3674012219110336
+mean-burn-rate-p50: 25.641025641025642
+mean-burn-rate-p90: 37.03703703703704
+mean-burn-rate-p100: 100.0
 
 ## terminal-regimes
-fixed-point: 81
-bounded: 4
-divergent: 15
+fixed-point: 80
+bounded: 3
+divergent: 17
 divergence-cutoff: 1000000.0
 
 ## action-channel
 units-final-y-nonfinite: 0
 final-abs-y-p0: 0.0
-final-abs-y-p50: 0.011310541093173011
+final-abs-y-p50: 0.09313028351695303
 final-abs-y-p90: 3.9862491679246315
-final-abs-y-p100: 2.032733660268233E30
-state-digest: 1f97e28f3e369e9b
+final-abs-y-p100: 2.03270573601348E30
+state-digest: 52d655ca519aa56b

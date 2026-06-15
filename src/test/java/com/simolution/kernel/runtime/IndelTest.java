@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.config.KernelConfig;
 import com.simolution.sim.GenomeFactory;
 
@@ -18,15 +19,21 @@ import com.simolution.sim.GenomeFactory;
 class IndelTest {
 
     private static final long SEED = 7L;
-    private static final int UNITS = 200;
-    private static final int WORLD = 50;
+    private static final int UNITS = 1500;
+    private static final int WORLD = 80;
     private static final int FOUNDER_GENES = 8;
     private static final int MAX_GENES = 16;
-    private static final int TICKS = 3000;
+    private static final int TICKS = 4000;
 
+    // A food-rich world (generous uniform inflow saturates the field against decay)
+    // so a large population sustains for thousands of births — enough for the
+    // post-tuning indel rates (ADR 0035, 1e-4/gene) to fire both operators. This
+    // tests the indel *mechanism*, not population survival under scarcity.
     private static Kernel evolvingKernel() {
-        return new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), WORLD, MAX_GENES,
+        Kernel kernel = new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), WORLD, MAX_GENES,
                 Kernel.scatterFounders(UNITS, WORLD));
+        kernel.configureInflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX));
+        return kernel;
     }
 
     // contract-v4 §1: MAX_GENES is a hard soft-cap ceiling and 0 the floor —

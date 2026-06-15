@@ -179,15 +179,18 @@ class EnergyTest {
     void deductionClampsToAvailableNeverOverdraws() {
         // arrange
         Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, 1, 32, new int[] {0});
-        double initialTotal = KernelConfig.INITIAL_ENERGY + KernelConfig.INITIAL_MASS;
 
-        // act + assert: energy never goes negative, sink never exceeds initial
+        // act + assert: energy never goes negative, sink never exceeds what has
+        // entered the open system (initial energy+mass+resource + admitted inflow;
+        // resource decay routes unconsumed inflow to the sink, contract v7.1)
         for (int i = 0; i < 5000; i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
+            double credited = snapshot.creditedInitialEnergy + snapshot.creditedInitialMass
+                    + snapshot.initialResourceTotal + snapshot.cumulativeInflow;
             assertTrue(snapshot.energy[0] >= 0.0, "energy must never be negative");
-            assertTrue(snapshot.energySink <= initialTotal + 1.0e-9,
-                    "sink must never exceed what existed");
+            assertTrue(snapshot.energySink <= credited + 1.0e-9,
+                    "sink must never exceed what entered the system");
         }
     }
 
