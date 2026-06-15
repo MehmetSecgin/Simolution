@@ -29,11 +29,12 @@ Current milestone: **Kernel v5 (biomass / Pirt size physics)** — a determinist
 # visualize a run as a self-contained HTML dashboard (stdlib python, no deps)
 python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 
-# bake the spatial map (report-v12) into a SELF-CONTAINED rich viewer: the same
-# genome panel + circuit inspector + colour-by-mass as the live view, frames inlined,
-# opens anywhere (even file://). The run writes a sampled <base>.map.txt whenever
-# --out is set (--map-frames N, default 120; 0 disables). Then:
-python3 tools/mapviz.py runs/baseline.map.txt   # writes runs/baseline.map.html (offline, no server)
+# bake the spatial map (report-v13) into a SELF-CONTAINED rich viewer: the same
+# genome panel + circuit inspector + colour by genome/mass/action as the live view,
+# frames + catalog inlined, opens anywhere (even file://). The run writes lean
+# <base>.frames + a <base>.catalog (genome dictionary) whenever --out is set
+# (--map-frames N: 0 = EVERY tick [default], N>0 = N target frames, negative = off). Then:
+python3 tools/mapviz.py runs/baseline.frames   # writes runs/baseline.map.html (offline, no server)
 
 # observability layer (report-v8): optional, decoupled, off by default. Writes
 # <base>.obs/ (manifest.json, events.jsonl, metrics.csv, ckpt/<tick>.ckpt) beside
@@ -45,13 +46,19 @@ python3 tools/mapviz.py runs/baseline.map.txt   # writes runs/baseline.map.html 
 python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
 
-# watch a run LIVE while it ticks (report-v12, serverless): no bespoke server — the
-# viewer (live.html) parses the streamed .map.txt client-side and tails the growing
-# file over plain HTTP Range. serve-live.sh runs a sim in the background and serves
-# runs/ with `python3 -m http.server`; open the URL to follow live, scrub after it ends.
+# watch a run LIVE while it ticks (report-v13, serverless): no bespoke server — the
+# viewer (live.html) parses the streamed .frames + .catalog client-side and tails the
+# growing files over plain HTTP Range. serve-live.sh runs a sim in the background and
+# serves runs/ with `python3 -m http.server`; open the URL to follow live, scrub after.
 bash scripts/serve-live.sh   # serves runs/ on :8090 (edit its --args to change the run)
 # then open http://localhost:8090  (or, for any run: serve runs/ and open <base>.html,
-# which tails <base>.map.txt). Frames stay on disk, O(1) RAM; Ctrl-C to stop.
+# which tails <base>.frames + <base>.catalog). Frames stay on disk, O(1) RAM; Ctrl-C to stop.
+
+# lineage / "what happened to who": every --out run writes <base>.births.csv.gz
+# (tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated).
+# Query with DuckDB (no JVM); lineage+generation are kernel-exact, so genome history is:
+#   duckdb -c "SELECT DISTINCT generation, child_genome_id FROM 'runs/baseline.births.csv.gz'
+#              WHERE lineage=76 ORDER BY 1"   -- then diff catalog genes hop to hop
 ```
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
@@ -90,7 +97,9 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
 ├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
 ├── RunReport                 byte-deterministic report-v6 text (aggregates + distributions + reproduction)
-├── MapFrameWriter            streams sampled spatial frames to <base>.map.txt (report-v7; report-v11 dedup+round; report-v12 `end` trailer); O(1) RAM
+├── MapFrameWriter            streams lean every-tick spatial frames to <base>.frames (report-v13: `u <cell> <slot> <mass> <action> <genomeId>`, RLE resource field, `end` trailer); O(1) RAM
+├── GenomeCatalogWriter       <base>.catalog — global write-once genome dictionary (`g <id> <count> <genes>`); frames carry the id (report-v13)
+├── BirthLogWriter            <base>.births.csv.gz — one row per derived birth (lineage/generation kernel-exact, genome ids from the shared catalog); DuckDB-queryable lineage store (report-v13)
 ├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
 ├── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
 ├── RunManifest/ConfigHash    report-v8 replay key (verbatim founder genomes+cells, KernelConfig fingerprint)
@@ -123,6 +132,7 @@ Binding (implementations MUST conform):
 - [docs/specs/report-v9.md](docs/specs/report-v9.md) — genome-carrying map frames + circuit inspector: each `<base>.map.txt` `u` line now carries the unit's genome + per-tick node outputs, so the live viewer groups living units by genome, decodes any genome to a **force-directed circuit** (curved sign/weight edges, self-loops, ×N dosage, junk filter), and on hover isolates a node + shows its **actual weights** with per-tick active-signal glow — all client-side, no reconstruction. Kernel stays pure; delta over report-v7
 - [docs/specs/report-v10.md](docs/specs/report-v10.md) — surface biomass (mass): new `## mass` report section (totals + alive distribution), `final_mass` column in `.units.csv`, `mass_total` column in `metrics.csv`, a `mass` field on each map-frame `u` line, and a **colour-by-mass** toggle in `tools/mapviz.py` + `live.html` (blue→red, scaled to run max) with mass mean/max readouts. Report `schema:` → report-v10, `kernel:` → v5. Harness + viewers only; kernel stays pure; delta over report-v9
 - [docs/specs/report-v11.md](docs/specs/report-v11.md) — compact map frames: the `<base>.map.txt` `u` line was half redundant (genome re-emitted every frame though it only changes at birth) and half over-precise (full-`double` node outputs). report-v11 **dedups genome per slot** (`* <count> <genes>` define vs `^` carry-forward) and **rounds outputs to ≤4 decimals** (`NaN`→null), shrinking the u-portion ~60–80% (survivor 226 MB → ~45 MB). Fields 0–5 keep their position → `tools/mapviz.py` untouched; `LiveServer` carries genomes forward at parse → JSON + `live.html` untouched (and still reads pre-v11 files). Writer keeps an O(slots) last-genome cache (doctrine intact). Composes with the windowed sampler (`--map-from/--map-to`, commit `ac17dc3`). Harness + viewers only; kernel stays pure; text report `schema:` stays report-v10; delta over report-v10 (ADR 0030)
+- [docs/specs/report-v13.md](docs/specs/report-v13.md) — lean inspection redesign: the fat `<base>.map.txt` `u` line (genome-per-frame + 24 node-output floats) becomes a **lean** `<base>.frames` row `u <cell> <slot> <mass> <action> <genomeId>`, with genomes deduped globally into a `<base>.catalog` (`GenomeCatalogWriter`) and the resource field RLE'd — full **every-tick** resolution now cheaper than the old sampled file (baseline 3.78 MB sampled → 678 KB frames + 131 KB catalog). Lineage/"what happened to who" moves to an always-on **`<base>.births.csv.gz`** (`BirthLogWriter`, DuckDB-queryable; lineage+generation kernel-exact, parent best-effort). **Retires the CSV zoo** (`UnitCsvReport`/`PopulationReport`/`WiringReport`/`LineageReport` + their tests deleted). Viewers (`live.html` + `mapviz.py`) rewritten: catalog join, colour by genome/mass/action, structural circuit. Kernel untouched (digest unchanged); `--observe` sinks stay opt-in; delta over report-v12 (ADR 0032)
 - [docs/specs/report-v12.md](docs/specs/report-v12.md) — one serverless viewer: collapses the two inspectors (bespoke `LiveServer`+`live.html` rich; `tools/mapviz.py` lite offline) into a single rich `live.html` that parses `.map.txt` **client-side**. Two feeds: tail a growing file over plain HTTP **Range** (follow live via any static server, e.g. `python3 -m http.server` — **no bespoke server**) or `window.SIMOLUTION_EMBED` baked in (offline, `file://`). **Deletes** `LiveServer.java` + `--serve` + the `/frames` endpoint; `mapviz.py` becomes a **baker** (inlines frames into `live.html`); `serve-live.sh` → generic static server; `MapFrameWriter.close()` writes an `end` trailer. Also fixes `live.html`'s stale node layout (v3 `TOTAL=22` → v5 `TOTAL=24`, was mislabeling `SELF_MASS`/`GROW`). Kernel untouched; delta over report-v11 (ADR 0031)
 
 Historical / non-binding:
