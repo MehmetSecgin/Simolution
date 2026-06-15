@@ -8,15 +8,17 @@ doc's original "Direction A recommended" — read the decision note next.
 
 ## DECISION (supersedes the "Recommended direction" framing below)
 
-Churn measurement flipped the plan. avg living pop is **tiny (33–56)** while births/tick are
-**huge (~1300–2030, ~97 % die childless)**. So:
+Measurement settled it. (The `.timeseries.csv` `births` column is **cumulative** — read as
+per-tick it looked like "~2000 births/tick"; the real per-tick rate is its diff.) Truth: a
+colonization **boom** (up to ~187 births/tick briefly) into a near-static plateau; **births-
+total is only ~1–2 k per run**, standing pop swings (peak ~1020). So:
 
-- **Full every-tick frames win; delta-encoding loses** (churn ≫ standing pop). A lean frame
-  row `slot x y mass action genomeId` (no genome bytes, no node floats) over a whole run ≈
-  **~1 MB** at full per-tick resolution.
+- **Full every-tick frames chosen** — cheap (~0.7 MB, per-row cost down ~13× via catalog +
+  no node floats) and O(1) seekable. Delta would be marginally smaller but needs keyframe
+  accumulation; not worth it on a sub-MB file. A lean row `cell slot mass action genomeId`.
 - **Genome catalog** (global write-once `genomeId→genes`) dedups genomes out of the frames.
-- **Lineage = the heavy, derivable thing** → a **Parquet store queried by DuckDB** (report-v8's
-  already-decoupled sink layer, promoted to canonical). Keep every birth; pruning is a `WHERE`.
+- **Lineage = small but naturally queryable** → a **gzipped-CSV births store queried by DuckDB**
+  (dep-free; DuckDB reads `.csv.gz`, can `COPY` to Parquet). Keep every birth; pruning is a `WHERE`.
 - **Kernel stays flat-array / data-oriented — DB yes, OO organisms no** (owner proposed OO; the
   query store delivers "what happened to who" without breaking the core invariant).
 - **Retire the CSV zoo**; keep the 2 KB `.txt` + (optionally) `.timeseries.csv`. Checkpoints

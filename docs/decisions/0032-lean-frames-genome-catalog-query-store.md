@@ -9,10 +9,13 @@ reads. The owner: "we don't need THIS much data, we're being weird." Root cause:
 re-derivable trajectories of a **deterministic** sim, and re-emitting each unit's full genome
 + 24 node-output floats in **every** map frame.
 
-Measuring churn reframed it: avg living population is tiny (33–56) but births/tick are huge
-(~1300–2030; ~97 % of births die childless almost immediately). So a **full** every-tick
-frame is cheap (~1 MB at full resolution), **delta encoding loses** (churn ≫ standing pop),
-and the genuinely heavy, derivable thing is the **lineage** (3 M birth edges).
+Measuring the runs settled the encoding. (The `.timeseries.csv` `births` column is
+**cumulative** — an early read of it as per-tick gave a bogus "~2000 births/tick"; the real
+per-tick rate is its diff.) Truth: a fast colonization **boom** (up to ~187 births/tick for a
+few dozen ticks) into a near-static plateau; **births-total is only ~1–2 k per run**, standing
+population swings (peak ~1020). So a **full** every-tick frame is cheap (~0.7 MB; per-row cost
+fell ~13× once genome→catalog id and node floats were dropped), and lineage is small (~1–2 k
+edges) but naturally **queryable**.
 
 The owner's stated inspection needs: every unit every tick (incl. which action fired), each
 unit's genome at the current tick, evolution per lineage, and arbitrary "what happened to who"
@@ -25,10 +28,11 @@ queries — live or after — with **no JVM** to view. The owner proposed an OO 
    default (sampling/​windowing knobs retained). Streamed live, tailed serverlessly (v12).
 2. **Genome catalog** (`<base>.catalog`): global write-once `genomeId → genes`; frames carry
    the id. Globalises report-v11's per-slot dedup. Living distinct genomes are few → small.
-3. **Queryable lineage/event store in Parquet, queried by DuckDB** — promote report-v8's
-   already-decoupled sinks to canonical. Keep **every** birth edge (no pruning); columnar
-   compression makes 3 M rows ≈ a few MB and pruning becomes a `WHERE`. This is the "what
-   happened to who" surface (ancestors/descendants/dominant-genome via SQL, no JVM).
+3. **Queryable lineage/births store as gzipped CSV, queried by DuckDB** (`BirthLogWriter`,
+   always-on when `--out`). Keep **every** birth edge (no pruning; ~1–2 k/run, pruning is a
+   `WHERE`). Gzipped CSV (a few KB) keeps the toolchain **dependency-free** — no Java Parquet
+   writer (doctrine forbids the dep) — while DuckDB reads `.csv.gz` directly and can `COPY` to
+   Parquet on demand. The "what happened to who" surface (ancestry via recursive CTE, no JVM).
 4. **Take the DB, reject the OO.** A queryable store gives every requested query **without**
    object organisms. The kernel stays flat-array, pure, history-free (core invariant +
    memory doctrine). Objects/queries live in the harness layer, exactly where report-v8 put
@@ -52,12 +56,15 @@ is preserved precisely by putting the DB in the observability layer, not the ker
 - **OO organisms in the kernel** — breaks "data-oriented, not OO organisms" + the
   no-per-tick-allocation / constant-in-ticks memory doctrine. The DB delivers the queries
   without it.
-- **Delta-encoded frames** — churn (births+deaths ≈ 4000/tick) ≫ standing pop (~56); delta
-  would be larger than full frames and add reconstruction complexity for negative gain.
+- **Delta-encoded frames** — would be marginally *smaller* (per-tick churn is low outside the
+  boom), but needs client-side accumulation from a keyframe to land on any tick; full frames
+  give O(1) random seek (the scrub workflow) + a trivial parser, and the file is already
+  sub-MB, so delta's complexity buys nothing. Chosen for seek + simplicity, not size.
 - **Replay-canonical (no live frame file)** — drops live-watch (owner wants it) and
   reintroduces a JVM dependency to view. Stream a lean file instead; it's ~1 MB now.
-- **JSONL events (report-v8)** as the lineage store — row-oriented, not built for "walk the
-  ancestry" analytics at 3 M rows; Parquet/DuckDB is the spec's existing tool.
+- **JSONL events (report-v8)** as the lineage store — fatter per row and awkward for "walk the
+  ancestry" SQL; a flat CSV the recursive CTE reads directly is leaner, and gzip + DuckDB give
+  the columnar win without the Parquet-writer dependency.
 
 ## Status note
 

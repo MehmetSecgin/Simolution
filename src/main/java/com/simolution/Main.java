@@ -12,6 +12,7 @@ import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.logging.ConsoleTableLogger;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.sim.BirthLogWriter;
 import com.simolution.sim.CheckpointWriter;
 import com.simolution.sim.ConfigHash;
 import com.simolution.sim.DynamicsObserver;
@@ -69,16 +70,24 @@ public class Main {
 
         MapFrameWriter mapWriter = null;
         GenomeCatalogWriter catalogWriter = null;
-        if (config.outPath() != null && (config.mapFrames() >= 0 || config.mapFrom() >= 0)) {
+        BirthLogWriter birthLog = null;
+        if (config.outPath() != null) {
             Path out = Path.of(config.outPath());
             if (out.getParent() != null) {
                 Files.createDirectories(out.getParent());
             }
             catalogWriter = new GenomeCatalogWriter(Files.newBufferedWriter(sibling(out, ".catalog")));
-            Path framesPath = sibling(out, ".frames");
-            mapWriter = new MapFrameWriter(
-                    Files.newBufferedWriter(framesPath), catalogWriter,
-                    worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
+            birthLog = new BirthLogWriter(
+                    new java.io.OutputStreamWriter(
+                            new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".births.csv.gz"))),
+                            java.nio.charset.StandardCharsets.UTF_8),
+                    catalogWriter, maxUnits, genomes.length, worldWidth, founderCells);
+            if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
+                Path framesPath = sibling(out, ".frames");
+                mapWriter = new MapFrameWriter(
+                        Files.newBufferedWriter(framesPath), catalogWriter,
+                        worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
+            }
         }
 
         EventLogWriter eventLog = null;
@@ -109,6 +118,9 @@ public class Main {
             KernelSnapshot snapshot = kernel.snapshot();
             observer.observe(snapshot);
             timeSeries.sample(i, snapshot);
+            if (birthLog != null) {
+                birthLog.observe(snapshot);
+            }
             if (mapWriter != null) {
                 mapWriter.maybeFrame(snapshot);
             }
@@ -123,6 +135,9 @@ public class Main {
         }
         if (mapWriter != null) {
             mapWriter.close();
+        }
+        if (birthLog != null) {
+            birthLog.close();
             catalogWriter.close();
         }
         if (eventLog != null) {
@@ -172,6 +187,10 @@ public class Main {
             Path popWiring = sibling(out, ".popwiring.csv");
             Files.writeString(popWiring, WiringReport.render(kernel.liveConnections()));
             System.out.println("evolved wiring written to " + popWiring);
+
+            Path birthsGz = sibling(out, ".births.csv.gz");
+            System.out.println("lineage / births store written to " + birthsGz
+                    + " (query: duckdb -c \"SELECT * FROM '" + birthsGz + "'\")");
 
             if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
                 Path framesTxt = sibling(out, ".frames");

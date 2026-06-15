@@ -12,24 +12,30 @@ persisted re-derivable trajectories — and the `map.txt` `u` line re-emitted ea
 32-gene genome **and** 24 node-output floats **every frame**, when the genome changes only at
 birth and the node floats are detail the viewer does not use.
 
-Measured churn (committed runs `beefy2`, `baseline`) reframed the whole problem:
+Measured the committed runs (`baseline`, `beefy2`). The `births` column in
+`.timeseries.csv` is **cumulative** (= `births-total`); the per-tick rate is its diff:
 
-| run | ticks | avg living pop | max pop | total births | births/tick |
-|-----|------:|---------------:|--------:|-------------:|------------:|
-| beefy2 | 1500 | ~56 | 693 | 3 044 919 | ~2030 |
-| baseline | 1000 | ~33 | 1020 | 1 331 170 | ~1331 |
+| run | ticks | avg living pop | max pop | births-total | max births/tick | avg births/tick |
+|-----|------:|---------------:|--------:|-------------:|----------------:|----------------:|
+| baseline | 1000 | ~33 | 1020 | **1 364** | 187 | 1.36 |
+| beefy2 | 1500 | ~56 | 693 | **2 084** | 154 | 1.39 |
 
-Standing population is **tiny** (33–56) while births/tick are **huge** (~97 % of births die
-childless within a tick or two — boom/bust under cyclic inflow). Consequences:
+The shape: a fast colonization **boom** (tens–hundreds of births/tick for a few dozen ticks)
+into a long, near-static plateau (≈0 births/tick) — population swings (peak ~1020, often
+crashing toward extinction), but total births over a whole run are only **~1–2 k**.
+Consequences:
 
-- **Full frame every tick is cheap.** ~33–56 living rows/tick. A lean row
-  (`slot x y mass action genomeId` ≈ 25 B) over a whole run ≈ **~1 MB**, at *full* per-tick
+- **Full frame every tick is cheap.** Per-row cost fell ~13× (genome → catalog id, node
+  outputs dropped), so a lean row over a whole run ≈ **~0.7 MB**, at *full* per-tick
   resolution — smaller than today's sampled 3.7 MB *and* finer.
-- **Delta encoding loses.** Per-tick churn (births + deaths ≈ 4000 events) ≫ standing pop
-  (~56). Delta only wins on stable populations; this sim turns over completely every tick.
-- **The cost moved to lineage.** 3 M birth edges is the heavy, derivable thing — and the
-  right home for it is a **columnar query store**, not a flat dump (3 M small-int rows in
-  Parquet ≈ a few MB; "walk this lineage" is then SQL, not a scan).
+- **Full frame chosen over delta — for seek + simplicity, not size.** A delta stream would
+  in fact be marginally *smaller* here (per-tick churn is low outside the boom), but it needs
+  client-side accumulation from a keyframe to land on any tick; full frames give **O(1) random
+  seek** (the scrub workflow) and a trivial parser, and the file is already tiny. Delta's
+  complexity buys nothing on a sub-MB file.
+- **Lineage is small but the right home is still a query store.** Only ~1–2 k birth edges per
+  run, but "walk this unit's ancestry / who descended from founder N" is naturally SQL, not a
+  scan — and the store stays trivial (gzipped CSV ≈ a few KB; DuckDB reads it directly).
 
 ## What the owner actually inspects (the requirements this spec serves)
 
@@ -85,31 +91,48 @@ The writer keeps a `Map<genomeKey,int>` (genomeKey = hash of the int[]); on a bi
 child genome is new, append a `g` line and assign the next id. Frames reference the id. The
 viewer joins `u.genomeId → catalog → genes → circuit` client-side. This globalises
 report-v11's per-slot dedup: living distinct genomes are few (dozens), so the catalog is
-small even though births are millions.
+small even though births burst into the hundreds per tick during colonization.
 
-### 3. Lineage / event store — Parquet, queried by DuckDB (promotes report-v8's sinks)
+### 3. Lineage / births store — `<base>.births.csv.gz`, queried by DuckDB
 
-Births/deaths/mutations are written to **Parquet** (not the `.obs/events.jsonl` of v8), the
-canonical "what happened to who" store. Every birth edge is kept (no pruning) — columnar
-compression makes 3 M rows ≈ a few MB, and pruning becomes a query (`WHERE survived_ticks > K`).
-
-`births` table (one row per birth):
+The canonical "what happened to who" store: one row per birth, written by `BirthLogWriter`,
+**always-on** when `--out` is set. Every birth edge is kept (no pruning — only ~1–2 k per run;
+pruning is a `WHERE`). Written as **gzipped CSV** (a few KB), which keeps the toolchain
+**dependency-free** — no Java Parquet writer (the performance doctrine forbids the heavy dep)
+— while DuckDB reads `.csv.gz` directly and can `COPY … TO 'x.parquet'` if a columnar copy is
+ever wanted. Header + columns:
 
 | col | type | meaning |
 |-----|------|---------|
 | `tick` | int | when born |
-| `child_slot` | int | child's slot/cell |
-| `parent_slot` | int | parent's slot |
+| `child_slot` | int | child's slot (= cell at birth) |
+| `lineage` | long | founder-rooted lineage id (kernel-exact) |
+| `generation` | int | child's generation (kernel-exact) |
+| `parent_slot` | int | parent's slot, or `-1` if the Moore-neighbour match is ambiguous |
 | `child_genome_id` | int | → catalog |
-| `parent_genome_id` | int | → catalog |
-| `mutated` | bool | child genome ≠ parent (point/indel) |
+| `parent_genome_id` | int | → catalog, or `-1` if parent unknown |
+| `mutated` | int | `1` child genome ≠ parent, `0` identical, `-1` parent unknown |
 
-`deaths` table: `tick`, `slot`, `genome_id`, `cause` (derived: starvation vs reproductive).
-`metrics` table: per-tick aggregates (the report-v8 `metrics.csv` content, now Parquet).
+Births are **derived** from snapshot deltas + the shared catalog ids (exactly as
+`EventLogWriter` derives them — no new kernel coupling; `mutated` is exact because catalog ids
+are content-addressed). Queried with **DuckDB**, no JVM.
 
-All three are derived in the harness from snapshot deltas + child↔parent gene diff (exactly
-as `EventLogWriter` already computes them — no new kernel coupling). Queried with **DuckDB**,
-no JVM: ancestors of X = recursive CTE over `births`; dominant genome at T = join frames∪catalog.
+**Two query spines, by reliability.** `lineage` + `generation` are kernel-exact, so the
+owner's "evolution per lineage" is robust — the genome history of a line is
+`SELECT DISTINCT generation, child_genome_id, min(tick) FROM births WHERE lineage=L
+GROUP BY 1,2 ORDER BY 1`, then diff the catalog genes hop to hop. `parent_slot` is best-effort
+(the Moore-neighbour heuristic; on the baseline ~half of boom-era births are ambiguous → `-1`
+because clustered same-lineage same-generation siblings can't be told apart) — fine for
+exact-parent CTEs when unique, but the lineage/generation spine is the dependable one.
+
+> One honest limit (shared with `EventLogWriter`): a birth + death of the *same* slot within a
+> single tick is invisible to once-per-tick snapshot deltas. The kernel's `births-total` is the
+> ground truth; the store matched it to the row on the baseline (1363 vs 1364), so this case is
+> negligible in practice, not a silent gap.
+
+Deaths/lifespan and a per-tick metrics table are natural future additions to the same store
+(report-v8's `metrics.csv` content); not built in this pass — the births edges are the lineage
+backbone the owner asked for.
 
 ### 4. Checkpoints — `<base>.obs/ckpt/<t>.ckpt` (report-v8, unchanged, **off by default**)
 
