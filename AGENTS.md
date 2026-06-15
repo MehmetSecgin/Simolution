@@ -29,12 +29,13 @@ Current milestone: **Kernel v5 (biomass / Pirt size physics)** — a determinist
 # visualize a run as a self-contained HTML dashboard (stdlib python, no deps)
 python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 
-# bake the spatial map (report-v13) into a SELF-CONTAINED rich viewer: the same
-# genome panel + circuit inspector + colour by genome/mass/action as the live view,
-# frames + catalog inlined, opens anywhere (even file://). The run writes lean
-# <base>.frames + a <base>.catalog (genome dictionary) whenever --out is set
+# bake the spatial map (report-v14) into a SELF-CONTAINED rich viewer: the same
+# genome panel + circuit inspector + colour by genome as the live view, frames + catalog
+# inlined, opens anywhere (even file://). The run writes chunked-zstd <base>.frames.zst
+# (lean row `u <cell> <slot> <genomeId>` — mass + action dropped, report-v14) + a gzipped
+# <base>.catalog.gz (genome dictionary) whenever --out is set
 # (--map-frames N: 0 = EVERY tick [default], N>0 = N target frames, negative = off). Then:
-python3 tools/mapviz.py runs/baseline.frames   # writes runs/baseline.map.html (offline, no server)
+python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.html (offline; needs the zstd CLI)
 
 # observability layer (report-v8): optional, decoupled, off by default. Writes
 # <base>.obs/ (manifest.json, events.jsonl, metrics.csv, ckpt/<tick>.ckpt) beside
@@ -46,11 +47,12 @@ python3 tools/mapviz.py runs/baseline.frames   # writes runs/baseline.map.html (
 python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
 
-# watch a run LIVE while it ticks (report-v13): the viewer (live.html) loads the tiny
-# .frames.idx + .catalog.idx, then HTTP-Range-fetches ONE frame on scrub and ONE genome
-# on inspect — O(window) browser RAM even on a 100s-of-MB run. NB this needs a Range-capable
-# static server: the stdlib `python3 -m http.server` IGNORES Range (returns the whole file),
-# so use scripts/serve.py (a ~25-line stdlib subclass that answers 206). serve-live.sh does this.
+# watch a run LIVE while it ticks (report-v14): the viewer (live.html) loads the tiny
+# .frames.idx (chunk index) + whole .catalog.gz, then HTTP-Range-fetches ONE zstd chunk
+# (256 frames) on scrub and fzstd-decodes it client-side — O(one chunk) browser RAM on any
+# run. NB this needs a Range-capable static server: the stdlib `python3 -m http.server`
+# IGNORES Range (returns the whole file), so use scripts/serve.py (a stdlib subclass that
+# answers 206); the served viewer also needs fzstd.min.js beside it. serve-live.sh does both.
 bash scripts/serve-live.sh   # runs a sim in the background, serves runs/ on :8090 via serve.py
 # then open http://localhost:8090  (or any run: python3 scripts/serve.py 8090 runs, open <base>.html)
 
@@ -97,9 +99,9 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
 ├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
 ├── RunReport                 byte-deterministic report-v6 text (aggregates + distributions + reproduction)
-├── MapFrameWriter            streams lean every-tick spatial frames to <base>.frames (report-v13: `u <cell> <slot> <mass> <action> <genomeId>`, RLE resource field, `end` trailer) + a <base>.frames.idx byte-offset index (one frame per Range fetch); O(1) RAM
-├── GenomeCatalogWriter       <base>.catalog — global write-once genome dictionary (`g <id> <count> <genes>`) + <base>.catalog.idx (gid→count,offset,len for lazy per-genome Range fetch); frames carry the id (report-v13)
-├── BirthLogWriter            <base>.births.csv.gz — one row per derived birth (lineage/generation kernel-exact, genome ids from the shared catalog); DuckDB-queryable lineage store (report-v13)
+├── MapFrameWriter            streams every-tick spatial frames to <base>.frames.zst as 256-frame chunks, each zstd-19 (report-v14: lean row `u <cell> <slot> <genomeId>` — mass + action dropped; RLE resource field) + a <base>.frames.idx ASCII chunk index (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
+├── GenomeCatalogWriter       <base>.catalog.gz — gzipped global write-once genome dictionary (`g <id> <count> <genes>`); ~20× smaller than the v13 text, whole-loaded + native-gunzipped by the viewer (no <base>.catalog.idx, no per-genome Range — report-v14); frames carry the id
+├── BirthLogWriter            <base>.births.csv.gz — one row per derived birth (lineage/generation kernel-exact, genome ids from the shared catalog); DuckDB-queryable lineage store (report-v13, unchanged in v14)
 ├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
 ├── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
 ├── RunManifest/ConfigHash    report-v8 replay key (verbatim founder genomes+cells, KernelConfig fingerprint)
@@ -133,6 +135,7 @@ Binding (implementations MUST conform):
 - [docs/specs/report-v10.md](docs/specs/report-v10.md) — surface biomass (mass): new `## mass` report section (totals + alive distribution), `final_mass` column in `.units.csv`, `mass_total` column in `metrics.csv`, a `mass` field on each map-frame `u` line, and a **colour-by-mass** toggle in `tools/mapviz.py` + `live.html` (blue→red, scaled to run max) with mass mean/max readouts. Report `schema:` → report-v10, `kernel:` → v5. Harness + viewers only; kernel stays pure; delta over report-v9
 - [docs/specs/report-v11.md](docs/specs/report-v11.md) — compact map frames: the `<base>.map.txt` `u` line was half redundant (genome re-emitted every frame though it only changes at birth) and half over-precise (full-`double` node outputs). report-v11 **dedups genome per slot** (`* <count> <genes>` define vs `^` carry-forward) and **rounds outputs to ≤4 decimals** (`NaN`→null), shrinking the u-portion ~60–80% (survivor 226 MB → ~45 MB). Fields 0–5 keep their position → `tools/mapviz.py` untouched; `LiveServer` carries genomes forward at parse → JSON + `live.html` untouched (and still reads pre-v11 files). Writer keeps an O(slots) last-genome cache (doctrine intact). Composes with the windowed sampler (`--map-from/--map-to`, commit `ac17dc3`). Harness + viewers only; kernel stays pure; text report `schema:` stays report-v10; delta over report-v10 (ADR 0030)
 - [docs/specs/report-v13.md](docs/specs/report-v13.md) — lean inspection redesign: the fat `<base>.map.txt` `u` line (genome-per-frame + 24 node-output floats) becomes a **lean** `<base>.frames` row `u <cell> <slot> <mass> <action> <genomeId>`, with genomes deduped globally into a `<base>.catalog` (`GenomeCatalogWriter`) and the resource field RLE'd — full **every-tick** resolution now cheaper than the old sampled file (baseline 3.78 MB sampled → 678 KB frames + 131 KB catalog). Lineage/"what happened to who" moves to an always-on **`<base>.births.csv.gz`** (`BirthLogWriter`, DuckDB-queryable; lineage+generation kernel-exact, parent best-effort). **Retires the CSV zoo** (`UnitCsvReport`/`PopulationReport`/`WiringReport`/`LineageReport` + their tests deleted). Viewers (`live.html` + `mapviz.py`) rewritten: catalog join, colour by genome/mass/action, structural circuit. **On-demand viewing**: byte-offset index sidecars (`.frames.idx`, `.catalog.idx`) let `live.html` HTTP-Range-fetch one frame (and one genome) at a time → O(window) browser RAM on 100s-of-MB runs (measured 7 MB on a 117 MB run). Needs a Range-capable static server — stdlib `http.server` ignores Range, so `scripts/serve.py` (a generic 206-answering subclass). Kernel untouched (digest unchanged); `--observe` sinks stay opt-in; delta over report-v12 (ADR 0032)
+- [docs/specs/report-v14.md](docs/specs/report-v14.md) — lean row + compressed containers (audit follow-up, [docs/notes/report-v13-design-audit-findings.md](docs/notes/report-v13-design-audit-findings.md)): the v13 `u` line drops **`mass` + `action`** (the two high-churn fields not needed to seek — owner keeps only map + location + genome/lineage) → `u <cell> <slot> <genomeId>`; the frame stream becomes **binary chunked zstd** (`<base>.frames.zst`, 256-frame chunks, `zstd-jni`) with a per-chunk `.frames.idx`; the catalog is **whole-file gzip** (`<base>.catalog.gz`, `.catalog.idx` dropped). On the cyclic seed-100 run: **128.6 MB → 4.2 MB (~31×)**, every tick preserved; baseline 890 KB → 147 KB. Viewer (`live.html` + `mapviz.py`) decodes chunks with vendored **`fzstd`** (~8 KB, served beside the page); colour-by-mass/action removed. `schema:` → report-v14. Kernel untouched (digest `b3f5198071d3d9e5` unchanged); delta over report-v13 (ADR 0033)
 - [docs/specs/report-v12.md](docs/specs/report-v12.md) — one serverless viewer: collapses the two inspectors (bespoke `LiveServer`+`live.html` rich; `tools/mapviz.py` lite offline) into a single rich `live.html` that parses `.map.txt` **client-side**. Two feeds: tail a growing file over plain HTTP **Range** (follow live via any static server, e.g. `python3 -m http.server` — **no bespoke server**) or `window.SIMOLUTION_EMBED` baked in (offline, `file://`). **Deletes** `LiveServer.java` + `--serve` + the `/frames` endpoint; `mapviz.py` becomes a **baker** (inlines frames into `live.html`); `serve-live.sh` → generic static server; `MapFrameWriter.close()` writes an `end` trailer. Also fixes `live.html`'s stale node layout (v3 `TOTAL=22` → v5 `TOTAL=24`, was mislabeling `SELF_MASS`/`GROW`). Kernel untouched; delta over report-v11 (ADR 0031)
 
 Historical / non-binding:

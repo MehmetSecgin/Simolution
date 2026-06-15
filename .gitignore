@@ -45,5 +45,3 @@ bin/
 ### Simolution runs ###
 runs/*
 !runs/baseline.txt
-!runs/baseline.units.csv
-!runs/baseline.wiring.csv
