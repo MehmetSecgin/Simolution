@@ -13,7 +13,7 @@ package com.simolution.kernel.config;
  * path then reads an array instead of re-evaluating).
  */
 public sealed interface InflowSource permits
-        InflowSource.Disk, InflowSource.Rect, InflowSource.Points, InflowSource.Noise {
+        InflowSource.Disk, InflowSource.Rect, InflowSource.Points, InflowSource.Noise, InflowSource.Ring {
 
     /** This source's inflow-cap contribution at integer cell {@code (x, y)} on {@code tick}. */
     double at(int x, int y, int tick, int worldWidth);
@@ -151,6 +151,35 @@ public sealed interface InflowSource permits
         @Override
         public boolean isStatic() {
             return animPeriod == 0;
+        }
+    }
+
+    /**
+     * Concentric radial traveling wave from {@code (fx·W, fy·W)}: rings of crest
+     * half-width {@code width}, spaced {@code wavelength} cells apart, expanding
+     * outward at {@code speed} cells/tick ({@code speed < 0} contracts inward).
+     * A cell's cap is {@code peak} scaled by a triangular ridge of its distance to
+     * the nearest crest — so resource arrives as expanding ripples a unit must
+     * chase in every direction, not a predictable front. Toroidal-aware distance.
+     */
+    record Ring(double fx, double fy, double wavelength, double speed,
+                double peak, double width) implements InflowSource {
+
+        @Override
+        public double at(final int x, final int y, final int tick, final int worldWidth) {
+            final double dx = wrapDelta(x - fx * worldWidth, worldWidth);
+            final double dy = wrapDelta(y - fy * worldWidth, worldWidth);
+            final double d = Math.sqrt(dx * dx + dy * dy);
+            final double phase = d - speed * tick;
+            final double r = ((phase % wavelength) + wavelength) % wavelength;
+            final double distToCrest = Math.min(r, wavelength - r);
+            final double ridge = 1.0 - distToCrest / width;
+            return ridge <= 0.0 ? 0.0 : peak * ridge;
+        }
+
+        @Override
+        public boolean isStatic() {
+            return speed == 0.0;
         }
     }
 

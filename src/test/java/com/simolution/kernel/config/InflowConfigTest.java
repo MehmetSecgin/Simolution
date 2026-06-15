@@ -115,6 +115,21 @@ class InflowConfigTest {
     }
 
     @Test
+    void ringWaveExpandsOutwardFromCentre() {
+        int w = 120;
+        // crest at radius (speed*tick + k*wavelength); expands +1 cell/tick
+        InflowSource.Ring ring = new InflowSource.Ring(0.5, 0.5, 40.0, 1.0, 10.0, 4.0);
+        int cx = 60, cy = 60;
+        // at tick 0 the crest sits at the centre (d=0); a ring 20 cells out is in a trough
+        assertTrue(ring.at(cx, cy, 0, w) > 0.0, "crest at centre at tick 0");
+        assertEquals(0.0, ring.at(cx + 20, cy, 0, w), 1e-9, "trough 20 cells out at tick 0");
+        // by tick 20 the crest has expanded to radius ~20 → now lit there, centre in trough
+        assertTrue(ring.at(cx + 20, cy, 20, w) > 0.0, "crest reached r=20 at tick 20");
+        // isotropic: same response along any axis at equal radius
+        assertEquals(ring.at(cx + 20, cy, 20, w), ring.at(cx, cy + 20, 20, w), 1e-9, "radially symmetric");
+    }
+
+    @Test
     void valueNoiseIsDeterministicAndSeedSensitive() {
         double a1 = ValueNoise.at(42L, 1.5, 2.5, 0.0);
         double a2 = ValueNoise.at(42L, 1.5, 2.5, 0.0);

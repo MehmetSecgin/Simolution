@@ -57,6 +57,13 @@ reports `isStatic()` (time-invariant). Coordinates are **fractional** (`fx, fy �
   `peak`, so `threshold` sets coverage and `gain` sets edge sharpness.
   `animPeriod > 0` feeds a slow time axis `z = tick/animPeriod`, morphing the
   field; `0` freezes it (static).
+* **`Ring(fx, fy, wavelength, speed, peak, width)`** — a concentric radial
+  traveling wave from `(fx·W, fy·W)`: crests of half-width `width`, spaced
+  `wavelength` cells apart, expanding outward at `speed` cells/tick (`< 0`
+  contracts). A cell's cap is `peak` scaled by a triangular ridge of its
+  (toroidal) distance to the nearest crest — resource arrives as expanding ripples
+  from a moving front in every direction (`Math.sqrt` is correctly-rounded in
+  Java, so the wave stays bit-deterministic). `speed == 0` is static (still rings).
 
 ## 3. Value noise — deterministic, trig-free
 

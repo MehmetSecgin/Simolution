@@ -179,6 +179,9 @@ public record RunConfig(
         double thr = 0.5;
         double gain = 1.0;
         int anim = 0;
+        double wavelength = 30.0;
+        double speed = 0.05;
+        double width = 6.0;
         int[] cells = new int[0];
         InflowSource.Motion motion = InflowSource.Motion.STATIC;
         double m0 = 0.0;
@@ -204,6 +207,9 @@ public record RunConfig(
                 case "thr" -> thr = Double.parseDouble(val);
                 case "gain" -> gain = Double.parseDouble(val);
                 case "anim" -> anim = Integer.parseInt(val);
+                case "wavelength" -> wavelength = Double.parseDouble(val);
+                case "speed" -> speed = Double.parseDouble(val);
+                case "width" -> width = Double.parseDouble(val);
                 case "cells" -> cells = parseCells(val);
                 case "orbit" -> {
                     String[] p = val.split(",");
@@ -226,6 +232,7 @@ public record RunConfig(
             case "rect" -> new InflowSource.Rect(fx, fy, fx1, fy1, peak, period, phase, m0, m1);
             case "points" -> new InflowSource.Points(cells, peak, period, phase);
             case "noise" -> new InflowSource.Noise(seed, freq, thr, gain, peak, anim);
+            case "ring" -> new InflowSource.Ring(fx, fy, wavelength, speed, peak, width);
             default -> throw new IllegalArgumentException("unknown --inflow source: " + kind);
         };
     }
