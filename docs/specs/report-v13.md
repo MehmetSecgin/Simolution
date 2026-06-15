@@ -207,9 +207,18 @@ genome grouping by **catalog id** (exact), and the force-directed circuit inspec
 `catalog[genomeId]` (structural — report-v13 dropped per-tick node outputs, so no signal-glow).
 
 `tools/mapviz.py` is the offline **baker** (inlines frames + catalog) — for small runs; large
-runs are inspected served (indexed). A genuinely in-viewer **lineage walk** (over the births
-store, via DuckDB-WASM or a baked extract) is deferred — for now lineage history is the DuckDB
-CLI query above.
+runs are inspected served (indexed).
+
+**In-viewer lineage walk** (over the births store, client-side — no DuckDB): "trace selected"
+fetches `<base>.births.csv.gz` and gunzips it in-browser (`DecompressionStream`), maps the
+selected unit to its lineage, and renders the line's **evolution**. A lineage is a wide bush,
+not a chain — ~half of births are the unattributed fission half (`parent_slot=-1`) — so the
+walk anchors on the kernel-exact `lineage`/`generation`/`mutated` fields, not on chasing
+`parent_slot`. It shows a **generation timeline** (≤ maxGen rows): per generation, distinct-
+genome and mutation counts, expandable to the `#parent → #child` mutation transitions (capped);
+clicking any genome renders its circuit + a gene diff vs its parent. Births load lazily on first
+trace (3.6 MB uncompressed on the cyclic run). Embed/offline mode shows a notice unless births
+are baked.
 
 ## Determinism & doctrine
 
