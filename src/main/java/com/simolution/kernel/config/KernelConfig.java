@@ -35,10 +35,10 @@ public final class KernelConfig {
 
     public static final double BUILD_COST = 10.0;
     public static final double BUILD_COST_PER_GENE = 0.25;
-    public static final double MUTATION_RATE_WEIGHT = 0.00025;
-    public static final double MUTATION_RATE_STRUCT = 0.00005;
-    public static final double INDEL_RATE_DUP = 0.001;
-    public static final double INDEL_RATE_DEL = 0.001;
+    public static final double MUTATION_RATE_WEIGHT = 0.000025;
+    public static final double MUTATION_RATE_STRUCT = 0.000005;
+    public static final double INDEL_RATE_DUP = 0.0001;
+    public static final double INDEL_RATE_DEL = 0.0001;
     public static final double AGING_COST = 0.0005;
 
     public static final int SENSOR_JUNK_COUNT = 2;

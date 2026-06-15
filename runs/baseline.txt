@@ -23,30 +23,30 @@ units-rand-wired: 82
 
 ## dynamics
 ticks-with-any-activity: 999
-signal-propagations-total: 411188
-junk-sink-propagations: 99311
-junk-sink-propagation-fraction: 0.24152212613208557
-clamp-saturation-events: 9950
-thresh-flips-total: 1799
+signal-propagations-total: 411248
+junk-sink-propagations: 99330
+junk-sink-propagation-fraction: 0.2415330895226238
+clamp-saturation-events: 9943
+thresh-flips-total: 1811
 units-dormant-from-birth: 0
 units-dormant-at-end: 95
 
 ## reproduction
-births-total: 1364
+births-total: 1363
 max-generation: 5
-peak-population: 1020
+peak-population: 1016
 final-population: 5
 distinct-lineages-alive: 5
 
 ## energy
 initial-energy-total: 100000.0
-final-energy-total: 8842.65811892325
-energy-sink: 127155.49541498823
+final-energy-total: 8842.705237810173
+energy-sink: 127144.88274684794
 initial-reservoir: 1000000.0
 final-reservoir: 999981.0989804763
-cumulative-inflow: 35884.252514337306
-intake-total: 35903.15353386104
-energy-audit-error: 5.052424967288971E-8
+cumulative-inflow: 35873.68696508241
+intake-total: 35892.58798460616
+energy-audit-error: 5.21540641784668E-8
 units-alive-at-end: 5
 units-dead-at-end: 95
 death-tick-first: 9
@@ -60,25 +60,25 @@ final-mass-mean: 1.0
 final-mass-max: 1.0
 
 ## intake
-units-ever-harvested: 72
-harvest-active-ticks-total: 11881
+units-ever-harvested: 73
+harvest-active-ticks-total: 11868
 
 ## burn-rate
-mean-burn-rate-p0: -2.326367395260417
+mean-burn-rate-p0: -2.3263680191896765
 mean-burn-rate-p50: 25.0
-mean-burn-rate-p90: 37.03703703703704
+mean-burn-rate-p90: 35.714285714285715
 mean-burn-rate-p100: 111.11111111111111
 
 ## terminal-regimes
-fixed-point: 80
+fixed-point: 81
 bounded: 4
-divergent: 16
+divergent: 15
 divergence-cutoff: 1000000.0
 
 ## action-channel
 units-final-y-nonfinite: 0
 final-abs-y-p0: 0.0
 final-abs-y-p50: 0.011310541093173011
-final-abs-y-p90: 3.6691793572801905
+final-abs-y-p90: 3.9862491679246315
 final-abs-y-p100: 2.032733660268233E30
-state-digest: b3f5198071d3d9e5
+state-digest: 1f97e28f3e369e9b
