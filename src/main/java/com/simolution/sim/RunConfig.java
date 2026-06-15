@@ -16,7 +16,9 @@ public record RunConfig(
         int servePort,
         boolean observe,
         int checkpointEvery,
-        InflowConfig inflow
+        InflowConfig inflow,
+        int mapFrom,
+        int mapTo
 ) {
 
     public static RunConfig parse(String[] args) {
@@ -31,6 +33,8 @@ public record RunConfig(
         Integer cyclePeriod = null;
         Integer cycleRadius = null;
         Double cyclePeak = null;
+        Integer mapFrom = null;
+        Integer mapTo = null;
         long seed = 0L;
         boolean trace = false;
         boolean observe = false;
@@ -54,6 +58,8 @@ public record RunConfig(
                 case "--cycle-period" -> cyclePeriod = Integer.parseInt(args[++i]);
                 case "--cycle-radius" -> cycleRadius = Integer.parseInt(args[++i]);
                 case "--cycle-peak" -> cyclePeak = Double.parseDouble(args[++i]);
+                case "--map-from" -> mapFrom = Integer.parseInt(args[++i]);
+                case "--map-to" -> mapTo = Integer.parseInt(args[++i]);
                 case "--out" -> outPath = args[++i];
                 default -> throw new IllegalArgumentException("Unknown argument: " + args[i]);
             }
@@ -67,11 +73,14 @@ public record RunConfig(
                     "--resource-cycle with --observe is not supported yet "
                     + "(the replay manifest does not carry the inflow pattern)");
         }
+        if (mapFrom != null && (mapTo == null || mapTo < mapFrom)) {
+            throw new IllegalArgumentException("--map-from requires --map-to >= --map-from");
+        }
 
         boolean demo = units == null && genes == null;
         if (demo) {
             return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, 0, 0,
-                    observe, checkpointEvery == null ? 2000 : checkpointEvery, InflowConfig.UNIFORM);
+                    observe, checkpointEvery == null ? 2000 : checkpointEvery, InflowConfig.UNIFORM, -1, -1);
         }
         int u = units == null ? 1 : units;
         int g = genes == null ? 32 : genes;
@@ -101,7 +110,9 @@ public record RunConfig(
                 servePort == null ? 0 : servePort,
                 observe,
                 checkpointEvery == null ? 2000 : checkpointEvery,
-                inflow
+                inflow,
+                mapFrom == null ? -1 : mapFrom,
+                mapTo == null ? -1 : mapTo
         );
     }
 

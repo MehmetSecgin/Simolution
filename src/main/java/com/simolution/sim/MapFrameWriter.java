@@ -45,12 +45,25 @@ public final class MapFrameWriter implements Closeable {
 
     private final Writer out;
     private final int sampleEvery;
+    private final int windowFrom;
+    private final int windowTo;
     private final StringBuilder line;
 
+    /**
+     * {@code windowFrom >= 0} selects <b>window mode</b>: a frame every tick in
+     * {@code [windowFrom, windowTo]} and nothing outside, so any phase can be
+     * tick-stepped without sampling the whole run (which, with genome-carrying
+     * frames, is gigabytes). Otherwise the usual {@code targetFrames} downsampling
+     * across the run applies.
+     */
     public MapFrameWriter(final Writer out, final int worldWidth, final int totalTicks,
-                          final int targetFrames) throws IOException {
+                          final int targetFrames, final int windowFrom, final int windowTo) throws IOException {
         this.out = out;
-        this.sampleEvery = Math.max(1, targetFrames <= 0 ? totalTicks : totalTicks / targetFrames);
+        this.windowFrom = windowFrom;
+        this.windowTo = windowTo;
+        this.sampleEvery = windowFrom >= 0
+                ? 1
+                : Math.max(1, targetFrames <= 0 ? totalTicks : totalTicks / targetFrames);
         this.line = new StringBuilder(4 * worldWidth * worldWidth + 64);
         out.write("world " + worldWidth + "\n");
         out.write("sample-every " + sampleEvery + "\n");
@@ -63,7 +76,11 @@ public final class MapFrameWriter implements Closeable {
      * and genome ({@code genes[slot·maxGenes .. +geneCount]}).
      */
     public void maybeFrame(final KernelSnapshot snapshot) throws IOException {
-        if (snapshot.tick % sampleEvery != 0) {
+        if (windowFrom >= 0) {
+            if (snapshot.tick < windowFrom || snapshot.tick > windowTo) {
+                return;
+            }
+        } else if (snapshot.tick % sampleEvery != 0) {
             return;
         }
         line.setLength(0);

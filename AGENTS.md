@@ -15,6 +15,7 @@ Current milestone: **Kernel v5 (biomass / Pirt size physics)** — a determinist
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100"
 # flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --map-frames N --serve PORT --trace --out <file>
 #        --resource-cycle --cycle-period N --cycle-radius N --cycle-peak X  (contract-v6, opt-in)
+#        --map-from T0 --map-to T1  (map sampler: a frame EVERY tick only within [T0,T1] — tick-by-tick window of any phase, tiny data vs every-tick over the whole run)
 
 # patchy + cyclic resource (contract-v6): a central disk pulses 0->peak->0 (period in ticks),
 # periphery barren, diffusion spreads it; watch the breathing gradient live.

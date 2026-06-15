@@ -34,7 +34,7 @@ class UnitCsvReportTest {
     @Test
     void csvIsDeterministicAndHasRowPerUnit() {
         // arrange
-        RunConfig config = new RunConfig(30, 800, 42L, 16, 90, 16, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM);
+        RunConfig config = new RunConfig(30, 800, 42L, 16, 90, 16, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM, -1, -1);
 
         // act
         Run a = run(config);
@@ -52,7 +52,7 @@ class UnitCsvReportTest {
     @Test
     void deadUnitConsumedAllEnergyAndHasDeathTick() {
         // arrange: long run so units die
-        RunConfig config = new RunConfig(20, 1500, 7L, 32, 90, 32, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM);
+        RunConfig config = new RunConfig(20, 1500, 7L, 32, 90, 32, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM, -1, -1);
         Run r = run(config);
         DynamicsSummary dynamics = r.dynamics();
 
@@ -72,7 +72,7 @@ class UnitCsvReportTest {
     @Test
     void burnRateIsConsumedOverLifespan() {
         // arrange
-        RunConfig config = new RunConfig(10, 1000, 3L, 16, 90, 16, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM);
+        RunConfig config = new RunConfig(10, 1000, 3L, 16, 90, 16, false, false, null, 0, 0, false, 0, InflowConfig.UNIFORM, -1, -1);
         Run r = run(config);
         DynamicsSummary dynamics = r.dynamics();
 

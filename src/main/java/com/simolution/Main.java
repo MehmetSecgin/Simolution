@@ -69,7 +69,7 @@ public class Main {
 
         MapFrameWriter mapWriter = null;
         LiveServer liveServer = null;
-        if (config.outPath() != null && config.mapFrames() > 0) {
+        if (config.outPath() != null && (config.mapFrames() > 0 || config.mapFrom() >= 0)) {
             Path out = Path.of(config.outPath());
             if (out.getParent() != null) {
                 Files.createDirectories(out.getParent());
@@ -77,7 +77,7 @@ public class Main {
             Path mapPath = sibling(out, ".map.txt");
             mapWriter = new MapFrameWriter(
                     Files.newBufferedWriter(mapPath),
-                    worldWidth, config.ticks(), config.mapFrames());
+                    worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
             if (config.servePort() > 0) {
                 liveServer = new LiveServer(config.servePort(), mapPath);
                 liveServer.start();
@@ -100,8 +100,8 @@ public class Main {
             metrics = new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
                     genomes.length, maxUnits);
             checkpoints = new CheckpointWriter(obsDir.resolve("ckpt"), config.checkpointEvery());
-            int mapSampleEvery = config.mapFrames() > 0
-                    ? Math.max(1, config.ticks() / config.mapFrames()) : 0;
+            int mapSampleEvery = config.mapFrom() >= 0 ? 1
+                    : (config.mapFrames() > 0 ? Math.max(1, config.ticks() / config.mapFrames()) : 0);
             RunManifest manifest = new RunManifest("v4", config.seed(), worldWidth, genomes.length,
                     founderCells, genomes, config.seed(), config.genesPerUnit(), maxGenes,
                     config.ticks(), ConfigHash.compute(), config.checkpointEvery(), mapSampleEvery);
