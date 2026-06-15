@@ -73,6 +73,16 @@
   @keyframes flow{ to{ stroke-dashoffset:-1 } }
   @keyframes svgin{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
   .circ-svg{ display:block; width:100%; height:auto; animation:svgin .45s cubic-bezier(.2,.7,.2,1) }
+  #tracebtn{ background:#121925;color:var(--ink);border:1px solid var(--line);border-radius:3px;font:inherit;font-size:11px;padding:3px 9px;cursor:pointer;text-transform:none;letter-spacing:0 }
+  #tracebtn:hover{ border-color:#1f4a63;background:#10212f }
+  .linwrap{ display:flex; flex-direction:column; gap:4px; max-height:340px; overflow:auto; padding:2px }
+  .lhop{ display:flex; align-items:center; gap:10px; padding:6px 9px; border-radius:4px; cursor:pointer;
+    border:1px solid var(--line); background:#0c131c; font-size:12px; }
+  .lhop:hover{ background:#10212f; border-color:#1f4a63 } .lhop.sel{ border-color:#2f6d52; background:#0f1d18 }
+  .lhop .gn{ color:var(--muted); min-width:54px; font-size:11px }
+  .lhop .gid{ color:var(--ink-bright); font-weight:600; font-family:monospace }
+  .lhop .mut{ color:#f5b73f; margin-left:auto; font-size:11px } .lhop .clone{ color:#3a4658; margin-left:auto; font-size:11px }
+  .lhop.founder .gid{ color:#5dcaa5 }
 </style></head><body>
 <h1><span class="dot"></span> SIMOLUTION · LIVE LATTICE <span id="badge" class="badge live">connecting…</span></h1>
 <div class="wrap">
@@ -110,6 +120,10 @@
       <span><i style="border-color:#39435a;border-top-style:dashed"></i>junk</span>
       <span>&mdash; weight by thickness &middot; &times;N = gene dosage &middot; hover a node for weights</span>
     </div>
+    <div class="lab" style="margin-top:18px;display:flex;align-items:center;gap:12px">lineage history <span id="linsel" style="color:var(--muted)"></span>
+      <button id="tracebtn" style="margin-left:auto">&#9737; trace selected</button></div>
+    <div id="linsum" class="statbar"></div>
+    <div id="lineage" class="linwrap"><div class="empty">select a unit, then “trace selected” to walk its lineage</div></div>
   </div>
 </div>
 <script>
@@ -419,6 +433,100 @@ function boot(){
   } else { indexed=true; framesUrl=s.frames; catUrl=s.catalog;
     framesIdxUrl=framesUrl+'.idx'; catIdxUrl=catUrl+'.idx'; pollIdx(); }
 }
+// ---- lineage walk (report-v13): the always-on births store, read client-side ----
+// served: fetch <base>.births.csv.gz, gunzip in-browser; embed: window.SIMOLUTION_EMBED.births.
+// lineage + generation + mutated are kernel-exact; parent_slot is best-effort (often -1), so the
+// walk is anchored on lineage/generation/tick, not on chasing parent_slot.
+let births=null;
+async function loadBirths(){
+  if(births) return births;
+  let rows=[];
+  if(window.SIMOLUTION_EMBED&&window.SIMOLUTION_EMBED.births){ rows=window.SIMOLUTION_EMBED.births; }
+  else {
+    const url=framesUrl.replace(/\.frames$/,'.births.csv.gz');
+    const buf=await (await fetch(url,{cache:'no-store'})).arrayBuffer();
+    const txt=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    const L=txt.split('\n');
+    for(let i=1;i<L.length;i++){ if(!L[i])continue; const c=L[i].split(',');
+      rows.push({tick:+c[0],slot:+c[1],lin:+c[2],gen:+c[3],pslot:+c[4],gid:+c[5],pgid:+c[6],mut:+c[7]}); }
+  }
+  const byLin=new Map(), bySlot=new Map();
+  for(const r of rows){ if(!byLin.has(r.lin))byLin.set(r.lin,[]); byLin.get(r.lin).push(r);
+    if(!bySlot.has(r.slot))bySlot.set(r.slot,[]); bySlot.get(r.slot).push(r); }
+  for(const a of bySlot.values()) a.sort((x,y)=>x.tick-y.tick);
+  for(const a of byLin.values()) a.sort((x,y)=>x.tick-y.tick||x.gen-y.gen);
+  births={rows,byLin,bySlot}; return births;
+}
+function lineageOfSlot(slot,tick){
+  const a=births.bySlot.get(slot);
+  if(a){ let best=null; for(const r of a){ if(r.tick<=tick) best=r; else break; } if(best) return best.lin; }
+  return slot; // founder: lineage id == founding slot
+}
+function geneDiff(a,b){ const A=new Map(),B=new Map();
+  for(const g of a)A.set(g,(A.get(g)||0)+1); for(const g of b)B.set(g,(B.get(g)||0)+1);
+  let add=0,rem=0; for(const[g,n]of B)add+=Math.max(0,n-(A.get(g)||0)); for(const[g,n]of A)rem+=Math.max(0,n-(B.get(g)||0));
+  const d=b.length-a.length; return `${d>=0?'+':''}${d} genes · ${add} new / ${rem} lost`; }
+async function inspectGenome(gid,fromGid){
+  const genes=await getGenome(gid)||[];
+  $('detail').innerHTML=circuitSVG(genes); renderedKey='lin:'+gid;
+  const mc=genes.map(decodeGene).filter(w=>!w.junk).length;
+  let s=`<span class="pill">genome <b>#${gid}</b></span><span class="pill"><b>${genes.length}</b> genes · <b>${mc}</b> meaningful</span>`;
+  if(fromGid!=null&&fromGid>=0&&fromGid!==gid){ const pg=await getGenome(fromGid)||[]; s+=`<span class="pill">from <b>#${fromGid}</b></span><span class="pill" style="color:#f5b73f">${geneDiff(pg,genes)}</span>`; }
+  $('statbar').innerHTML=s; $('dsel').textContent='· genome #'+gid+' (lineage)';
+}
+const MUTS_SHOWN=120;
+async function showLineage(){
+  const wrap=$('lineage'), sum=$('linsum');
+  if(selSlot===null||!curF){ wrap.innerHTML='<div class="empty">select a unit first</div>'; sum.innerHTML=''; $('linsel').textContent=''; return; }
+  if(window.SIMOLUTION_EMBED&&!window.SIMOLUTION_EMBED.births){ wrap.innerHTML='<div class="empty" style="padding:18px">lineage walk needs the served <code>.births.csv.gz</code> — the offline bake doesn’t embed it</div>'; sum.innerHTML=''; return; }
+  wrap.innerHTML='<div class="empty">loading births store…</div>';
+  await loadBirths();
+  const L=lineageOfSlot(selSlot,curF.t), curGen=lineageGenOfSlot(selSlot,curF.t);
+  const rows=(births.byLin.get(L)||[]);
+  const distinct=new Set(rows.map(r=>r.gid));
+  const muts=rows.filter(r=>r.mut===1);
+  const maxGen=rows.reduce((m,r)=>Math.max(m,r.gen),0);
+  const founderGid=rows.length&&rows[0].pgid>=0?rows[0].pgid:(rows.length?rows[0].gid:null);
+  $('linsel').textContent='· lineage '+L;
+  sum.innerHTML=`<span class="pill">lineage <b>#${L}</b></span><span class="pill"><b>${rows.length}</b> births</span>`+
+    `<span class="pill"><b>${maxGen}</b> generations</span><span class="pill"><b>${distinct.size}</b> genomes</span>`+
+    `<span class="pill" style="color:#f5b73f"><b>${muts.length}</b> mutations</span>`;
+  // bucket by generation — a lineage is a wide bush (49% of births are unattributed fission halves),
+  // so we don't fake a single chain; we show where along the generations the genome actually changed.
+  const gens=new Map();
+  for(const r of rows){ let g=gens.get(r.gen); if(!g){g={gen:r.gen,births:0,gids:new Set(),muts:[]};gens.set(r.gen,g);} g.births++; g.gids.add(r.gid); if(r.mut===1)g.muts.push(r); }
+  const order=[...gens.values()].sort((a,b)=>a.gen-b.gen);
+  wrap.innerHTML='';
+  if(founderGid!=null){
+    const f=document.createElement('div'); f.className='lhop founder';
+    f.innerHTML=`<span class="gn">founder</span><span class="gid">#${founderGid}</span><span class="clone">gen 0</span>`;
+    f.onclick=()=>{ wrap.querySelectorAll('.lhop').forEach(e=>e.classList.remove('sel')); f.classList.add('sel'); inspectGenome(founderGid,null); };
+    wrap.appendChild(f);
+  }
+  for(const g of order){
+    const here=g.gen===curGen;
+    const row=document.createElement('div'); row.className='lhop'+(here?' sel':'');
+    row.innerHTML=`<span class="gn">gen ${g.gen}${here?' ◂ here':''}</span><span class="gid" style="color:var(--ink)">${g.gids.size} genome${g.gids.size>1?'s':''}</span>`+
+      (g.muts.length?`<span class="mut">${g.muts.length} mutation${g.muts.length>1?'s':''} ▸</span>`:`<span class="clone">clones</span>`);
+    if(g.muts.length){
+      const sub=document.createElement('div'); sub.style.display='none'; sub.style.margin='2px 0 6px 16px'; sub.style.display='none';
+      let built=false;
+      row.onclick=()=>{
+        if(!built){ built=true; const show=g.muts.slice(0,MUTS_SHOWN);
+          for(const r of show){ const d=document.createElement('div'); d.className='lhop'; d.style.marginTop='3px';
+            d.innerHTML=`<span class="gn">t${r.tick}</span><span class="gid">#${r.pgid} → #${r.gid}</span><span class="mut">mutated</span>`;
+            d.onclick=(e)=>{ e.stopPropagation(); sub.querySelectorAll('.lhop').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); inspectGenome(r.gid,r.pgid); };
+            sub.appendChild(d); }
+          if(g.muts.length>MUTS_SHOWN){ const m=document.createElement('div'); m.className='empty'; m.style.padding='8px'; m.textContent=`+${g.muts.length-MUTS_SHOWN} more mutations this generation`; sub.appendChild(m); } }
+        sub.style.display=sub.style.display==='none'?'flex':'none'; sub.style.flexDirection='column';
+      };
+      wrap.appendChild(row); wrap.appendChild(sub);
+    } else { wrap.appendChild(row); }
+  }
+  if(!rows.length) wrap.innerHTML='<div class="empty" style="padding:18px">founder lineage — no recorded births (this slot never reproduced)</div>';
+}
+function lineageGenOfSlot(slot,tick){ const a=births.bySlot.get(slot); if(a){ let best=null; for(const r of a){ if(r.tick<=tick) best=r; else break; } if(best) return best.gen; } return 0; }
+$('tracebtn').onclick=showLineage;
 $('slider').oninput=(e)=>{ $('follow').checked=false; showFrame(+e.target.value); };
 $('showres').onchange=(e)=>{ showRes=e.target.checked; draw(); };
 $('colmode').onchange=(e)=>{ colMode=e.target.value; $('actlegend').style.display=colMode==='action'?'flex':'none'; draw(); };
