@@ -109,20 +109,20 @@
   </div>
 </div>
 <script>
-// ---- node layout: mirrors com.simolution.kernel.layout.NodeLayout ----
-// TOTAL=22 : 6 sensors, 8 internals, 8 actions; trailing entries per block = junk.
-const NAMES=["CONST","RAND","LOCAL_RESOURCE","SELF_ENERGY","JUNK-S4","JUNK-S5",
+// ---- node layout: mirrors com.simolution.kernel.layout.NodeLayout (kernel v5) ----
+// TOTAL=24 : 7 sensors, 8 internals, 9 actions; trailing entries per block = junk.
+const NAMES=["CONST","RAND","LOCAL_RESOURCE","SELF_ENERGY","SELF_MASS","JUNK-S5","JUNK-S6",
              "ADD","MUL","CLAMP","DELAY","THRESH","JUNK-I5","JUNK-I6","JUNK-I7",
-             "ACTION_Y","HARVEST","REPRODUCE","MOVE_N","MOVE_S","MOVE_E","MOVE_W","JUNK-A7"];
-const SENS_TC=6,INT_TC=8,ACT_TC=8,WMUL=4.0/32767,MAXW=4.0;
-const meaningful=(i)=> i<6 ? i<4 : (i<14 ? (i-6)<5 : (i-14)<7);
-const kindOf=(i)=> i<6?0 : (i<14?1:2);
+             "ACTION_Y","HARVEST","REPRODUCE","MOVE_N","MOVE_S","MOVE_E","MOVE_W","GROW","JUNK-A8"];
+const SENS_TC=7,INT_TC=8,ACT_TC=9,SENS_M=5,INT_M=5,ACT_M=8,WMUL=4.0/32767,MAXW=4.0;
+const meaningful=(i)=> i<7 ? i<SENS_M : (i<15 ? (i-7)<INT_M : (i-15)<ACT_M);
+const kindOf=(i)=> i<7?0 : (i<15?1:2);
 // mirrors GeneDecoder.decode: [SrcType:1|SrcID:7|DstType:1|DstID:7|Weight:16]
 function decodeGene(raw){
   const g=raw|0, srcId=(g>>>24)&0x7f, dstId=(g>>>16)&0x7f, sB=(g>>>31)&1, dB=(g>>>23)&1;
   let w=g&0xffff; if(w&0x8000) w-=0x10000;
-  const src=sB===0?(srcId%SENS_TC):(6+(srcId%INT_TC));
-  const dst=dB===0?(6+(dstId%INT_TC)):(14+(dstId%ACT_TC));
+  const src=sB===0?(srcId%SENS_TC):(7+(srcId%INT_TC));
+  const dst=dB===0?(7+(dstId%INT_TC)):(15+(dstId%ACT_TC));
   return {src,dst,w:w*WMUL,junk:!(meaningful(src)&&meaningful(dst))};
 }
 
@@ -314,20 +314,66 @@ cv.onclick=(e)=>{ const f=curFrame(); if(!W||!f) return;
   if(x<0||y<0||x>=W||y>=W) return;
   const u=f.units.find(u=>u.cell===y*W+x); if(u){ selSlot=u.slot; draw(); } };
 
-async function poll(){
+// ---- data: parse the streamed .map.txt directly, client-side (report-v12, no bespoke server) ----
+// live: tail a growing file over plain HTTP Range; offline: window.SIMOLUTION_EMBED baked in.
+const slotGenome=new Map(); let byteOff=0, lineBuf='', pending=null;
+function pushUnit(rest){
+  const t=rest.split(' '); if(t.length<7) return;
+  const u={cell:+t[0],slot:+t[1],lineage:+t[2],gen:+t[3],energy:+t[4],mass:+t[5]}; let genes,os;
+  if(t[6]==='*'){ const gc=+t[7]; genes=t.slice(8,8+gc).map(Number); slotGenome.set(u.slot,genes); os=8+gc; }
+  else if(t[6]==='^'){ genes=slotGenome.get(u.slot)||[]; os=7; }
+  else { const gc=+t[6]; genes=t.slice(7,7+gc).map(Number); slotGenome.set(u.slot,genes); os=7+gc; } // pre-v11 file
+  u.genes=genes; const o=[];
+  for(let i=os;i<t.length;i++){ const v=t[i]; o.push((v==='NaN'||v==='Infinity'||v==='-Infinity')?null:+v); }
+  u.o=o; if(pending) pending.units.push(u);
+}
+function flushPending(){ if(pending&&pending.r!==null) frames.push(pending); pending=null; }
+function parseChunk(text){
+  lineBuf+=text; let nl;
+  while((nl=lineBuf.indexOf('\n'))>=0){
+    const ln=lineBuf.slice(0,nl); lineBuf=lineBuf.slice(nl+1); if(!ln) continue;
+    const sp=ln.indexOf(' '), tag=sp<0?ln:ln.slice(0,sp), rest=sp<0?'':ln.slice(sp+1);
+    if(tag==='world'){ if(!W){ W=+rest; sizeCanvas(); } }
+    else if(tag==='sample-every'){ every=+rest||1; $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`; }
+    else if(tag==='t'){ flushPending(); pending={t:+rest,r:null,units:[]}; }
+    else if(tag==='r'){ if(pending) pending.r=rest; }
+    else if(tag==='u'){ pushUnit(rest); }
+    else if(tag==='end'){ flushPending(); done=true; }
+  }
+}
+function afterData(){
+  if($('follow').checked&&!replaying&&frames.length) idx=frames.length-1;
+  if(selSlot===null&&frames.length){ const lf=frames[frames.length-1];
+    if(lf.units.length){ const top=[...groupGenomes(lf).values()].sort((a,b)=>b.n-a.n)[0]; if(top) selSlot=top.rep.slot; } }
+  $('badge').className='badge '+(done?'ended':'live');
+  $('badge').textContent=done?('ENDED · SCRUB · '+frames.length+'f'):('LIVE · '+frames.length+'f');
+  if(W) draw();
+}
+async function tail(url){
+  let stalled=false;
   try{
-    const data=await(await fetch('/frames?since='+frames.length)).json();
-    if(!W&&data.world){ W=data.world; every=data.sampleEvery; sizeCanvas(); $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`; }
-    if(data.frames.length) for(const fr of data.frames) frames.push(fr);
-    done=data.done;
-    if($('follow').checked&&!replaying&&frames.length) idx=frames.length-1;
-    if(selSlot===null&&frames.length){ const lf=frames[frames.length-1];
-      if(lf.units.length){ const top=[...groupGenomes(lf).values()].sort((a,b)=>b.n-a.n)[0]; if(top) selSlot=top.rep.slot; } }
-    $('badge').className='badge '+(done?'ended':'live');
-    $('badge').textContent=done?'ENDED · SCRUB':'LIVE · '+frames.length+'f';
-    draw();
-  }catch(e){ $('badge').textContent='waiting…'; }
-  if(!done) setTimeout(poll,600);
+    const res=await fetch(url, byteOff?{headers:{Range:'bytes='+byteOff+'-'},cache:'no-store'}:{cache:'no-store'});
+    if(res.status===206){ const txt=await res.text(); byteOff+=txt.length; parseChunk(txt); }
+    else if(res.status===200){ const txt=await res.text();
+      byteOff=txt.length; lineBuf=''; pending=null; slotGenome.clear(); frames.length=0; done=false; parseChunk(txt); }
+    else { stalled=true; } // 416 = no new bytes yet, or transient
+    afterData();
+  }catch(e){ $('badge').textContent='waiting for '+url+' …'; }
+  if(!done) setTimeout(()=>tail(url), stalled?1000:500);
+}
+function dataSource(){
+  if(window.SIMOLUTION_EMBED) return {embed:window.SIMOLUTION_EMBED};
+  const p=new URLSearchParams(location.search).get('src'); if(p) return {url:p};
+  const base=location.pathname.split('/').pop()||'';
+  if(/\.html?$/.test(base)&&base!=='index.html') return {url:base.replace(/\.html?$/,'')+'.map.txt'};
+  return {url:'live.map.txt'};
+}
+function boot(){
+  const s=dataSource();
+  if(s.embed){ const e=s.embed; W=e.world; every=e.sampleEvery||1; sizeCanvas();
+    $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`;
+    for(const fr of e.frames) frames.push(fr); done=true; $('follow').checked=false; afterData();
+  } else { tail(s.url); }
 }
 $('slider').oninput=(e)=>{ idx=+e.target.value; $('follow').checked=false; draw(); };
 $('showres').onchange=(e)=>{ showRes=e.target.checked; draw(); };
@@ -337,5 +383,5 @@ $('follow').onchange=(e)=>{ if(e.target.checked&&frames.length){ idx=frames.leng
 $('play').onclick=()=>{ if(replaying){replaying=false;return;}
   replaying=true; $('follow').checked=false; idx=0;
   const step=()=>{ if(!replaying)return; draw(); idx++; if(idx>=frames.length){replaying=false;return;} setTimeout(step,1000/8); }; step(); };
-poll();
+boot();
 </script></body></html>

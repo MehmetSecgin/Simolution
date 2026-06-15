@@ -13,13 +13,13 @@ Current milestone: **Kernel v5 (biomass / Pirt size physics)** — a determinist
 
 # population run with deterministic report (schema: docs/specs/report-v6.md)
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100"
-# flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --map-frames N --serve PORT --trace --out <file>
+# flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --map-frames N --trace --out <file>
 #        --resource-cycle --cycle-period N --cycle-radius N --cycle-peak X  (contract-v6, opt-in)
 #        --map-from T0 --map-to T1  (map sampler: a frame EVERY tick only within [T0,T1] — tick-by-tick window of any phase, tiny data vs every-tick over the whole run)
 
 # patchy + cyclic resource (contract-v6): a central disk pulses 0->peak->0 (period in ticks),
 # periphery barren, diffusion spreads it; watch the breathing gradient live.
-./gradlew run --args="--units 300 --ticks 30000 --seed 42 --world 100 --resource-cycle --cycle-period 2000 --cycle-radius 22 --cycle-peak 10 --out runs/cyc.txt --serve 8090"
+./gradlew run --args="--units 300 --ticks 30000 --seed 42 --world 100 --resource-cycle --cycle-period 2000 --cycle-radius 22 --cycle-peak 10 --out runs/cyc.txt"
 # --world W = lattice side; the W×W grid IS the slot pool (one unit per cell,
 #   contract-v3 §2/§5). Population is bounded physically by W² and energetically
 #   by starvation — there is no halt-on-full anymore; a birth with no free
@@ -29,11 +29,11 @@ Current milestone: **Kernel v5 (biomass / Pirt size physics)** — a determinist
 # visualize a run as a self-contained HTML dashboard (stdlib python, no deps)
 python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 
-# watch the spatial map (report-v7): scrub-player of the lattice over time —
-# resource heatmap + units coloured by lineage, play/pause/slider. The run writes
-# a sampled <base>.map.txt sidecar whenever --out is set (--map-frames N, default
-# 120; 0 disables). Then:
-python3 tools/mapviz.py runs/baseline.map.txt   # writes runs/baseline.map.html
+# bake the spatial map (report-v12) into a SELF-CONTAINED rich viewer: the same
+# genome panel + circuit inspector + colour-by-mass as the live view, frames inlined,
+# opens anywhere (even file://). The run writes a sampled <base>.map.txt whenever
+# --out is set (--map-frames N, default 120; 0 disables). Then:
+python3 tools/mapviz.py runs/baseline.map.txt   # writes runs/baseline.map.html (offline, no server)
 
 # observability layer (report-v8): optional, decoupled, off by default. Writes
 # <base>.obs/ (manifest.json, events.jsonl, metrics.csv, ckpt/<tick>.ckpt) beside
@@ -45,11 +45,13 @@ python3 tools/mapviz.py runs/baseline.map.txt   # writes runs/baseline.map.html
 python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
 
-# watch a run LIVE while it ticks (report-v7 live mode): the run starts an
-# in-JVM HTTP server that tails the streamed .map.txt; open the URL to follow the
-# lattice in real time, then scrub/replay after it ends (Ctrl-C to stop serving).
-./gradlew run --args="--units 200 --ticks 40000 --seed 99 --world 130 --out runs/live.txt --serve 8090"
-# then open http://localhost:8090  (--serve requires --out; frames stay on disk, O(1) RAM)
+# watch a run LIVE while it ticks (report-v12, serverless): no bespoke server — the
+# viewer (live.html) parses the streamed .map.txt client-side and tails the growing
+# file over plain HTTP Range. serve-live.sh runs a sim in the background and serves
+# runs/ with `python3 -m http.server`; open the URL to follow live, scrub after it ends.
+bash scripts/serve-live.sh   # serves runs/ on :8090 (edit its --args to change the run)
+# then open http://localhost:8090  (or, for any run: serve runs/ and open <base>.html,
+# which tails <base>.map.txt). Frames stay on disk, O(1) RAM; Ctrl-C to stop.
 ```
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
@@ -88,8 +90,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
 ├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
 ├── RunReport                 byte-deterministic report-v6 text (aggregates + distributions + reproduction)
-├── MapFrameWriter            streams sampled spatial frames to <base>.map.txt (report-v7); O(1) RAM
-├── LiveServer                --serve PORT: in-JVM HTTP server tailing .map.txt for the live viewer (report-v7)
+├── MapFrameWriter            streams sampled spatial frames to <base>.map.txt (report-v7; report-v11 dedup+round; report-v12 `end` trailer); O(1) RAM
 ├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
 ├── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
 ├── RunManifest/ConfigHash    report-v8 replay key (verbatim founder genomes+cells, KernelConfig fingerprint)
@@ -121,6 +122,8 @@ Binding (implementations MUST conform):
 - [docs/specs/report-v8.md](docs/specs/report-v8.md) — observability layer: deterministic-replay time-travel (manifest + checkpoints), decoupled `events.jsonl`/`metrics.csv` sinks (kernel stays pure — no event hook), DuckDB/Parquet query layer, `tools/timetravel.py`. Implemented (ADR 0023); `--observe` off by default, sink-off runs byte-identical; delta over report-v7
 - [docs/specs/report-v9.md](docs/specs/report-v9.md) — genome-carrying map frames + circuit inspector: each `<base>.map.txt` `u` line now carries the unit's genome + per-tick node outputs, so the live viewer groups living units by genome, decodes any genome to a **force-directed circuit** (curved sign/weight edges, self-loops, ×N dosage, junk filter), and on hover isolates a node + shows its **actual weights** with per-tick active-signal glow — all client-side, no reconstruction. Kernel stays pure; delta over report-v7
 - [docs/specs/report-v10.md](docs/specs/report-v10.md) — surface biomass (mass): new `## mass` report section (totals + alive distribution), `final_mass` column in `.units.csv`, `mass_total` column in `metrics.csv`, a `mass` field on each map-frame `u` line, and a **colour-by-mass** toggle in `tools/mapviz.py` + `live.html` (blue→red, scaled to run max) with mass mean/max readouts. Report `schema:` → report-v10, `kernel:` → v5. Harness + viewers only; kernel stays pure; delta over report-v9
+- [docs/specs/report-v11.md](docs/specs/report-v11.md) — compact map frames: the `<base>.map.txt` `u` line was half redundant (genome re-emitted every frame though it only changes at birth) and half over-precise (full-`double` node outputs). report-v11 **dedups genome per slot** (`* <count> <genes>` define vs `^` carry-forward) and **rounds outputs to ≤4 decimals** (`NaN`→null), shrinking the u-portion ~60–80% (survivor 226 MB → ~45 MB). Fields 0–5 keep their position → `tools/mapviz.py` untouched; `LiveServer` carries genomes forward at parse → JSON + `live.html` untouched (and still reads pre-v11 files). Writer keeps an O(slots) last-genome cache (doctrine intact). Composes with the windowed sampler (`--map-from/--map-to`, commit `ac17dc3`). Harness + viewers only; kernel stays pure; text report `schema:` stays report-v10; delta over report-v10 (ADR 0030)
+- [docs/specs/report-v12.md](docs/specs/report-v12.md) — one serverless viewer: collapses the two inspectors (bespoke `LiveServer`+`live.html` rich; `tools/mapviz.py` lite offline) into a single rich `live.html` that parses `.map.txt` **client-side**. Two feeds: tail a growing file over plain HTTP **Range** (follow live via any static server, e.g. `python3 -m http.server` — **no bespoke server**) or `window.SIMOLUTION_EMBED` baked in (offline, `file://`). **Deletes** `LiveServer.java` + `--serve` + the `/frames` endpoint; `mapviz.py` becomes a **baker** (inlines frames into `live.html`); `serve-live.sh` → generic static server; `MapFrameWriter.close()` writes an `end` trailer. Also fixes `live.html`'s stale node layout (v3 `TOTAL=22` → v5 `TOTAL=24`, was mislabeling `SELF_MASS`/`GROW`). Kernel untouched; delta over report-v11 (ADR 0031)
 
 Historical / non-binding:
 
@@ -182,7 +185,7 @@ Solo local repo: no remote, no `main` trunk, no PR flow. One long-lived branch *
 5. ~~Reproduction + mutation (evolution proper)~~ done (ADR 0014 design, 0015 implementation, 0016 BUILD_COST anti-degeneracy): REPRODUCE effector + SELF_ENERGY sensor, per-slot rewritable store, phase-7 settle-reproduction, point mutation, halt-on-full, fixed per-birth build cost. Variable-length genomes (indels) followed (item 10, done); biomass as a distinct variable (time/size physics) is next within evolution
 6. ~~Space (basic)~~ done (ADR 0018 geometry, 0019 economics): 2D toroidal lattice, per-cell resource field + diffusion, `LOCAL_RESOURCE` replaces global RESOURCE, one-pixel-one-unit, spatial birth into a free Moore neighbour, halt-on-full retired. Sessile. Yields coexisting lineages (vs the old monoculture).
 7. ~~Motility~~ done (ADR 0020): `MOVE_N/S/E/W` effectors (Fork B), one Moore step/tick, `MOVE_COST`, deadzone, blocked-if-occupied; position decoupled from slot (no per-move recompile/alloc); chemotaxis emergent via LOCAL_RESOURCE + DELAY.
-8. ~~Spatial map + scrub viewer + live viewer~~ done (report-v7): `MapFrameWriter` streams a sampled `<base>.map.txt` (resource field + per-cell lineage, O(1) RAM); `tools/mapviz.py` renders a self-contained HTML scrub player; `--serve PORT` starts an in-JVM `LiveServer` (`com.sun.net.httpserver`, no deps) that tails the file so a run can be watched live (`src/main/resources/live.html`, follow-live + scrub).
+8. ~~Spatial map + scrub viewer + live viewer~~ done (report-v7): `MapFrameWriter` streams a sampled `<base>.map.txt` (resource field + per-cell lineage, O(1) RAM); `tools/mapviz.py` renders a self-contained HTML scrub player; `--serve PORT` started an in-JVM `LiveServer` (`com.sun.net.httpserver`, no deps) that tailed the file so a run could be watched live (`src/main/resources/live.html`, follow-live + scrub). **report-v12 (ADR 0031) removed the bespoke `LiveServer` + `--serve`**: the viewer now parses `.map.txt` client-side and tails it over a generic static server (or runs fully offline from baked frames).
 9. ~~Observability layer~~ done (report-v8, ADR 0023): deterministic-replay time-travel (`RunManifest` + `CheckpointWriter` + `Replayer`, `Kernel.saveState`/`loadState`), decoupled `EventLogWriter`/`MetricsWriter` sinks (kernel stays pure — no event hook; events + mutation bits derived from snapshots/gene-diff), DuckDB/Parquet query layer, `tools/timetravel.py` time-travel page. `--observe` off by default; sink-off runs byte-identical.
 10. ~~Variable-length genomes (indels)~~ done (contract-v4, ADR 0026): heritable gene *count* via per-gene deletion + per-survivor tandem duplication at birth (operation-counter RNG keying), soft `MAX_GENES` cap (floor 0 = inert), replication cost ∝ child length (`BUILD_COST_PER_GENE`, build-time anti-bloat — no per-tick per-gene tax). Gene dosage emergent (duplicate a transporter → more harvest capacity).
 11. ~~Biomass (Pirt size physics)~~ done (contract-v5, ADR 0028): `mass` as a distinct crystallized-energy variable, `GROW` effector + `SELF_MASS` sensor, maintenance ∝ mass (replaces the energy proxy), harvest ∝ mass^α surface law, move cost ∝ mass, **symmetric binary fission** (split mass+energy 50/50), ungated `REPRODUCE` trigger (size-control checkpoint emergent — no `M_DIV_MIN`), growth phase 7, death dissipates mass→sink.

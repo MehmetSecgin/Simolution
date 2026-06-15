@@ -19,7 +19,6 @@ import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.EventLogWriter;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.LineageReport;
-import com.simolution.sim.LiveServer;
 import com.simolution.sim.MapFrameWriter;
 import com.simolution.sim.MetricsWriter;
 import com.simolution.sim.PopulationReport;
@@ -68,7 +67,6 @@ public class Main {
         TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
 
         MapFrameWriter mapWriter = null;
-        LiveServer liveServer = null;
         if (config.outPath() != null && (config.mapFrames() > 0 || config.mapFrom() >= 0)) {
             Path out = Path.of(config.outPath());
             if (out.getParent() != null) {
@@ -78,14 +76,6 @@ public class Main {
             mapWriter = new MapFrameWriter(
                     Files.newBufferedWriter(mapPath),
                     worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
-            if (config.servePort() > 0) {
-                liveServer = new LiveServer(config.servePort(), mapPath);
-                liveServer.start();
-                System.out.println("live map serving at http://localhost:" + config.servePort()
-                        + "  (watch it tick; Ctrl-C to stop)");
-            }
-        } else if (config.servePort() > 0) {
-            throw new IllegalArgumentException("--serve requires --out (and --map-frames > 0) to stream frames");
         }
 
         EventLogWriter eventLog = null;
@@ -138,9 +128,6 @@ public class Main {
             System.out.println("observability artifacts written to " + obsDir
                     + "/ (replay: ./gradlew run --args=\"--replay " + obsDir + " --at <tick>\")");
         }
-        if (liveServer != null) {
-            liveServer.markDone();
-        }
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000;
 
         DynamicsSummary summary = observer.summarize();
@@ -182,22 +169,11 @@ public class Main {
             Files.writeString(popWiring, WiringReport.render(kernel.liveConnections()));
             System.out.println("evolved wiring written to " + popWiring);
 
-            if (config.mapFrames() > 0) {
-                System.out.println("spatial map frames written to " + sibling(out, ".map.txt")
-                        + " (render: python3 tools/mapviz.py " + sibling(out, ".map.txt") + ")");
-            }
-        }
-
-        if (liveServer != null) {
-            System.out.println();
-            System.out.println("run complete — live map still serving at http://localhost:"
-                    + config.servePort() + " (scrub/replay). Ctrl-C to stop.");
-            try {
-                Thread.currentThread().join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } finally {
-                liveServer.stop();
+            if (config.mapFrames() > 0 || config.mapFrom() >= 0) {
+                Path mapTxt = sibling(out, ".map.txt");
+                System.out.println("spatial map frames written to " + mapTxt);
+                System.out.println("  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails this file)");
+                System.out.println("  bake offline:     python3 tools/mapviz.py " + mapTxt + "  (self-contained .map.html)");
             }
         }
     }

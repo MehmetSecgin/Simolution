@@ -13,7 +13,6 @@ public record RunConfig(
         boolean demo,
         String outPath,
         int mapFrames,
-        int servePort,
         boolean observe,
         int checkpointEvery,
         InflowConfig inflow,
@@ -28,7 +27,6 @@ public record RunConfig(
         Integer world = null;
         Integer maxGenes = null;
         Integer mapFrames = null;
-        Integer servePort = null;
         Integer checkpointEvery = null;
         Integer cyclePeriod = null;
         Integer cycleRadius = null;
@@ -49,7 +47,6 @@ public record RunConfig(
                 case "--world" -> world = Integer.parseInt(args[++i]);
                 case "--max-genes" -> maxGenes = Integer.parseInt(args[++i]);
                 case "--map-frames" -> mapFrames = Integer.parseInt(args[++i]);
-                case "--serve" -> servePort = Integer.parseInt(args[++i]);
                 case "--checkpoint-every" -> checkpointEvery = Integer.parseInt(args[++i]);
                 case "--seed" -> seed = Long.parseLong(args[++i]);
                 case "--trace" -> trace = true;
@@ -79,7 +76,7 @@ public record RunConfig(
 
         boolean demo = units == null && genes == null;
         if (demo) {
-            return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, 0, 0,
+            return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, 0,
                     observe, checkpointEvery == null ? 2000 : checkpointEvery, InflowConfig.UNIFORM, -1, -1);
         }
         int u = units == null ? 1 : units;
@@ -107,7 +104,6 @@ public record RunConfig(
                 false,
                 outPath,
                 mapFrames == null ? 120 : mapFrames,
-                servePort == null ? 0 : servePort,
                 observe,
                 checkpointEvery == null ? 2000 : checkpointEvery,
                 inflow,
