@@ -253,6 +253,7 @@ public final class MapFrameWriter implements Closeable {
         out.write("end\n");
         out.flush();
         out.close();
+        idx.write("end\n");
         idx.flush();
         idx.close();
     }

@@ -133,7 +133,8 @@ class MapFrameWriterTest {
         String framesOut = frames.toString();
 
         // each idx line: <tick> <off> <len> — the substring at [off,off+len) must be that frame's block
-        for (String row : idx.toString().lines().toList()) {
+        // (the trailing 'end' marker is skipped)
+        for (String row : idx.toString().lines().filter(l -> !l.equals("end")).toList()) {
             String[] f = row.split(" ");
             int tick = Integer.parseInt(f[0]), off = Integer.parseInt(f[1]), len = Integer.parseInt(f[2]);
             String block = framesOut.substring(off, off + len);

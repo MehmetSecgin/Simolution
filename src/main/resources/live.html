@@ -133,17 +133,53 @@ function decodeGene(raw){
 const ACT_COLOR={'H':'#35d6c8','G':'#f5b73f','R':'#ff6f61','N':'#9d8cff','S':'#9d8cff','E':'#9d8cff','W':'#9d8cff','y':'#74849a','.':'#26303f'};
 
 let W=0,px=6,every=1;
-const frames=[];
-const catalog=new Map();   // genomeId -> genes[] (from the .catalog sidecar)
+const frames=[];                 // embed mode: every frame inlined
+const catalog=new Map();         // genomeId -> genes[] (resolved; lazily in indexed mode)
+const catMeta=new Map();         // genomeId -> {count,off,len} from .catalog.idx
+const frameIndex=[];             // indexed mode: {tick,off,len} per frame
+const frameCache=new Map();      // frameNo -> parsed {t,r,units}; LRU-capped
+const FRAME_CACHE_CAP=120;
+let indexed=false, framesUrl='', catUrl='', curF=null;
 let idx=0,done=false,showRes=true,replaying=false,selSlot=null,renderedKey=null,hideJunk=true,colMode='genome';
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),$=(id)=>document.getElementById(id);
 
+function frameCount(){ return indexed ? frameIndex.length : frames.length; }
+function geneCountOf(gid){ return indexed ? (catMeta.get(gid)?.count ?? (catalog.get(gid)?.length||0)) : (catalog.get(gid)?.length||0); }
+// fetch one frame's bytes via HTTP Range and parse it (indexed mode); cache with a simple cap
+async function getFrame(i){
+  if(frameCache.has(i)) return frameCache.get(i);
+  const e=frameIndex[i]; if(!e) return null;
+  const txt=await rangeFetch(framesUrl, e.off, e.off+e.len-1);
+  const f=parseOneFrame(txt);
+  frameCache.set(i,f);
+  if(frameCache.size>FRAME_CACHE_CAP){ const k=frameCache.keys().next().value; frameCache.delete(k); }
+  return f;
+}
+// fetch one genome's genes via Range, on inspect (indexed mode)
+async function getGenome(gid){
+  if(catalog.has(gid)) return catalog.get(gid);
+  const m=catMeta.get(gid); if(!m) return [];
+  const txt=await rangeFetch(catUrl, m.off, m.off+m.len-1);
+  const t=txt.trim().split(' '); const genes=t.slice(3,3+(+t[2])).map(Number);
+  catalog.set(gid,genes); return genes;
+}
+async function rangeFetch(url,a,b){
+  const res=await fetch(url,{headers:{Range:'bytes='+a+'-'+b},cache:'no-store'});
+  return await res.text();
+}
+function prefetch(i){ for(let k=1;k<=8;k++){ if(i+k<frameIndex.length) getFrame(i+k); } }
+async function showFrame(i){
+  i=Math.max(0,Math.min(frameCount()-1,i)); idx=i;
+  curF = indexed ? await getFrame(i) : frames[i];
+  if(indexed) prefetch(i);
+  draw();
+}
+
 function genColor(id){ return `hsl(${(id*137.508)%360},72%,60%)`; }
 function resColor(l){ const t=l/9; return `rgb(${Math.round(t*16)},${Math.round(22+t*112)},${Math.round(t*48)})`; }
-function genesOf(u){ return catalog.get(u.gid)||[]; }
 function sizeCanvas(){ px=Math.max(2,Math.floor(640/W)); cv.width=W*px; cv.height=W*px; }
-function curFrame(){ return frames.length?frames[Math.min(idx,frames.length-1)]:null; }
-function selUnit(f){ return selSlot===null?null:f.units.find(u=>u.slot===selSlot); }
+function curFrame(){ return curF; }
+function selUnit(f){ return (selSlot===null||!f)?null:f.units.find(u=>u.slot===selSlot); }
 
 function groupGenomes(f){
   const g=new Map();
@@ -168,11 +204,11 @@ function draw(){
   if(mmax>massMax) massMax=mmax;
   for(const u of f.units){ ctx.fillStyle=unitColor(u); ctx.fillRect((u.cell%W)*px,((u.cell/W)|0)*px,px,px); }
   const groups=groupGenomes(f);
-  $('tick').textContent=f.t; $('frame').textContent=idx; $('last').textContent=frames.length-1;
+  $('tick').textContent=f.t; $('frame').textContent=idx; $('last').textContent=frameCount()-1;
   $('alive').textContent=f.units.length; $('gen').textContent=groups.size;
   $('massmean').textContent=f.units.length?(msum/f.units.length).toFixed(2):'0';
   $('massmax').textContent=mmax.toFixed(2);
-  $('slider').max=Math.max(0,frames.length-1); $('slider').value=idx;
+  $('slider').max=Math.max(0,frameCount()-1); $('slider').value=idx;
   renderGenomes(f,groups); renderDetail(f);
 }
 
@@ -182,11 +218,11 @@ function renderGenomes(f,groups){
   $('galive').textContent=f.units.length; $('gdistinct').textContent=list.length;
   const el=$('glist'); el.innerHTML='';
   for(const g of list){
-    const genes=catalog.get(g.gid)||[], row=document.createElement('div');
+    const row=document.createElement('div');
     row.className='grow'+(g.gid===selG?' sel':'');
     row.innerHTML=`<span class="sw" style="background:${genColor(g.gid)};color:${genColor(g.gid)}"></span>`+
       `<span class="n">×${g.n}</span><span class="fp">#${g.gid}</span>`+
-      `<span class="meta">${genes.length}g · ${g.rep.act}</span>`;
+      `<span class="meta">${geneCountOf(g.gid)}g · ${g.rep.act}</span>`;
     row.onclick=()=>{ selSlot=g.rep.slot; draw(); };
     el.appendChild(row);
   }
@@ -282,13 +318,16 @@ function renderDetail(f){
     if(renderedKey!==null){ d.innerHTML='<div class="empty">click a unit on the map (or a genome) &middot; signal flows left &rarr; right</div>'; renderedKey=null; } return; }
   const u=selUnit(f);
   if(u){
-    const genes=genesOf(u);
     $('dsel').textContent='· slot '+u.slot+' · genome #'+u.gid;
-    if(renderedKey!==u.gid){ d.innerHTML=circuitSVG(genes); renderedKey=u.gid; }
-    const mc=genes.map(decodeGene).filter(w=>!w.junk).length;
-    sb.innerHTML=`<span class="pill">slot <b>${u.slot}</b></span><span class="pill">genome <b>#${u.gid}</b></span>`+
-      `<span class="pill">mass <b>${(u.mass||0).toFixed(2)}</b></span><span class="pill">action <b>${u.act}</b></span>`+
-      `<span class="pill"><b>${genes.length}</b> genes · <b>${mc}</b> meaningful</span>`;
+    // genes may need an on-demand Range fetch (indexed mode); render the circuit once they arrive
+    Promise.resolve(catalog.get(u.gid) || getGenome(u.gid)).then(genes=>{
+      genes=genes||[];
+      if(renderedKey!==u.gid){ d.innerHTML=circuitSVG(genes); renderedKey=u.gid; }
+      const mc=genes.map(decodeGene).filter(w=>!w.junk).length;
+      sb.innerHTML=`<span class="pill">slot <b>${u.slot}</b></span><span class="pill">genome <b>#${u.gid}</b></span>`+
+        `<span class="pill">mass <b>${(u.mass||0).toFixed(2)}</b></span><span class="pill">action <b>${u.act}</b></span>`+
+        `<span class="pill"><b>${genes.length}</b> genes · <b>${mc}</b> meaningful</span>`;
+    });
   } else {
     $('dsel').textContent='· slot '+selSlot;
     sb.innerHTML=`<span class="pill dead">✕ slot ${selSlot} not alive at tick ${f.t} — scrub to when it lived</span>`;
@@ -300,49 +339,23 @@ cv.onclick=(e)=>{ const f=curFrame(); if(!W||!f) return;
   if(x<0||y<0||x>=W||y>=W) return;
   const u=f.units.find(u=>u.cell===y*W+x); if(u){ selSlot=u.slot; draw(); } };
 
-// ---- data: parse the streamed .frames + .catalog directly, client-side (report-v13) ----
-// live: tail both growing files over plain HTTP Range; offline: window.SIMOLUTION_EMBED baked in.
-let pending=null;
-function pushUnit(rest){ // u <cell> <slot> <mass> <action> <genomeId>
-  const t=rest.split(' '); if(t.length<5) return;
-  const u={cell:+t[0],slot:+t[1],mass:+t[2],act:t[3],gid:+t[4]};
-  if(pending) pending.units.push(u);
-}
-function flushPending(){ if(pending&&pending.r!==null) frames.push(pending); pending=null; }
-function parseFrames(text){
-  let nl, buf=text;
-  // line-buffered append handled by caller via framesBuf
-  framesBuf+=text;
-  while((nl=framesBuf.indexOf('\n'))>=0){
-    const ln=framesBuf.slice(0,nl); framesBuf=framesBuf.slice(nl+1); if(!ln) continue;
+// ---- data (report-v13 §index): two modes ----
+//  embed   — window.SIMOLUTION_EMBED baked in (offline, small runs): everything in RAM.
+//  indexed — served run: load the tiny .frames.idx + .catalog.idx, then HTTP-Range-fetch
+//            ONE frame (and one genome) at a time. Bounded RAM, scales to any run, still
+//            a generic static server (no bespoke server — report-v12 property kept).
+function parseOneFrame(text){
+  const f={t:0,r:null,units:[]};
+  for(const ln of text.split('\n')){
+    if(!ln) continue;
     const sp=ln.indexOf(' '), tag=sp<0?ln:ln.slice(0,sp), rest=sp<0?'':ln.slice(sp+1);
-    if(tag==='format'){ /* version marker */ }
-    else if(tag==='world'){ if(!W){ W=+rest; sizeCanvas(); } }
-    else if(tag==='sample-every'){ every=+rest||1; $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`; }
-    else if(tag==='t'){ flushPending(); pending={t:+rest,r:null,units:[]}; }
-    else if(tag==='r'){ if(pending) pending.r=rest; }
-    else if(tag==='u'){ pushUnit(rest); }
-    else if(tag==='end'){ flushPending(); done=true; }
+    if(tag==='t') f.t=+rest;
+    else if(tag==='r') f.r=rest;
+    else if(tag==='u'){ const u=rest.split(' '); if(u.length>=5) f.units.push({cell:+u[0],slot:+u[1],mass:+u[2],act:u[3],gid:+u[4]}); }
   }
+  return f;
 }
-function parseCatalog(text){ // g <id> <count> <gene...>
-  catBuf+=text; let nl;
-  while((nl=catBuf.indexOf('\n'))>=0){
-    const ln=catBuf.slice(0,nl); catBuf=catBuf.slice(nl+1); if(!ln) continue;
-    if(ln[0]!=='g') continue;
-    const t=ln.split(' '); const id=+t[1], gc=+t[2];
-    catalog.set(id, t.slice(3,3+gc).map(Number));
-  }
-}
-let framesBuf='',catBuf='',framesOff=0,catOff=0;
-function afterData(){
-  if($('follow').checked&&!replaying&&frames.length) idx=frames.length-1;
-  if(selSlot===null&&frames.length){ const lf=frames[frames.length-1];
-    if(lf.units.length){ const top=[...groupGenomes(lf).values()].sort((a,b)=>b.n-a.n)[0]; if(top) selSlot=top.rep.slot; } }
-  $('badge').className='badge '+(done?'ended':'live');
-  $('badge').textContent=done?('ENDED · SCRUB · '+frames.length+'f'):('LIVE · '+frames.length+'f');
-  if(W) draw();
-}
+let framesIdxUrl='',catIdxUrl='',idxOff=0,catIdxOff=0,idxBuf='',catIdxBuf='';
 async function tailOne(url,off,onText,reset){
   try{
     const res=await fetch(url, off?{headers:{Range:'bytes='+off+'-'},cache:'no-store'}:{cache:'no-store'});
@@ -351,13 +364,40 @@ async function tailOne(url,off,onText,reset){
   }catch(e){}
   return off;
 }
-async function tail(framesUrl,catUrl){
-  // catalog first so genomes resolve before frames reference them
-  catOff=await tailOne(catUrl,catOff,parseCatalog,()=>{catalog.clear();catBuf='';});
-  const before=frames.length;
-  framesOff=await tailOne(framesUrl,framesOff,parseFrames,()=>{frames.length=0;framesBuf='';pending=null;done=false;});
-  afterData();
-  if(!done) setTimeout(()=>tail(framesUrl,catUrl), frames.length===before?1000:500);
+function parseFramesIdx(text){ // <tick> <off> <len>  (or 'end')
+  idxBuf+=text; let nl;
+  while((nl=idxBuf.indexOf('\n'))>=0){
+    const ln=idxBuf.slice(0,nl); idxBuf=idxBuf.slice(nl+1); if(!ln) continue;
+    if(ln==='end'){ done=true; continue; }
+    const t=ln.split(' '); frameIndex.push({tick:+t[0],off:+t[1],len:+t[2]});
+  }
+}
+function parseCatalogIdx(text){ // <gid> <count> <off> <len>
+  catIdxBuf+=text; let nl;
+  while((nl=catIdxBuf.indexOf('\n'))>=0){
+    const ln=catIdxBuf.slice(0,nl); catIdxBuf=catIdxBuf.slice(nl+1); if(!ln||ln==='end') continue;
+    const t=ln.split(' '); catMeta.set(+t[0],{count:+t[1],off:+t[2],len:+t[3]});
+  }
+}
+async function ensureHeader(){
+  if(W||!frameIndex.length) return;
+  const txt=await rangeFetch(framesUrl,0,frameIndex[0].off-1);
+  for(const ln of txt.split('\n')){ const sp=ln.indexOf(' '),tag=sp<0?ln:ln.slice(0,sp),rest=sp<0?'':ln.slice(sp+1);
+    if(tag==='world'){ W=+rest; sizeCanvas(); }
+    else if(tag==='sample-every'){ every=+rest||1; $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`; } }
+}
+async function pollIdx(){
+  catIdxOff=await tailOne(catIdxUrl,catIdxOff,parseCatalogIdx,()=>{catMeta.clear();catalog.clear();catIdxBuf='';});
+  const before=frameIndex.length;
+  idxOff=await tailOne(framesIdxUrl,idxOff,parseFramesIdx,()=>{frameIndex.length=0;frameCache.clear();idxBuf='';done=false;});
+  await ensureHeader();
+  const n=frameIndex.length;
+  $('badge').className='badge '+(done?'ended':'live');
+  $('badge').textContent=(done?'ENDED · SCRUB · ':'LIVE · ')+n+'f';
+  if(n){ const follow=$('follow').checked&&!replaying;
+    await showFrame(follow?n-1:idx);
+    if(selSlot===null&&curF&&curF.units.length){ const top=[...groupGenomes(curF).values()].sort((a,b)=>b.n-a.n)[0]; if(top){ selSlot=top.rep.slot; draw(); } } }
+  if(!done) setTimeout(pollIdx, n===before?1500:600);
 }
 function dataSource(){
   if(window.SIMOLUTION_EMBED) return {embed:window.SIMOLUTION_EMBED};
@@ -371,16 +411,21 @@ function boot(){
   if(s.embed){ const e=s.embed; W=e.world; every=e.sampleEvery||1; sizeCanvas();
     $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`;
     for(const [id,genes] of Object.entries(e.catalog||{})) catalog.set(+id,genes);
-    for(const fr of e.frames) frames.push(fr); done=true; $('follow').checked=false; afterData();
-  } else { tail(s.frames,s.catalog); }
+    for(const fr of e.frames) frames.push(fr); done=true; $('follow').checked=false;
+    $('badge').className='badge ended'; $('badge').textContent='ENDED · SCRUB · '+frames.length+'f';
+    if(frames.length){ curF=frames[0];
+      const top=[...groupGenomes(curF).values()].sort((a,b)=>b.n-a.n)[0]; if(top) selSlot=top.rep.slot; }
+    showFrame(0);
+  } else { indexed=true; framesUrl=s.frames; catUrl=s.catalog;
+    framesIdxUrl=framesUrl+'.idx'; catIdxUrl=catUrl+'.idx'; pollIdx(); }
 }
-$('slider').oninput=(e)=>{ idx=+e.target.value; $('follow').checked=false; draw(); };
+$('slider').oninput=(e)=>{ $('follow').checked=false; showFrame(+e.target.value); };
 $('showres').onchange=(e)=>{ showRes=e.target.checked; draw(); };
 $('colmode').onchange=(e)=>{ colMode=e.target.value; $('actlegend').style.display=colMode==='action'?'flex':'none'; draw(); };
 $('hidejunk').onchange=(e)=>{ hideJunk=e.target.checked; renderedKey=null; draw(); };
-$('follow').onchange=(e)=>{ if(e.target.checked&&frames.length){ idx=frames.length-1; draw(); } };
+$('follow').onchange=(e)=>{ if(e.target.checked&&frameCount()){ showFrame(frameCount()-1); } };
 $('play').onclick=()=>{ if(replaying){replaying=false;return;}
-  replaying=true; $('follow').checked=false; idx=0;
-  const step=()=>{ if(!replaying)return; draw(); idx++; if(idx>=frames.length){replaying=false;return;} setTimeout(step,1000/8); }; step(); };
+  replaying=true; $('follow').checked=false;
+  const step=async(i)=>{ if(!replaying)return; await showFrame(i); if(i+1>=frameCount()){replaying=false;return;} setTimeout(()=>step(i+1),1000/8); }; step(0); };
 boot();
 </script></body></html>
