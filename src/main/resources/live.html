@@ -59,18 +59,17 @@
   .legend{ display:flex; gap:16px; flex-wrap:wrap; margin:11px 2px 2px; font-size:10.5px; color:var(--muted);
     letter-spacing:.08em; text-transform:uppercase }
   .legend i{ display:inline-block; width:18px; height:0; border-top-width:3px; border-top-style:solid; vertical-align:middle; margin-right:6px; border-radius:2px }
-  /* circuit dynamics: an edge is .active when it carries signal this tick, a node .fire when it outputs */
-  .edge .base{ stroke-opacity:.20; transition:stroke-opacity .12s }
+  .legend .sq{ display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:5px }
+  /* circuit: structural (report-v13 dropped per-tick node outputs); meaningful edges glow, hover reveals weights */
+  .edge .base{ stroke-opacity:.20 }
   .edge.active .base{ stroke-opacity:.9; filter:url(#glow) }
   .edge.junk .base{ stroke-opacity:.30 }
   .edge .flow{ stroke-opacity:0 }
-  .edge.active .flow{ stroke-opacity:.95; animation:flow 1.25s linear infinite }
+  .edge.active .flow{ stroke-opacity:.85; animation:flow 1.25s linear infinite }
   /* hover a node -> its connections become .hot -> reveal their actual weights */
   .wlabel{ opacity:0; pointer-events:none; transition:opacity .1s } .edge.hot .wlabel{ opacity:1 }
   .node-box rect{ transition:.12s } .node-box .nt{ transition:.12s }
-  .node-box.fire rect{ filter:url(#glow); stroke-width:2.4 } .node-box.fire .nt{ fill:#f4faff }
   svg.dim .edge, svg.dim .node-box{ opacity:.14 } svg.dim .edge.hot, svg.dim .node-box.hot{ opacity:1 }
-  svg.idle{ filter:grayscale(.75); opacity:.4 }
   @keyframes flow{ to{ stroke-dashoffset:-1 } }
   @keyframes svgin{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
   .circ-svg{ display:block; width:100%; height:auto; animation:svgin .45s cubic-bezier(.2,.7,.2,1) }
@@ -81,11 +80,16 @@
     <canvas id="cv" width="640" height="640"></canvas>
     <div class="col" style="width:100%">
       <div class="row"><label><input type="checkbox" id="follow" checked> follow live</label>
-        <label><input type="checkbox" id="bymass"> by mass</label>
+        <label>colour: <select id="colmode" style="background:#121925;color:var(--ink);border:1px solid var(--line);border-radius:3px;font:inherit">
+          <option value="genome">by genome</option><option value="mass">by mass</option><option value="action">by action</option></select></label>
         <label style="margin-left:auto"><input type="checkbox" id="showres" checked> resource</label></div>
       <div class="row"><input id="slider" type="range" min="0" max="0" value="0"></div>
       <div class="row"><button id="play">&#9654; replay</button><span id="meta" class="kv"></span></div>
-      <div class="row kv">tick <b id="tick">–</b> · frame <b id="frame">0</b>/<span id="last">0</span> · alive <b id="alive">0</b> · lineages <b id="lin">0</b> · mass <b id="massmean">0</b>/<b id="massmax">0</b></div>
+      <div class="row kv">tick <b id="tick">–</b> · frame <b id="frame">0</b>/<span id="last">0</span> · alive <b id="alive">0</b> · genomes <b id="gen">0</b> · mass <b id="massmean">0</b>/<b id="massmax">0</b></div>
+      <div class="legend" id="actlegend" style="display:none">
+        <span><span class="sq" style="background:#35d6c8"></span>harvest</span><span><span class="sq" style="background:#f5b73f"></span>grow</span>
+        <span><span class="sq" style="background:#ff6f61"></span>reproduce</span><span><span class="sq" style="background:#9d8cff"></span>move</span>
+        <span><span class="sq" style="background:#26303f"></span>idle</span></div>
     </div>
   </div>
 
@@ -104,7 +108,7 @@
       <span><i style="border-color:var(--pos)"></i>excite (+)</span>
       <span><i style="border-color:var(--neg)"></i>inhibit (&minus;)</span>
       <span><i style="border-color:#39435a;border-top-style:dashed"></i>junk</span>
-      <span>&mdash; bright + flow = carrying signal this tick &middot; dim = silent</span>
+      <span>&mdash; weight by thickness &middot; &times;N = gene dosage &middot; hover a node for weights</span>
     </div>
   </div>
 </div>
@@ -125,62 +129,71 @@ function decodeGene(raw){
   const dst=dB===0?(7+(dstId%INT_TC)):(15+(dstId%ACT_TC));
   return {src,dst,w:w*WMUL,junk:!(meaningful(src)&&meaningful(dst))};
 }
+// action letters emitted by MapFrameWriter.firedAction
+const ACT_COLOR={'H':'#35d6c8','G':'#f5b73f','R':'#ff6f61','N':'#9d8cff','S':'#9d8cff','E':'#9d8cff','W':'#9d8cff','y':'#74849a','.':'#26303f'};
 
 let W=0,px=6,every=1;
 const frames=[];
-let idx=0,done=false,showRes=true,replaying=false,selSlot=null,renderedKey=null,hideJunk=true;
+const catalog=new Map();   // genomeId -> genes[] (from the .catalog sidecar)
+let idx=0,done=false,showRes=true,replaying=false,selSlot=null,renderedKey=null,hideJunk=true,colMode='genome';
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),$=(id)=>document.getElementById(id);
 
-function linColor(id){ return `hsl(${(id*137.508)%360},72%,60%)`; }
+function genColor(id){ return `hsl(${(id*137.508)%360},72%,60%)`; }
 function resColor(l){ const t=l/9; return `rgb(${Math.round(t*16)},${Math.round(22+t*112)},${Math.round(t*48)})`; }
-function fmtW(v){ return (v>=0?'+':'')+v.toFixed(2); }
-function hashKey(s){ let h=0; for(let i=0;i<s.length;i++) h=(Math.imul(h,31)+s.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0').slice(0,6); }
+function genesOf(u){ return catalog.get(u.gid)||[]; }
 function sizeCanvas(){ px=Math.max(2,Math.floor(640/W)); cv.width=W*px; cv.height=W*px; }
 function curFrame(){ return frames.length?frames[Math.min(idx,frames.length-1)]:null; }
 function selUnit(f){ return selSlot===null?null:f.units.find(u=>u.slot===selSlot); }
 
 function groupGenomes(f){
   const g=new Map();
-  for(const u of f.units){ const k=u.genes.join(','); let a=g.get(k); if(!a){a={key:k,n:0,rep:u};g.set(k,a);} a.n++; }
+  for(const u of f.units){ let a=g.get(u.gid); if(!a){a={gid:u.gid,n:0,rep:u};g.set(u.gid,a);} a.n++; }
   return g;
 }
 
-let byMass=false, massMax=1;
+let massMax=1;
 function massColor(m){ const t=Math.max(0,Math.min(1,m/massMax)); return `hsl(${Math.round(240*(1-t))},80%,55%)`; }
+function unitColor(u){ return colMode==='mass'?massColor(u.mass||0) : colMode==='action'?(ACT_COLOR[u.act]||'#26303f') : genColor(u.gid); }
+// iterate the RLE resource field (DxN tokens) and paint cells in order
+function drawResource(rle){
+  let c=0; const toks=rle.split(' ');
+  for(const tk of toks){ if(!tk) continue; const xi=tk.indexOf('x'); if(xi<0) continue;
+    const d=tk.charCodeAt(0)-48, n=+tk.slice(xi+1), col=resColor(d);
+    for(let k=0;k<n;k++){ ctx.fillStyle=col; ctx.fillRect((c%W)*px,((c/W)|0)*px,px,px); c++; } }
+}
 function draw(){
   const f=curFrame(); if(!f) return;
-  if(showRes){ const r=f.r; for(let c=0;c<r.length;c++){ ctx.fillStyle=resColor(r.charCodeAt(c)-48); ctx.fillRect((c%W)*px,((c/W)|0)*px,px,px);} }
-  else{ ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height); }
-  const lin=new Set(); let msum=0,mmax=0;
-  for(const u of f.units){ const m=u.mass||0; msum+=m; if(m>mmax)mmax=m; }
+  if(showRes&&f.r){ drawResource(f.r); } else { ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height); }
+  let msum=0,mmax=0; for(const u of f.units){ const m=u.mass||0; msum+=m; if(m>mmax)mmax=m; }
   if(mmax>massMax) massMax=mmax;
-  for(const u of f.units){ ctx.fillStyle=byMass?massColor(u.mass||0):linColor(u.lineage); ctx.fillRect((u.cell%W)*px,((u.cell/W)|0)*px,px,px); lin.add(u.lineage); }
+  for(const u of f.units){ ctx.fillStyle=unitColor(u); ctx.fillRect((u.cell%W)*px,((u.cell/W)|0)*px,px,px); }
+  const groups=groupGenomes(f);
   $('tick').textContent=f.t; $('frame').textContent=idx; $('last').textContent=frames.length-1;
-  $('alive').textContent=f.units.length; $('lin').textContent=lin.size;
+  $('alive').textContent=f.units.length; $('gen').textContent=groups.size;
   $('massmean').textContent=f.units.length?(msum/f.units.length).toFixed(2):'0';
   $('massmax').textContent=mmax.toFixed(2);
   $('slider').max=Math.max(0,frames.length-1); $('slider').value=idx;
-  renderGenomes(f); renderDetail(f);
+  renderGenomes(f,groups); renderDetail(f);
 }
 
-function renderGenomes(f){
-  const groups=[...groupGenomes(f).values()].sort((a,b)=>b.n-a.n);
-  const u=selUnit(f), selK=u?u.genes.join(','):null;
-  $('galive').textContent=f.units.length; $('gdistinct').textContent=groups.length;
-  const list=$('glist'); list.innerHTML='';
-  for(const g of groups){
-    const r=g.rep, el=document.createElement('div');
-    el.className='grow'+(g.key===selK?' sel':'');
-    el.innerHTML=`<span class="sw" style="background:${linColor(r.lineage)};color:${linColor(r.lineage)}"></span>`+
-      `<span class="n">×${g.n}</span><span class="fp">${hashKey(g.key)}</span>`+
-      `<span class="meta">${r.genes.length}g · gen ${r.gen} · lin ${r.lineage}</span>`;
-    el.onclick=()=>{ selSlot=g.rep.slot; draw(); };
-    list.appendChild(el);
+function renderGenomes(f,groups){
+  const list=[...groups.values()].sort((a,b)=>b.n-a.n);
+  const u=selUnit(f), selG=u?u.gid:null;
+  $('galive').textContent=f.units.length; $('gdistinct').textContent=list.length;
+  const el=$('glist'); el.innerHTML='';
+  for(const g of list){
+    const genes=catalog.get(g.gid)||[], row=document.createElement('div');
+    row.className='grow'+(g.gid===selG?' sel':'');
+    row.innerHTML=`<span class="sw" style="background:${genColor(g.gid)};color:${genColor(g.gid)}"></span>`+
+      `<span class="n">×${g.n}</span><span class="fp">#${g.gid}</span>`+
+      `<span class="meta">${genes.length}g · ${g.rep.act}</span>`;
+    row.onclick=()=>{ selSlot=g.rep.slot; draw(); };
+    el.appendChild(row);
   }
 }
 
-// ---- circuit builder ----
-const NODE_W=146,NODE_H=30,COLX=[122,432,742],SVGW=904;
+// ---- circuit builder (structural; report-v13 has no per-tick node outputs) ----
+const NODE_W=146,NODE_H=30;
 function buildCircuit(genes,hideJunk){
   const em=new Map();
   for(const c of genes.map(decodeGene)){
@@ -192,9 +205,6 @@ function buildCircuit(genes,hideJunk){
   const edges=[...em.values()];
   const used=new Set(); for(const e of edges){ used.add(e.src); used.add(e.dst); }
   const ids=[...used];
-  // force-directed settle (matches the reference): repulsion + springs + weak
-  // gravity (lets disconnected sub-circuits drift apart) + rect collision.
-  // Deterministic golden-angle seed → same genome lays out the same way.
   const pos={}; ids.forEach((id,k)=>{ const a=k*2.39996,r=130+(k%3)*34; pos[id]={x:Math.cos(a)*r,y:Math.sin(a)*r,vx:0,vy:0,col:kindOf(id),i:id}; });
   const link=edges.filter(e=>e.src!==e.dst);
   for(let it=0;it<460;it++){ const al=Math.max(0.05,Math.pow(0.99,it)); const fx={},fy={}; ids.forEach(i=>{fx[i]=0;fy[i]=0;});
@@ -209,7 +219,7 @@ function buildCircuit(genes,hideJunk){
   ids.forEach(i=>{ pos[i].x+=-x0+NODE_W/2+pad; pos[i].y+=-y0+NODE_H/2+pad; });
   return {edges,pos,W:(x1-x0)+NODE_W+2*pad,H:(y1-y0)+NODE_H+2*pad};
 }
-function nodeEdgePt(cx,cy,ux,uy){ // where ray (ux,uy) leaves the node rect
+function nodeEdgePt(cx,cy,ux,uy){
   const tx=Math.abs(ux)<1e-6?1e9:(NODE_W/2+4)/Math.abs(ux), ty=Math.abs(uy)<1e-6?1e9:(NODE_H/2+4)/Math.abs(uy), t=Math.min(tx,ty);
   return [cx+ux*t, cy+uy*t];
 }
@@ -237,9 +247,9 @@ function circuitSVG(genes){
     const col=e.junk?'#39435a':(pos?'var(--pos)':'var(--neg)');
     const wdt=e.junk?1.1:(1.6+5*Math.min(1,Math.abs(e.sum)/MAXW));
     const mark=e.junk?'junk':(pos?'pos':'neg');
-    s+=`<g class="edge${e.junk?' junk':''}" data-src="${e.src}" data-dst="${e.dst}" data-sum="${e.sum.toFixed(4)}"><title></title>`;
+    s+=`<g class="edge${e.junk?' junk':' active'}" data-src="${e.src}" data-dst="${e.dst}">`;
     s+=`<path class="base" d="${path}" fill="none" stroke="${col}" stroke-width="${wdt}" marker-end="url(#ar-${mark})" ${e.junk?'stroke-dasharray="3 5"':''}/>`;
-    if(!e.junk) s+=`<path class="flow" d="${path}" fill="none" stroke="#eafff6" stroke-width="${Math.max(1,wdt*0.5)}" pathLength="1" stroke-dasharray="0.07 0.18" style="animation-delay:-${(Math.random()*1.4).toFixed(2)}s"/>`;
+    if(!e.junk) s+=`<path class="flow" d="${path}" fill="none" stroke="#eafff6" stroke-width="${Math.max(1,wdt*0.5)}" pathLength="1" stroke-dasharray="0.07 0.18"/>`;
     const emx=e.src===e.dst?s1.x:(s1.x+d1.x)/2, emy=e.src===e.dst?(s1.y-NODE_H/2-32):(s1.y+d1.y)/2;
     if(e.count>1){
       s+=`<circle cx="${emx}" cy="${emy-2}" r="9" fill="#0b0f16" stroke="${col}" stroke-width="1.2"/>
@@ -258,27 +268,6 @@ function circuitSVG(genes){
   }
   return s+`</svg>`;
 }
-// per-tick: light up the connections actually carrying signal (output[src]*weight != 0) + firing nodes
-function updateActivity(u){
-  const svg=document.querySelector('#detail svg'); if(!svg) return;
-  svg.classList.toggle('idle', !u);
-  let act=0;
-  svg.querySelectorAll('.edge').forEach(e=>{
-    if(e.classList.contains('junk')){ e.classList.remove('active'); return; }
-    const src=+e.getAttribute('data-src'), sum=+e.getAttribute('data-sum');
-    const o = u ? u.o[src] : 0;
-    const on = !!(u && (o===null || (o!==0 && sum!==0)));
-    e.classList.toggle('active', on);
-    const t=e.querySelector('title');
-    if(t){ const sig=(o===null)?'diverged':(o*sum).toFixed(3); t.textContent=`weight ${sum} · signal ${sig}`; }
-    if(on) act++;
-  });
-  svg.querySelectorAll('.node-box').forEach(n=>{
-    const id=+n.getAttribute('data-id'), o = u ? u.o[id] : 0;
-    n.classList.toggle('fire', !!(u && (o===null || o!==0)));
-  });
-  const ac=$('actcount'); if(ac) ac.textContent=act;
-}
 function hotNode(g,id){ const svg=g.closest('svg'); svg.classList.add('dim');
   svg.querySelectorAll('.hot').forEach(el=>el.classList.remove('hot')); g.classList.add('hot');
   svg.querySelectorAll('.edge').forEach(e=>{
@@ -293,19 +282,16 @@ function renderDetail(f){
     if(renderedKey!==null){ d.innerHTML='<div class="empty">click a unit on the map (or a genome) &middot; signal flows left &rarr; right</div>'; renderedKey=null; } return; }
   const u=selUnit(f);
   if(u){
-    const key=u.genes.join(',');
-    $('dsel').textContent='· slot '+u.slot+' · '+hashKey(key);
-    if(renderedKey!==key){ d.innerHTML=circuitSVG(u.genes); renderedKey=key; }
-    const mc=u.genes.map(decodeGene).filter(w=>!w.junk).length;
-    sb.innerHTML=`<span class="pill">slot <b>${u.slot}</b></span><span class="pill">gen <b>${u.gen}</b></span>`+
-      `<span class="pill">lineage <b>${u.lineage}</b></span><span class="pill">energy <b>${u.energy}</b></span><span class="pill">mass <b>${(u.mass||0).toFixed(2)}</b></span>`+
-      `<span class="pill"><b>${u.genes.length}</b> genes · <b>${mc}</b> meaningful</span>`+
-      `<span class="pill">&#9889; <b id="actcount">0</b> connections active this tick</span>`;
-    updateActivity(u);
+    const genes=genesOf(u);
+    $('dsel').textContent='· slot '+u.slot+' · genome #'+u.gid;
+    if(renderedKey!==u.gid){ d.innerHTML=circuitSVG(genes); renderedKey=u.gid; }
+    const mc=genes.map(decodeGene).filter(w=>!w.junk).length;
+    sb.innerHTML=`<span class="pill">slot <b>${u.slot}</b></span><span class="pill">genome <b>#${u.gid}</b></span>`+
+      `<span class="pill">mass <b>${(u.mass||0).toFixed(2)}</b></span><span class="pill">action <b>${u.act}</b></span>`+
+      `<span class="pill"><b>${genes.length}</b> genes · <b>${mc}</b> meaningful</span>`;
   } else {
     $('dsel').textContent='· slot '+selSlot;
     sb.innerHTML=`<span class="pill dead">✕ slot ${selSlot} not alive at tick ${f.t} — scrub to when it lived</span>`;
-    updateActivity(null);
   }
 }
 
@@ -314,26 +300,24 @@ cv.onclick=(e)=>{ const f=curFrame(); if(!W||!f) return;
   if(x<0||y<0||x>=W||y>=W) return;
   const u=f.units.find(u=>u.cell===y*W+x); if(u){ selSlot=u.slot; draw(); } };
 
-// ---- data: parse the streamed .map.txt directly, client-side (report-v12, no bespoke server) ----
-// live: tail a growing file over plain HTTP Range; offline: window.SIMOLUTION_EMBED baked in.
-const slotGenome=new Map(); let byteOff=0, lineBuf='', pending=null;
-function pushUnit(rest){
-  const t=rest.split(' '); if(t.length<7) return;
-  const u={cell:+t[0],slot:+t[1],lineage:+t[2],gen:+t[3],energy:+t[4],mass:+t[5]}; let genes,os;
-  if(t[6]==='*'){ const gc=+t[7]; genes=t.slice(8,8+gc).map(Number); slotGenome.set(u.slot,genes); os=8+gc; }
-  else if(t[6]==='^'){ genes=slotGenome.get(u.slot)||[]; os=7; }
-  else { const gc=+t[6]; genes=t.slice(7,7+gc).map(Number); slotGenome.set(u.slot,genes); os=7+gc; } // pre-v11 file
-  u.genes=genes; const o=[];
-  for(let i=os;i<t.length;i++){ const v=t[i]; o.push((v==='NaN'||v==='Infinity'||v==='-Infinity')?null:+v); }
-  u.o=o; if(pending) pending.units.push(u);
+// ---- data: parse the streamed .frames + .catalog directly, client-side (report-v13) ----
+// live: tail both growing files over plain HTTP Range; offline: window.SIMOLUTION_EMBED baked in.
+let pending=null;
+function pushUnit(rest){ // u <cell> <slot> <mass> <action> <genomeId>
+  const t=rest.split(' '); if(t.length<5) return;
+  const u={cell:+t[0],slot:+t[1],mass:+t[2],act:t[3],gid:+t[4]};
+  if(pending) pending.units.push(u);
 }
 function flushPending(){ if(pending&&pending.r!==null) frames.push(pending); pending=null; }
-function parseChunk(text){
-  lineBuf+=text; let nl;
-  while((nl=lineBuf.indexOf('\n'))>=0){
-    const ln=lineBuf.slice(0,nl); lineBuf=lineBuf.slice(nl+1); if(!ln) continue;
+function parseFrames(text){
+  let nl, buf=text;
+  // line-buffered append handled by caller via framesBuf
+  framesBuf+=text;
+  while((nl=framesBuf.indexOf('\n'))>=0){
+    const ln=framesBuf.slice(0,nl); framesBuf=framesBuf.slice(nl+1); if(!ln) continue;
     const sp=ln.indexOf(' '), tag=sp<0?ln:ln.slice(0,sp), rest=sp<0?'':ln.slice(sp+1);
-    if(tag==='world'){ if(!W){ W=+rest; sizeCanvas(); } }
+    if(tag==='format'){ /* version marker */ }
+    else if(tag==='world'){ if(!W){ W=+rest; sizeCanvas(); } }
     else if(tag==='sample-every'){ every=+rest||1; $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`; }
     else if(tag==='t'){ flushPending(); pending={t:+rest,r:null,units:[]}; }
     else if(tag==='r'){ if(pending) pending.r=rest; }
@@ -341,6 +325,16 @@ function parseChunk(text){
     else if(tag==='end'){ flushPending(); done=true; }
   }
 }
+function parseCatalog(text){ // g <id> <count> <gene...>
+  catBuf+=text; let nl;
+  while((nl=catBuf.indexOf('\n'))>=0){
+    const ln=catBuf.slice(0,nl); catBuf=catBuf.slice(nl+1); if(!ln) continue;
+    if(ln[0]!=='g') continue;
+    const t=ln.split(' '); const id=+t[1], gc=+t[2];
+    catalog.set(id, t.slice(3,3+gc).map(Number));
+  }
+}
+let framesBuf='',catBuf='',framesOff=0,catOff=0;
 function afterData(){
   if($('follow').checked&&!replaying&&frames.length) idx=frames.length-1;
   if(selSlot===null&&frames.length){ const lf=frames[frames.length-1];
@@ -349,35 +343,40 @@ function afterData(){
   $('badge').textContent=done?('ENDED · SCRUB · '+frames.length+'f'):('LIVE · '+frames.length+'f');
   if(W) draw();
 }
-async function tail(url){
-  let stalled=false;
+async function tailOne(url,off,onText,reset){
   try{
-    const res=await fetch(url, byteOff?{headers:{Range:'bytes='+byteOff+'-'},cache:'no-store'}:{cache:'no-store'});
-    if(res.status===206){ const txt=await res.text(); byteOff+=txt.length; parseChunk(txt); }
-    else if(res.status===200){ const txt=await res.text();
-      byteOff=txt.length; lineBuf=''; pending=null; slotGenome.clear(); frames.length=0; done=false; parseChunk(txt); }
-    else { stalled=true; } // 416 = no new bytes yet, or transient
-    afterData();
-  }catch(e){ $('badge').textContent='waiting for '+url+' …'; }
-  if(!done) setTimeout(()=>tail(url), stalled?1000:500);
+    const res=await fetch(url, off?{headers:{Range:'bytes='+off+'-'},cache:'no-store'}:{cache:'no-store'});
+    if(res.status===206){ const txt=await res.text(); onText(txt); return off+txt.length; }
+    if(res.status===200){ const txt=await res.text(); reset(); onText(txt); return txt.length; }
+  }catch(e){}
+  return off;
+}
+async function tail(framesUrl,catUrl){
+  // catalog first so genomes resolve before frames reference them
+  catOff=await tailOne(catUrl,catOff,parseCatalog,()=>{catalog.clear();catBuf='';});
+  const before=frames.length;
+  framesOff=await tailOne(framesUrl,framesOff,parseFrames,()=>{frames.length=0;framesBuf='';pending=null;done=false;});
+  afterData();
+  if(!done) setTimeout(()=>tail(framesUrl,catUrl), frames.length===before?1000:500);
 }
 function dataSource(){
   if(window.SIMOLUTION_EMBED) return {embed:window.SIMOLUTION_EMBED};
-  const p=new URLSearchParams(location.search).get('src'); if(p) return {url:p};
-  const base=location.pathname.split('/').pop()||'';
-  if(/\.html?$/.test(base)&&base!=='index.html') return {url:base.replace(/\.html?$/,'')+'.map.txt'};
-  return {url:'live.map.txt'};
+  const p=new URLSearchParams(location.search).get('src');
+  const base=p||(()=>{ const b=location.pathname.split('/').pop()||'';
+    return (/\.html?$/.test(b)&&b!=='index.html')?b.replace(/\.html?$/,'')+'.frames':'live.frames'; })();
+  return {frames:base, catalog:base.replace(/\.frames$/,'.catalog')};
 }
 function boot(){
   const s=dataSource();
   if(s.embed){ const e=s.embed; W=e.world; every=e.sampleEvery||1; sizeCanvas();
     $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`;
+    for(const [id,genes] of Object.entries(e.catalog||{})) catalog.set(+id,genes);
     for(const fr of e.frames) frames.push(fr); done=true; $('follow').checked=false; afterData();
-  } else { tail(s.url); }
+  } else { tail(s.frames,s.catalog); }
 }
 $('slider').oninput=(e)=>{ idx=+e.target.value; $('follow').checked=false; draw(); };
 $('showres').onchange=(e)=>{ showRes=e.target.checked; draw(); };
-$('bymass').onchange=(e)=>{ byMass=e.target.checked; draw(); };
+$('colmode').onchange=(e)=>{ colMode=e.target.value; $('actlegend').style.display=colMode==='action'?'flex':'none'; draw(); };
 $('hidejunk').onchange=(e)=>{ hideJunk=e.target.checked; renderedKey=null; draw(); };
 $('follow').onchange=(e)=>{ if(e.target.checked&&frames.length){ idx=frames.length-1; draw(); } };
 $('play').onclick=()=>{ if(replaying){replaying=false;return;}
