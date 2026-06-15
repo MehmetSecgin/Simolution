@@ -1,7 +1,30 @@
 # Handoff — redesign run inspection & data
 
-**Date:** 2026-06-15 · **Status:** problem framing + recommended direction, NOT a decision.
+**Date:** 2026-06-15 · **Status:** ⛳ DECIDED 2026-06-15 — see
+[report-v13](../specs/report-v13.md) + [ADR 0032](../decisions/0032-lean-frames-genome-catalog-query-store.md).
+Implementation pending. The framing below stands; the direction chosen differs from the
+doc's original "Direction A recommended" — read the decision note next.
 **For:** the owner + whoever picks this up next session.
+
+## DECISION (supersedes the "Recommended direction" framing below)
+
+Churn measurement flipped the plan. avg living pop is **tiny (33–56)** while births/tick are
+**huge (~1300–2030, ~97 % die childless)**. So:
+
+- **Full every-tick frames win; delta-encoding loses** (churn ≫ standing pop). A lean frame
+  row `slot x y mass action genomeId` (no genome bytes, no node floats) over a whole run ≈
+  **~1 MB** at full per-tick resolution.
+- **Genome catalog** (global write-once `genomeId→genes`) dedups genomes out of the frames.
+- **Lineage = the heavy, derivable thing** → a **Parquet store queried by DuckDB** (report-v8's
+  already-decoupled sink layer, promoted to canonical). Keep every birth; pruning is a `WHERE`.
+- **Kernel stays flat-array / data-oriented — DB yes, OO organisms no** (owner proposed OO; the
+  query store delivers "what happened to who" without breaking the core invariant).
+- **Retire the CSV zoo**; keep the 2 KB `.txt` + (optionally) `.timeseries.csv`. Checkpoints
+  stay opt-in (`--observe`).
+- **Frames stream live** (serverless tail, report-v12) so live-watch + after-scrub share one
+  file with no JVM.
+
+Everything below is the original problem framing that led here — still accurate, kept for context.
 
 ## TL;DR
 

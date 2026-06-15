@@ -17,6 +17,7 @@ import com.simolution.sim.ConfigHash;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.EventLogWriter;
+import com.simolution.sim.GenomeCatalogWriter;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.LineageReport;
 import com.simolution.sim.MapFrameWriter;
@@ -67,14 +68,16 @@ public class Main {
         TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
 
         MapFrameWriter mapWriter = null;
-        if (config.outPath() != null && (config.mapFrames() > 0 || config.mapFrom() >= 0)) {
+        GenomeCatalogWriter catalogWriter = null;
+        if (config.outPath() != null && (config.mapFrames() >= 0 || config.mapFrom() >= 0)) {
             Path out = Path.of(config.outPath());
             if (out.getParent() != null) {
                 Files.createDirectories(out.getParent());
             }
-            Path mapPath = sibling(out, ".map.txt");
+            catalogWriter = new GenomeCatalogWriter(Files.newBufferedWriter(sibling(out, ".catalog")));
+            Path framesPath = sibling(out, ".frames");
             mapWriter = new MapFrameWriter(
-                    Files.newBufferedWriter(mapPath),
+                    Files.newBufferedWriter(framesPath), catalogWriter,
                     worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
         }
 
@@ -91,7 +94,7 @@ public class Main {
                     genomes.length, maxUnits);
             checkpoints = new CheckpointWriter(obsDir.resolve("ckpt"), config.checkpointEvery());
             int mapSampleEvery = config.mapFrom() >= 0 ? 1
-                    : (config.mapFrames() > 0 ? Math.max(1, config.ticks() / config.mapFrames()) : 0);
+                    : (config.mapFrames() > 0 ? Math.max(1, config.ticks() / config.mapFrames()) : 1);
             RunManifest manifest = new RunManifest("v4", config.seed(), worldWidth, genomes.length,
                     founderCells, genomes, config.seed(), config.genesPerUnit(), maxGenes,
                     config.ticks(), ConfigHash.compute(), config.checkpointEvery(), mapSampleEvery);
@@ -120,6 +123,7 @@ public class Main {
         }
         if (mapWriter != null) {
             mapWriter.close();
+            catalogWriter.close();
         }
         if (eventLog != null) {
             eventLog.close();
@@ -169,11 +173,12 @@ public class Main {
             Files.writeString(popWiring, WiringReport.render(kernel.liveConnections()));
             System.out.println("evolved wiring written to " + popWiring);
 
-            if (config.mapFrames() > 0 || config.mapFrom() >= 0) {
-                Path mapTxt = sibling(out, ".map.txt");
-                System.out.println("spatial map frames written to " + mapTxt);
-                System.out.println("  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails this file)");
-                System.out.println("  bake offline:     python3 tools/mapviz.py " + mapTxt + "  (self-contained .map.html)");
+            if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
+                Path framesTxt = sibling(out, ".frames");
+                Path catalogTxt = sibling(out, ".catalog");
+                System.out.println("spatial map frames written to " + framesTxt + " (genome catalog: " + catalogTxt + ")");
+                System.out.println("  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails these files)");
+                System.out.println("  bake offline:     python3 tools/mapviz.py " + framesTxt + "  (self-contained .map.html)");
             }
         }
     }

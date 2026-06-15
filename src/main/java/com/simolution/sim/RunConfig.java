@@ -103,7 +103,7 @@ public record RunConfig(
                 trace,
                 false,
                 outPath,
-                mapFrames == null ? 120 : mapFrames,
+                mapFrames == null ? 0 : mapFrames,
                 observe,
                 checkpointEvery == null ? 2000 : checkpointEvery,
                 inflow,
