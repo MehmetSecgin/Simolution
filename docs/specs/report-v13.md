@@ -1,7 +1,7 @@
 # report-v13 — lean every-tick frames + genome catalog + queryable lineage (DuckDB/Parquet)
 
-**Status:** design (accepted direction, not yet implemented) · **Date:** 2026-06-15
-**Kernel:** v5 (unchanged) · **ADR:** [0032](../decisions/0032-lean-frames-genome-catalog-query-store.md)
+**Status:** implemented 2026-06-15 (branch `kernel-v5-biomass`) · **Kernel:** v5 (unchanged)
+**ADR:** [0032](../decisions/0032-lean-frames-genome-catalog-query-store.md)
 **Delta over:** [report-v12](report-v12.md) (frame format + viewer) and [report-v8](report-v8.md) (observability layer)
 
 ## Why
@@ -167,18 +167,49 @@ is constant; under cyclic inflow it is a smooth radial gradient. **RLE-compress*
 cyclic, store `InflowConfig` + tick and let the viewer recompute the analytic field). Either
 removes most of the non-`u` bytes.
 
+## Index sidecars + on-demand viewing
+
+Every-tick is cheap on a *small* population (baseline crashed to 5 → 678 KB) but not on a
+sustained one: the cyclic seed-100 run holds ~1600 units → **117 MB at 3000 ticks, 342 MB at
+8000**, with a 9–30 MB catalog (tens of thousands of distinct genomes). Loading that wholesale
+pins the browser near 1 GB. So the writer emits **byte-offset indexes** and the viewer fetches
+on demand:
+
+- `<base>.frames.idx` — `<tick> <byteOffset> <byteLen>` per frame (+ an `end` trailer).
+- `<base>.catalog.idx` — `<gid> <count> <byteOffset> <byteLen>` per genome (the `count` lets the
+  viewer list genomes by gene-count without fetching their genes).
+
+All content is ASCII, so char length == byte length; the writers keep an O(1) byte cursor.
+
+**Range, not whole-file.** The viewer loads only the tiny indexes (baseline 14 KB + 6 KB;
+cyclic 58 KB + 502 KB), then HTTP-**Range**-fetches *one frame* on scrub and *one genome* on
+inspect. Frame cache capped (120); genomes resolved lazily. Browser RAM is O(window) regardless
+of run length — measured **7 MB** on the 117 MB run, with only 1.5 MB transferred for 38 frames
+viewed.
+
+**This needs a Range-capable static server.** Python's stdlib `http.server` *ignores* `Range`
+and returns the whole file (`200`) — which silently defeated even report-v12's "tail via Range"
+(it re-downloaded everything each poll). `scripts/serve.py` is a ~25-line stdlib subclass that
+answers `206 Partial Content`: a **generic static server** (no app endpoints), not the bespoke
+`LiveServer` report-v12 deleted. `serve-live.sh` uses it. This is the honest correction to
+report-v12's "any static server" claim.
+
 ## Viewer
 
-`live.html` (report-v12, serverless, client-side parser) gains:
+`live.html` parses everything client-side, two modes:
 
-- Parse the lean `u` line (6 fixed fields) + the `catalog` file (fetched alongside, or baked).
-- Colour-by-mass (report-v10) and colour-by-action (new, from the `action` field).
-- Circuit inspector unchanged — fed by `catalog[genomeId]` instead of inline genome bytes.
-- **Lineage view** (new): query the `births` Parquet via **DuckDB-WASM** client-side (or a
-  pre-baked lineage JSON for offline) → walk a unit's ancestry, show the genome at each hop
-  (catalog diff) = "entire history of its lineage."
+- **embed** — `window.SIMOLUTION_EMBED` baked by `tools/mapviz.py` (offline `file://`, small runs
+  only — everything in RAM).
+- **indexed** — served run: the index + on-demand Range fetch above. Auto-detected.
 
-`tools/mapviz.py` stays the offline **baker** (inlines frames + catalog + a lineage extract).
+Both gain: colour by **genome / mass / action** (action from the new field, with a legend),
+genome grouping by **catalog id** (exact), and the force-directed circuit inspector fed by
+`catalog[genomeId]` (structural — report-v13 dropped per-tick node outputs, so no signal-glow).
+
+`tools/mapviz.py` is the offline **baker** (inlines frames + catalog) — for small runs; large
+runs are inspected served (indexed). A genuinely in-viewer **lineage walk** (over the births
+store, via DuckDB-WASM or a baked extract) is deferred — for now lineage history is the DuckDB
+CLI query above.
 
 ## Determinism & doctrine
 
