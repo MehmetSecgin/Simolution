@@ -141,16 +141,20 @@ runs stay byte-identical. This is the only path that needs the JVM replayer.
 
 ## Retired
 
-Deleted as eager always-on outputs (all re-derivable; none on the inspection path):
+Deleted as eager always-on outputs (all re-derivable; none on the inspection path).
+Renderer classes + their tests removed, not just the call sites (no-shim rule):
 
-- `<base>.units.csv`, `<base>.population.csv` — merge → derive a "final units" view from the
-  end-state frame / a replay when wanted.
-- `<base>.wiring.csv`, `<base>.popwiring.csv` — genomes-decoded; the catalog + a decoder give
-  this on demand.
-- `<base>.lineage.csv` — folded into the `births` Parquet table (richer + queryable).
-- `<base>.obs/events.jsonl`, `<base>.obs/metrics.csv` — replaced by the Parquet tables;
-  `metrics.csv` was a dup of `.timeseries.csv` anyway.
+- `<base>.units.csv` (`UnitCsvReport`), `<base>.population.csv` (`PopulationReport`) — derive
+  a "final units" view from the end-state frame / a replay when wanted.
+- `<base>.wiring.csv` + `<base>.popwiring.csv` (`WiringReport`) — genomes-decoded; the catalog
+  + a decoder give this on demand.
+- `<base>.lineage.csv` (`LineageReport`) — superseded by the queryable births store (§3).
+  (`DynamicsObserver.lineageSummary()` is left in place but now unused — removing it means
+  unwinding its per-tick backing arrays, a separate refactor.)
 - The heavy `map.txt` `u` line (genome-per-frame + node floats) → §1 lean frame.
+
+The `--observe` sinks (`events.jsonl`, `metrics.csv`, checkpoints) are **unchanged** and stay
+opt-in (report-v8); only the always-on eager writes above were cut.
 
 **Kept always-on** (tiny, human-facing, no reconstruction): `<base>.txt` report (the 2 KB
 "what happened" glance) and `<base>.timeseries.csv` (the one cheap full-run trajectory; or

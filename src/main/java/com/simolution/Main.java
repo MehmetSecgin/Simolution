@@ -20,10 +20,8 @@ import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.EventLogWriter;
 import com.simolution.sim.GenomeCatalogWriter;
 import com.simolution.sim.GenomeFactory;
-import com.simolution.sim.LineageReport;
 import com.simolution.sim.MapFrameWriter;
 import com.simolution.sim.MetricsWriter;
-import com.simolution.sim.PopulationReport;
 import com.simolution.sim.Replayer;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunManifest;
@@ -32,8 +30,6 @@ import com.simolution.sim.SnapshotDump;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
 import com.simolution.sim.TimeSeriesReport;
-import com.simolution.sim.UnitCsvReport;
-import com.simolution.sim.WiringReport;
 
 public class Main {
 
@@ -164,29 +160,9 @@ public class Main {
             Files.writeString(out, report);
             System.out.println("report written to " + out);
 
-            Path csv = sibling(out, ".units.csv");
-            Files.writeString(csv, UnitCsvReport.render(config.units(), structure, summary));
-            System.out.println("per-unit detail written to " + csv);
-
-            Path wiring = sibling(out, ".wiring.csv");
-            Files.writeString(wiring, WiringReport.render(connections));
-            System.out.println("per-unit wiring written to " + wiring);
-
-            Path lineage = sibling(out, ".lineage.csv");
-            Files.writeString(lineage, LineageReport.render(observer.lineageSummary(), config.ticks()));
-            System.out.println("per-lineage detail written to " + lineage);
-
             Path series = sibling(out, ".timeseries.csv");
             Files.writeString(series, timeSeries.render());
             System.out.println("time series written to " + series);
-
-            Path population = sibling(out, ".population.csv");
-            Files.writeString(population, PopulationReport.render(kernel.snapshot()));
-            System.out.println("final population written to " + population);
-
-            Path popWiring = sibling(out, ".popwiring.csv");
-            Files.writeString(popWiring, WiringReport.render(kernel.liveConnections()));
-            System.out.println("evolved wiring written to " + popWiring);
 
             Path birthsGz = sibling(out, ".births.csv.gz");
             System.out.println("lineage / births store written to " + birthsGz

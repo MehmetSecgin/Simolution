@@ -3,12 +3,11 @@ package com.simolution.sim;
 import java.util.Arrays;
 
 /**
- * Renders a run into the report-v6 text format
- * (docs/specs/report-v6.md). Every value is deterministic: same code +
- * same config produce a byte-identical file. No wall-clock data belongs
- * here — timing goes to the console, never the report. Per-unit detail
- * lives in the .units.csv sidecar (UnitCsvReport); per-unit wiring in the
- * .wiring.csv sidecar (WiringReport).
+ * Renders a run into the report text format. Every value is deterministic: same
+ * code + same config produce a byte-identical file. No wall-clock data belongs
+ * here — timing goes to the console, never the report. report-v13 retired the
+ * per-unit/per-wiring CSV sidecars (re-derivable, off the inspection path); the
+ * lineage/birth history now lives in the {@code .births.csv.gz} query store.
  */
 public final class RunReport {
 
@@ -116,12 +115,6 @@ public final class RunReport {
         out.append("final-abs-y-p50: ").append(quantile(finiteFinalY, 50)).append('\n');
         out.append("final-abs-y-p90: ").append(quantile(finiteFinalY, 90)).append('\n');
         out.append("final-abs-y-p100: ").append(quantile(finiteFinalY, 100)).append('\n');
-
-        out.append("\nper-unit-detail: ")
-           .append(units).append(" rows in the .units.csv sidecar (see docs/specs/report-v6.md)\n");
-        out.append("per-unit-wiring: ")
-           .append(structure.connectionsCompiled())
-           .append(" connections in the .wiring.csv sidecar (see docs/specs/report-v6.md)\n");
 
         out.append("state-digest: ").append(String.format("%016x", dynamics.stateDigest())).append('\n');
         return out.toString();

@@ -56,10 +56,10 @@ bash scripts/serve-live.sh   # serves runs/ on :8090 (edit its --args to change 
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
 `runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --world 100 --out runs/baseline.txt`
-after the change and diff it (both it and `runs/baseline.units.csv` are committed).
-Output is byte-deterministic, so every changed line was caused by your change; the
-`state-digest` line catches drift below display rounding. Explain the diff (or its
-absence) when delivering.
+after the change and diff it (`runs/baseline.txt` is the committed baseline; the
+per-unit/wiring CSV sidecars were retired in report-v13). Output is byte-deterministic,
+so every changed line was caused by your change; the `state-digest` line catches drift
+below display rounding. Explain the diff (or its absence) when delivering.
 
 Requires JDK 25 (`.sdkmanrc` pins `25.0.1-oracle`; `sdk env` activates it).
 

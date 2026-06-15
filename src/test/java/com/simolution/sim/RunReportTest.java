@@ -43,13 +43,14 @@ class RunReportTest {
     }
 
     @Test
-    void reportPointsToCsvInsteadOfInliningUnits() {
+    void reportDoesNotInlinePerUnitDetail() {
         // act
         String report = runAndRender(new RunConfig(25, 50, 1L, 8, 64, 8, false, false, null, 0, false, 0, InflowConfig.UNIFORM, -1, -1));
 
         // assert
         assertFalse(report.contains("## units"));
-        assertTrue(report.contains("per-unit-detail: 25 rows"));
+        // report-v13 retired the per-unit CSV sidecar; the report no longer points to one
+        assertFalse(report.contains("per-unit-detail"));
     }
 
     @Test
@@ -59,7 +60,6 @@ class RunReportTest {
 
         // assert
         assertTrue(report.contains("schema: report-v10"));
-        assertTrue(report.contains("per-unit-wiring: "));
         assertTrue(report.contains("## structure"));
         assertTrue(report.contains("## dynamics"));
         assertTrue(report.contains("## energy"));

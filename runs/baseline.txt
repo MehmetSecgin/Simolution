@@ -81,7 +81,4 @@ final-abs-y-p0: 0.0
 final-abs-y-p50: 0.011310541093173011
 final-abs-y-p90: 3.6691793572801905
 final-abs-y-p100: 2.032733660268233E30
-
-per-unit-detail: 100 rows in the .units.csv sidecar (see docs/specs/report-v6.md)
-per-unit-wiring: 3200 connections in the .wiring.csv sidecar (see docs/specs/report-v6.md)
 state-digest: b3f5198071d3d9e5
