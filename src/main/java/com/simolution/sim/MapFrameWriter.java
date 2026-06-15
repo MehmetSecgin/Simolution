@@ -51,11 +51,13 @@ import com.simolution.kernel.runtime.KernelSnapshot;
 public final class MapFrameWriter implements Closeable {
 
     private final Writer out;
+    private final Writer idx;
     private final GenomeCatalogWriter catalog;
     private final int sampleEvery;
     private final int windowFrom;
     private final int windowTo;
     private final StringBuilder line;
+    private long byteOffset;
 
     /**
      * Per-slot dedup of genomes: the last gene list emitted for each slot and the
@@ -75,10 +77,18 @@ public final class MapFrameWriter implements Closeable {
      * {@code targetFrames} sets the across-run downsampling — {@code <= 0} means a
      * frame <b>every tick</b> (report-v13 default; cheap now that frames are lean).
      */
-    public MapFrameWriter(final Writer out, final GenomeCatalogWriter catalog, final int worldWidth,
-                          final int totalTicks, final int targetFrames,
+    /**
+     * @param idx the {@code .frames.idx} stream — one line per frame
+     *            {@code <tick> <byteOffset> <byteLen>} into {@code .frames}, so a
+     *            viewer can Range-fetch a single frame on demand (report-v13 §index)
+     *            instead of loading the whole run. All content is ASCII, so char
+     *            length == byte length; offsets start after the header block.
+     */
+    public MapFrameWriter(final Writer out, final Writer idx, final GenomeCatalogWriter catalog,
+                          final int worldWidth, final int totalTicks, final int targetFrames,
                           final int windowFrom, final int windowTo) throws IOException {
         this.out = out;
+        this.idx = idx;
         this.catalog = catalog;
         this.windowFrom = windowFrom;
         this.windowTo = windowTo;
@@ -86,9 +96,9 @@ public final class MapFrameWriter implements Closeable {
                 ? 1
                 : (targetFrames <= 0 ? 1 : Math.max(1, totalTicks / targetFrames));
         this.line = new StringBuilder(4 * worldWidth + 256);
-        out.write("format v13\n");
-        out.write("world " + worldWidth + "\n");
-        out.write("sample-every " + sampleEvery + "\n");
+        final String header = "format v13\nworld " + worldWidth + "\nsample-every " + sampleEvery + "\n";
+        out.write(header);
+        byteOffset = header.length();
     }
 
     /**
@@ -143,7 +153,11 @@ public final class MapFrameWriter implements Closeable {
                 .append('\n');
         }
 
-        out.write(line.toString());
+        final String frame = line.toString();
+        idx.write(snapshot.tick + " " + byteOffset + " " + frame.length() + "\n");
+        idx.flush();
+        byteOffset += frame.length();
+        out.write(frame);
         out.flush();
     }
 
@@ -239,5 +253,7 @@ public final class MapFrameWriter implements Closeable {
         out.write("end\n");
         out.flush();
         out.close();
+        idx.flush();
+        idx.close();
     }
 }

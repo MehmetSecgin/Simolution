@@ -26,17 +26,29 @@ import java.util.HashMap;
 public final class GenomeCatalogWriter implements Closeable {
 
     private final Writer out;
+    private final Writer idx;
     private final StringBuilder key = new StringBuilder(256);
     private final HashMap<String, Integer> idByGenome = new HashMap<>();
     private int nextId;
+    private long byteOffset;
 
-    public GenomeCatalogWriter(final Writer out) {
+    /**
+     * @param out the {@code .catalog} stream ({@code g <id> <count> <genes>} lines)
+     * @param idx the {@code .catalog.idx} stream — one line per genome
+     *            {@code <gid> <count> <byteOffset> <byteLen>}, so a viewer can
+     *            Range-fetch a single genome's genes on demand (report-v13 §index)
+     *            and list genomes by gene-count without fetching their genes.
+     *            All content is ASCII, so char length == byte length.
+     */
+    public GenomeCatalogWriter(final Writer out, final Writer idx) {
         this.out = out;
+        this.idx = idx;
     }
 
     /**
      * Resolve a genome (the {@code count} genes at {@code genes[base..base+count]})
-     * to its catalog id, writing a new {@code g} line the first time it is seen.
+     * to its catalog id, writing a new {@code g} line + index entry the first time
+     * it is seen.
      */
     public int idOf(final int[] genes, final int base, final int count) throws IOException {
         key.setLength(0);
@@ -51,7 +63,11 @@ public final class GenomeCatalogWriter implements Closeable {
         }
         final int id = nextId++;
         idByGenome.put(k, id);
-        out.write("g " + id + ' ' + k + '\n');
+        final String gline = "g " + id + ' ' + k + '\n';
+        idx.write(id + " " + count + " " + byteOffset + " " + gline.length() + "\n");
+        idx.flush();
+        byteOffset += gline.length();
+        out.write(gline);
         out.flush();
         return id;
     }
@@ -60,5 +76,7 @@ public final class GenomeCatalogWriter implements Closeable {
     public void close() throws IOException {
         out.flush();
         out.close();
+        idx.flush();
+        idx.close();
     }
 }

@@ -72,7 +72,9 @@ public class Main {
             if (out.getParent() != null) {
                 Files.createDirectories(out.getParent());
             }
-            catalogWriter = new GenomeCatalogWriter(Files.newBufferedWriter(sibling(out, ".catalog")));
+            catalogWriter = new GenomeCatalogWriter(
+                    Files.newBufferedWriter(sibling(out, ".catalog")),
+                    Files.newBufferedWriter(sibling(out, ".catalog.idx")));
             birthLog = new BirthLogWriter(
                     new java.io.OutputStreamWriter(
                             new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".births.csv.gz"))),
@@ -81,7 +83,8 @@ public class Main {
             if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
                 Path framesPath = sibling(out, ".frames");
                 mapWriter = new MapFrameWriter(
-                        Files.newBufferedWriter(framesPath), catalogWriter,
+                        Files.newBufferedWriter(framesPath),
+                        Files.newBufferedWriter(sibling(out, ".frames.idx")), catalogWriter,
                         worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
             }
         }

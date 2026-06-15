@@ -27,7 +27,8 @@ class MapFrameWriterTest {
     private static MapFrameWriter writer(StringWriter frames, StringWriter catalog,
                                          int world, int ticks, int targetFrames,
                                          int from, int to) throws Exception {
-        return new MapFrameWriter(frames, new GenomeCatalogWriter(catalog),
+        return new MapFrameWriter(frames, new StringWriter(),
+                new GenomeCatalogWriter(catalog, new StringWriter()),
                 world, ticks, targetFrames, from, to);
     }
 
@@ -115,6 +116,32 @@ class MapFrameWriterTest {
 
         assertFalse(Pattern.compile("\\.[0-9]{5,}").matcher(out).find(),
                 "no value keeps 5+ decimal digits — mass rounds to 3, node outputs are gone");
+    }
+
+    @Test
+    void frameIndexOffsetsPointAtFrameStarts() throws Exception {
+        StringWriter frames = new StringWriter();
+        StringWriter idx = new StringWriter();
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), 4, 8, Kernel.scatterFounders(4, 4));
+        MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter(), new StringWriter()),
+                4, 6, 0, 1, 4);
+        for (int i = 0; i < 5; i++) {
+            k.tick();
+            w.maybeFrame(k.snapshot());
+        }
+        w.close();
+        String framesOut = frames.toString();
+
+        // each idx line: <tick> <off> <len> — the substring at [off,off+len) must be that frame's block
+        for (String row : idx.toString().lines().toList()) {
+            String[] f = row.split(" ");
+            int tick = Integer.parseInt(f[0]), off = Integer.parseInt(f[1]), len = Integer.parseInt(f[2]);
+            String block = framesOut.substring(off, off + len);
+            assertTrue(block.startsWith("t " + tick + "\n"),
+                    "idx offset " + off + " lands at the start of frame t " + tick);
+            assertTrue(block.endsWith("\n") && block.contains("\nr "),
+                    "the indexed block is a whole frame (t line + r line + units)");
+        }
     }
 
     @Test
