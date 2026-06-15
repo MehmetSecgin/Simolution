@@ -60,7 +60,7 @@
     letter-spacing:.08em; text-transform:uppercase }
   .legend i{ display:inline-block; width:18px; height:0; border-top-width:3px; border-top-style:solid; vertical-align:middle; margin-right:6px; border-radius:2px }
   .legend .sq{ display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:5px }
-  /* circuit: structural (report-v13 dropped per-tick node outputs); meaningful edges glow, hover reveals weights */
+  /* circuit: structural (report-v13/v14 carry no per-tick node outputs); meaningful edges glow, hover reveals weights */
   .edge .base{ stroke-opacity:.20 }
   .edge.active .base{ stroke-opacity:.9; filter:url(#glow) }
   .edge.junk .base{ stroke-opacity:.30 }
@@ -90,16 +90,11 @@
     <canvas id="cv" width="640" height="640"></canvas>
     <div class="col" style="width:100%">
       <div class="row"><label><input type="checkbox" id="follow" checked> follow live</label>
-        <label>colour: <select id="colmode" style="background:#121925;color:var(--ink);border:1px solid var(--line);border-radius:3px;font:inherit">
-          <option value="genome">by genome</option><option value="mass">by mass</option><option value="action">by action</option></select></label>
+        <span class="kv" style="margin-left:14px">colour by genome</span>
         <label style="margin-left:auto"><input type="checkbox" id="showres" checked> resource</label></div>
       <div class="row"><input id="slider" type="range" min="0" max="0" value="0"></div>
       <div class="row"><button id="play">&#9654; replay</button><span id="meta" class="kv"></span></div>
-      <div class="row kv">tick <b id="tick">–</b> · frame <b id="frame">0</b>/<span id="last">0</span> · alive <b id="alive">0</b> · genomes <b id="gen">0</b> · mass <b id="massmean">0</b>/<b id="massmax">0</b></div>
-      <div class="legend" id="actlegend" style="display:none">
-        <span><span class="sq" style="background:#35d6c8"></span>harvest</span><span><span class="sq" style="background:#f5b73f"></span>grow</span>
-        <span><span class="sq" style="background:#ff6f61"></span>reproduce</span><span><span class="sq" style="background:#9d8cff"></span>move</span>
-        <span><span class="sq" style="background:#26303f"></span>idle</span></div>
+      <div class="row kv">tick <b id="tick">–</b> · frame <b id="frame">0</b>/<span id="last">0</span> · alive <b id="alive">0</b> · genomes <b id="gen">0</b></div>
     </div>
   </div>
 
@@ -126,6 +121,8 @@
     <div id="lineage" class="linwrap"><div class="empty">select a unit, then “trace selected” to walk its lineage</div></div>
   </div>
 </div>
+<!-- fzstd 0.1.1 (MIT, decompress-only) — vendored from npm; decodes the zstd frame chunks in indexed (served) mode -->
+<script src="fzstd.min.js"></script>
 <script>
 // ---- node layout: mirrors com.simolution.kernel.layout.NodeLayout (kernel v5) ----
 // TOTAL=24 : 7 sensors, 8 internals, 9 actions; trailing entries per block = junk.
@@ -143,49 +140,81 @@ function decodeGene(raw){
   const dst=dB===0?(7+(dstId%INT_TC)):(15+(dstId%ACT_TC));
   return {src,dst,w:w*WMUL,junk:!(meaningful(src)&&meaningful(dst))};
 }
-// action letters emitted by MapFrameWriter.firedAction
-const ACT_COLOR={'H':'#35d6c8','G':'#f5b73f','R':'#ff6f61','N':'#9d8cff','S':'#9d8cff','E':'#9d8cff','W':'#9d8cff','y':'#74849a','.':'#26303f'};
 
 let W=0,px=6,every=1;
-const frames=[];                 // embed mode: every frame inlined
-const catalog=new Map();         // genomeId -> genes[] (resolved; lazily in indexed mode)
-const catMeta=new Map();         // genomeId -> {count,off,len} from .catalog.idx
-const frameIndex=[];             // indexed mode: {tick,off,len} per frame
-const frameCache=new Map();      // frameNo -> parsed {t,r,units}; LRU-capped
-const FRAME_CACHE_CAP=120;
-let indexed=false, framesUrl='', catUrl='', curF=null;
-let idx=0,done=false,showRes=true,replaying=false,selSlot=null,renderedKey=null,hideJunk=true,colMode='genome';
+const frames=[];                 // embed mode: every (pre-decoded) frame inlined
+const catalog=new Map();         // genomeId -> genes[]  (whole-loaded from .catalog.gz in indexed mode)
+const chunkIndex=[];             // indexed mode: {ft,lt,off,len,count,startFrame} per zstd chunk
+let totalFrames=0;
+const chunkCache=new Map();      // chunkNo -> parsed frames[]; LRU-capped (bounded RAM)
+const CHUNK_CACHE_CAP=6;
+let indexed=false, framesUrl='', framesIdxUrl='', catUrl='', birthsUrl='', curF=null;
+let idx=0,done=false,showRes=true,replaying=false,selSlot=null,renderedKey=null,hideJunk=true;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),$=(id)=>document.getElementById(id);
 
-function frameCount(){ return indexed ? frameIndex.length : frames.length; }
-function geneCountOf(gid){ return indexed ? (catMeta.get(gid)?.count ?? (catalog.get(gid)?.length||0)) : (catalog.get(gid)?.length||0); }
-// fetch one frame's bytes via HTTP Range and parse it (indexed mode); cache with a simple cap
-async function getFrame(i){
-  if(frameCache.has(i)) return frameCache.get(i);
-  const e=frameIndex[i]; if(!e) return null;
-  const txt=await rangeFetch(framesUrl, e.off, e.off+e.len-1);
-  const f=parseOneFrame(txt);
-  frameCache.set(i,f);
-  if(frameCache.size>FRAME_CACHE_CAP){ const k=frameCache.keys().next().value; frameCache.delete(k); }
-  return f;
+function frameCount(){ return indexed ? totalFrames : frames.length; }
+function geneCountOf(gid){ return catalog.get(gid)?.length||0; }
+
+// ---- catalog: whole-loaded once (report-v14: gzipped, ~0.5 MB; no per-genome Range) ----
+let catalogLoading=null;
+async function loadCatalog(){
+  const buf=await (await fetch(catUrl,{cache:'no-store'})).arrayBuffer();
+  const txt=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  catalog.clear();
+  for(const ln of txt.split('\n')){ if(!ln.startsWith('g ')) continue;
+    const t=ln.split(' '); const id=+t[1], count=+t[2]; catalog.set(id, t.slice(3,3+count).map(Number)); }
 }
-// fetch one genome's genes via Range, on inspect (indexed mode)
 async function getGenome(gid){
   if(catalog.has(gid)) return catalog.get(gid);
-  const m=catMeta.get(gid); if(!m) return [];
-  const txt=await rangeFetch(catUrl, m.off, m.off+m.len-1);
-  const t=txt.trim().split(' '); const genes=t.slice(3,3+(+t[2])).map(Number);
-  catalog.set(gid,genes); return genes;
+  if(!indexed) return [];
+  // a live run keeps appending genomes — reload the (small) catalog on a miss
+  if(!catalogLoading) catalogLoading=loadCatalog().catch(()=>{}).finally(()=>catalogLoading=null);
+  await catalogLoading;
+  return catalog.get(gid)||[];
 }
-async function rangeFetch(url,a,b){
+
+// ---- frame chunks: Range-fetch one zstd chunk, fzstd-decode, split into frames ----
+async function rangeBytes(url,a,b){
   const res=await fetch(url,{headers:{Range:'bytes='+a+'-'+b},cache:'no-store'});
-  return await res.text();
+  return new Uint8Array(await res.arrayBuffer());
 }
-function prefetch(i){ for(let k=1;k<=8;k++){ if(i+k<frameIndex.length) getFrame(i+k); } }
+function splitFrames(txt){
+  const out=[]; let f=null;
+  for(const ln of txt.split('\n')){
+    if(!ln) continue;
+    const sp=ln.indexOf(' '), tag=sp<0?ln:ln.slice(0,sp), rest=sp<0?'':ln.slice(sp+1);
+    if(tag==='t'){ if(f) out.push(f); f={t:+rest,r:null,units:[]}; }
+    else if(tag==='r'){ if(f) f.r=rest; }
+    else if(tag==='u'){ if(f){ const u=rest.split(' '); if(u.length>=3) f.units.push({cell:+u[0],slot:+u[1],gid:+u[2]}); } }
+  }
+  if(f) out.push(f);
+  return out;
+}
+async function getChunk(ci){
+  if(chunkCache.has(ci)) return chunkCache.get(ci);
+  const c=chunkIndex[ci]; if(!c) return [];
+  const bytes=await rangeBytes(framesUrl, c.off, c.off+c.len-1);
+  const frs=splitFrames(new TextDecoder().decode(fzstd.decompress(bytes)));
+  chunkCache.set(ci,frs);
+  if(chunkCache.size>CHUNK_CACHE_CAP){ const k=chunkCache.keys().next().value; chunkCache.delete(k); }
+  return frs;
+}
+function chunkOfFrame(i){
+  // chunks are contiguous in frame number; linear scan is fine (few chunks)
+  for(let ci=0;ci<chunkIndex.length;ci++){ const c=chunkIndex[ci];
+    if(i<c.startFrame+c.count) return {ci,within:i-c.startFrame}; }
+  return null;
+}
+async function getFrame(i){
+  const loc=chunkOfFrame(i); if(!loc) return null;
+  const frs=await getChunk(loc.ci);
+  if(loc.ci+1<chunkIndex.length && loc.within>c0(loc.ci)-8) getChunk(loc.ci+1); // gentle prefetch of next chunk
+  return frs[loc.within];
+}
+function c0(ci){ return chunkIndex[ci].count; }
 async function showFrame(i){
   i=Math.max(0,Math.min(frameCount()-1,i)); idx=i;
   curF = indexed ? await getFrame(i) : frames[i];
-  if(indexed) prefetch(i);
   draw();
 }
 
@@ -201,9 +230,6 @@ function groupGenomes(f){
   return g;
 }
 
-let massMax=1;
-function massColor(m){ const t=Math.max(0,Math.min(1,m/massMax)); return `hsl(${Math.round(240*(1-t))},80%,55%)`; }
-function unitColor(u){ return colMode==='mass'?massColor(u.mass||0) : colMode==='action'?(ACT_COLOR[u.act]||'#26303f') : genColor(u.gid); }
 // iterate the RLE resource field (DxN tokens) and paint cells in order
 function drawResource(rle){
   let c=0; const toks=rle.split(' ');
@@ -214,14 +240,10 @@ function drawResource(rle){
 function draw(){
   const f=curFrame(); if(!f) return;
   if(showRes&&f.r){ drawResource(f.r); } else { ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height); }
-  let msum=0,mmax=0; for(const u of f.units){ const m=u.mass||0; msum+=m; if(m>mmax)mmax=m; }
-  if(mmax>massMax) massMax=mmax;
-  for(const u of f.units){ ctx.fillStyle=unitColor(u); ctx.fillRect((u.cell%W)*px,((u.cell/W)|0)*px,px,px); }
+  for(const u of f.units){ ctx.fillStyle=genColor(u.gid); ctx.fillRect((u.cell%W)*px,((u.cell/W)|0)*px,px,px); }
   const groups=groupGenomes(f);
   $('tick').textContent=f.t; $('frame').textContent=idx; $('last').textContent=frameCount()-1;
   $('alive').textContent=f.units.length; $('gen').textContent=groups.size;
-  $('massmean').textContent=f.units.length?(msum/f.units.length).toFixed(2):'0';
-  $('massmax').textContent=mmax.toFixed(2);
   $('slider').max=Math.max(0,frameCount()-1); $('slider').value=idx;
   renderGenomes(f,groups); renderDetail(f);
 }
@@ -236,13 +258,13 @@ function renderGenomes(f,groups){
     row.className='grow'+(g.gid===selG?' sel':'');
     row.innerHTML=`<span class="sw" style="background:${genColor(g.gid)};color:${genColor(g.gid)}"></span>`+
       `<span class="n">×${g.n}</span><span class="fp">#${g.gid}</span>`+
-      `<span class="meta">${geneCountOf(g.gid)}g · ${g.rep.act}</span>`;
+      `<span class="meta">${geneCountOf(g.gid)}g</span>`;
     row.onclick=()=>{ selSlot=g.rep.slot; draw(); };
     el.appendChild(row);
   }
 }
 
-// ---- circuit builder (structural; report-v13 has no per-tick node outputs) ----
+// ---- circuit builder (structural; report-v13/v14 carry no per-tick node outputs) ----
 const NODE_W=146,NODE_H=30;
 function buildCircuit(genes,hideJunk){
   const em=new Map();
@@ -333,13 +355,11 @@ function renderDetail(f){
   const u=selUnit(f);
   if(u){
     $('dsel').textContent='· slot '+u.slot+' · genome #'+u.gid;
-    // genes may need an on-demand Range fetch (indexed mode); render the circuit once they arrive
-    Promise.resolve(catalog.get(u.gid) || getGenome(u.gid)).then(genes=>{
+    Promise.resolve(getGenome(u.gid)).then(genes=>{
       genes=genes||[];
       if(renderedKey!==u.gid){ d.innerHTML=circuitSVG(genes); renderedKey=u.gid; }
       const mc=genes.map(decodeGene).filter(w=>!w.junk).length;
       sb.innerHTML=`<span class="pill">slot <b>${u.slot}</b></span><span class="pill">genome <b>#${u.gid}</b></span>`+
-        `<span class="pill">mass <b>${(u.mass||0).toFixed(2)}</b></span><span class="pill">action <b>${u.act}</b></span>`+
         `<span class="pill"><b>${genes.length}</b> genes · <b>${mc}</b> meaningful</span>`;
     });
   } else {
@@ -353,23 +373,12 @@ cv.onclick=(e)=>{ const f=curFrame(); if(!W||!f) return;
   if(x<0||y<0||x>=W||y>=W) return;
   const u=f.units.find(u=>u.cell===y*W+x); if(u){ selSlot=u.slot; draw(); } };
 
-// ---- data (report-v13 §index): two modes ----
-//  embed   — window.SIMOLUTION_EMBED baked in (offline, small runs): everything in RAM.
-//  indexed — served run: load the tiny .frames.idx + .catalog.idx, then HTTP-Range-fetch
-//            ONE frame (and one genome) at a time. Bounded RAM, scales to any run, still
-//            a generic static server (no bespoke server — report-v12 property kept).
-function parseOneFrame(text){
-  const f={t:0,r:null,units:[]};
-  for(const ln of text.split('\n')){
-    if(!ln) continue;
-    const sp=ln.indexOf(' '), tag=sp<0?ln:ln.slice(0,sp), rest=sp<0?'':ln.slice(sp+1);
-    if(tag==='t') f.t=+rest;
-    else if(tag==='r') f.r=rest;
-    else if(tag==='u'){ const u=rest.split(' '); if(u.length>=5) f.units.push({cell:+u[0],slot:+u[1],mass:+u[2],act:u[3],gid:+u[4]}); }
-  }
-  return f;
-}
-let framesIdxUrl='',catIdxUrl='',idxOff=0,catIdxOff=0,idxBuf='',catIdxBuf='';
+// ---- data (report-v14): two modes ----
+//  embed   — window.SIMOLUTION_EMBED baked in (offline, small runs): pre-decoded frames in RAM.
+//  indexed — served run: load the tiny .frames.idx + whole .catalog.gz, then HTTP-Range-fetch ONE
+//            zstd chunk at a time and fzstd-decode it. Bounded RAM (one chunk), scales to any run,
+//            generic Range-capable static server (scripts/serve.py).
+let idxOff=0,idxBuf='';
 async function tailOne(url,off,onText,reset){
   try{
     const res=await fetch(url, off?{headers:{Range:'bytes='+off+'-'},cache:'no-store'}:{cache:'no-store'});
@@ -378,47 +387,39 @@ async function tailOne(url,off,onText,reset){
   }catch(e){}
   return off;
 }
-function parseFramesIdx(text){ // <tick> <off> <len>  (or 'end')
+function parseFramesIdx(text){ // header line, then <ft> <lt> <off> <len> <count> per chunk, then 'end <tick>'
   idxBuf+=text; let nl;
   while((nl=idxBuf.indexOf('\n'))>=0){
     const ln=idxBuf.slice(0,nl); idxBuf=idxBuf.slice(nl+1); if(!ln) continue;
-    if(ln==='end'){ done=true; continue; }
-    const t=ln.split(' '); frameIndex.push({tick:+t[0],off:+t[1],len:+t[2]});
+    if(ln.startsWith('format ')){ const t=ln.split(' ');
+      W=+t[t.indexOf('world')+1]||W; every=+t[t.indexOf('sample-every')+1]||1; sizeCanvas();
+      $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`; continue; }
+    if(ln.startsWith('end')){ done=true; continue; }
+    const t=ln.split(' ');
+    chunkIndex.push({ft:+t[0],lt:+t[1],off:+t[2],len:+t[3],count:+t[4],startFrame:totalFrames});
+    totalFrames+=(+t[4]);
   }
-}
-function parseCatalogIdx(text){ // <gid> <count> <off> <len>
-  catIdxBuf+=text; let nl;
-  while((nl=catIdxBuf.indexOf('\n'))>=0){
-    const ln=catIdxBuf.slice(0,nl); catIdxBuf=catIdxBuf.slice(nl+1); if(!ln||ln==='end') continue;
-    const t=ln.split(' '); catMeta.set(+t[0],{count:+t[1],off:+t[2],len:+t[3]});
-  }
-}
-async function ensureHeader(){
-  if(W||!frameIndex.length) return;
-  const txt=await rangeFetch(framesUrl,0,frameIndex[0].off-1);
-  for(const ln of txt.split('\n')){ const sp=ln.indexOf(' '),tag=sp<0?ln:ln.slice(0,sp),rest=sp<0?'':ln.slice(sp+1);
-    if(tag==='world'){ W=+rest; sizeCanvas(); }
-    else if(tag==='sample-every'){ every=+rest||1; $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`; } }
 }
 async function pollIdx(){
-  catIdxOff=await tailOne(catIdxUrl,catIdxOff,parseCatalogIdx,()=>{catMeta.clear();catalog.clear();catIdxBuf='';});
-  const before=frameIndex.length;
-  idxOff=await tailOne(framesIdxUrl,idxOff,parseFramesIdx,()=>{frameIndex.length=0;frameCache.clear();idxBuf='';done=false;});
-  await ensureHeader();
-  const n=frameIndex.length;
+  const before=totalFrames;
+  if(!catalog.size && !catalogLoading){ catalogLoading=loadCatalog().catch(()=>{}).finally(()=>catalogLoading=null); }
+  idxOff=await tailOne(framesIdxUrl,idxOff,parseFramesIdx,()=>{chunkIndex.length=0;totalFrames=0;chunkCache.clear();idxBuf='';done=false;});
+  const n=totalFrames;
   $('badge').className='badge '+(done?'ended':'live');
   $('badge').textContent=(done?'ENDED · SCRUB · ':'LIVE · ')+n+'f';
   if(n){ const follow=$('follow').checked&&!replaying;
     await showFrame(follow?n-1:idx);
     if(selSlot===null&&curF&&curF.units.length){ const top=[...groupGenomes(curF).values()].sort((a,b)=>b.n-a.n)[0]; if(top){ selSlot=top.rep.slot; draw(); } } }
+  if(done && catalogLoading){ await catalogLoading; }   // final catalog so late genomes resolve
   if(!done) setTimeout(pollIdx, n===before?1500:600);
 }
 function dataSource(){
   if(window.SIMOLUTION_EMBED) return {embed:window.SIMOLUTION_EMBED};
   const p=new URLSearchParams(location.search).get('src');
-  const base=p||(()=>{ const b=location.pathname.split('/').pop()||'';
-    return (/\.html?$/.test(b)&&b!=='index.html')?b.replace(/\.html?$/,'')+'.frames':'live.frames'; })();
-  return {frames:base, catalog:base.replace(/\.frames$/,'.catalog')};
+  let base=p;
+  if(!base){ const b=location.pathname.split('/').pop()||'';
+    base=(/\.html?$/.test(b)&&b!=='index.html')?b.replace(/\.html?$/,''):'live'; }
+  return {base};
 }
 function boot(){
   const s=dataSource();
@@ -430,10 +431,13 @@ function boot(){
     if(frames.length){ curF=frames[0];
       const top=[...groupGenomes(curF).values()].sort((a,b)=>b.n-a.n)[0]; if(top) selSlot=top.rep.slot; }
     showFrame(0);
-  } else { indexed=true; framesUrl=s.frames; catUrl=s.catalog;
-    framesIdxUrl=framesUrl+'.idx'; catIdxUrl=catUrl+'.idx'; pollIdx(); }
+  } else { indexed=true; const base=s.base;
+    framesUrl=base+'.frames.zst'; framesIdxUrl=base+'.frames.idx';
+    catUrl=base+'.catalog.gz'; birthsUrl=base+'.births.csv.gz';
+    if(typeof fzstd==='undefined'){ $('badge').className='badge ended'; $('badge').textContent='fzstd.min.js not loaded'; return; }
+    pollIdx(); }
 }
-// ---- lineage walk (report-v13): the always-on births store, read client-side ----
+// ---- lineage walk (report-v13/v14): the always-on births store, read client-side ----
 // served: fetch <base>.births.csv.gz, gunzip in-browser; embed: window.SIMOLUTION_EMBED.births.
 // lineage + generation + mutated are kernel-exact; parent_slot is best-effort (often -1), so the
 // walk is anchored on lineage/generation/tick, not on chasing parent_slot.
@@ -443,8 +447,7 @@ async function loadBirths(){
   let rows=[];
   if(window.SIMOLUTION_EMBED&&window.SIMOLUTION_EMBED.births){ rows=window.SIMOLUTION_EMBED.births; }
   else {
-    const url=framesUrl.replace(/\.frames$/,'.births.csv.gz');
-    const buf=await (await fetch(url,{cache:'no-store'})).arrayBuffer();
+    const buf=await (await fetch(birthsUrl,{cache:'no-store'})).arrayBuffer();
     const txt=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
     const L=txt.split('\n');
     for(let i=1;i<L.length;i++){ if(!L[i])continue; const c=L[i].split(',');
@@ -491,8 +494,6 @@ async function showLineage(){
   sum.innerHTML=`<span class="pill">lineage <b>#${L}</b></span><span class="pill"><b>${rows.length}</b> births</span>`+
     `<span class="pill"><b>${maxGen}</b> generations</span><span class="pill"><b>${distinct.size}</b> genomes</span>`+
     `<span class="pill" style="color:#f5b73f"><b>${muts.length}</b> mutations</span>`;
-  // bucket by generation — a lineage is a wide bush (49% of births are unattributed fission halves),
-  // so we don't fake a single chain; we show where along the generations the genome actually changed.
   const gens=new Map();
   for(const r of rows){ let g=gens.get(r.gen); if(!g){g={gen:r.gen,births:0,gids:new Set(),muts:[]};gens.set(r.gen,g);} g.births++; g.gids.add(r.gid); if(r.mut===1)g.muts.push(r); }
   const order=[...gens.values()].sort((a,b)=>a.gen-b.gen);
@@ -509,7 +510,7 @@ async function showLineage(){
     row.innerHTML=`<span class="gn">gen ${g.gen}${here?' ◂ here':''}</span><span class="gid" style="color:var(--ink)">${g.gids.size} genome${g.gids.size>1?'s':''}</span>`+
       (g.muts.length?`<span class="mut">${g.muts.length} mutation${g.muts.length>1?'s':''} ▸</span>`:`<span class="clone">clones</span>`);
     if(g.muts.length){
-      const sub=document.createElement('div'); sub.style.display='none'; sub.style.margin='2px 0 6px 16px'; sub.style.display='none';
+      const sub=document.createElement('div'); sub.style.display='none'; sub.style.margin='2px 0 6px 16px';
       let built=false;
       row.onclick=()=>{
         if(!built){ built=true; const show=g.muts.slice(0,MUTS_SHOWN);
@@ -529,7 +530,6 @@ function lineageGenOfSlot(slot,tick){ const a=births.bySlot.get(slot); if(a){ le
 $('tracebtn').onclick=showLineage;
 $('slider').oninput=(e)=>{ $('follow').checked=false; showFrame(+e.target.value); };
 $('showres').onchange=(e)=>{ showRes=e.target.checked; draw(); };
-$('colmode').onchange=(e)=>{ colMode=e.target.value; $('actlegend').style.display=colMode==='action'?'flex':'none'; draw(); };
 $('hidejunk').onchange=(e)=>{ hideJunk=e.target.checked; renderedKey=null; draw(); };
 $('follow').onchange=(e)=>{ if(e.target.checked&&frameCount()){ showFrame(frameCount()-1); } };
 $('play').onclick=()=>{ if(replaying){replaying=false;return;}
