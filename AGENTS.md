@@ -189,7 +189,7 @@ The owner wants autonomous implementation but full understanding. So: small sing
 
 ## Branching
 
-Solo local repo: no remote, no `main` trunk, no PR flow. One long-lived branch **per milestone**, named after it (`kernel-v0.1`, `kernel-v1-energy-intake`, …). Start each new milestone branch off the previous milestone's tip; leave the old branch frozen as a marker of that finished slice. Do not create `main` or open PRs unless a remote is added later.
+Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://github.com/MehmetSecgin/Simolution) (`origin`). No `main` trunk and no PR flow — one long-lived branch **per milestone**, named after it (`kernel-v0.1`, `kernel-v1-energy-intake`, …); all milestone branches are pushed and the latest (`kernel-v5-biomass`) is the GitHub default. Start each new milestone branch off the previous milestone's tip; leave the old branch frozen as a marker of that finished slice. The no-`main` convention stands — do not create `main` or open PRs; just push the milestone branch.
 
 ## Roadmap (from specs, in order)
 
