@@ -127,7 +127,7 @@ class BiomassTest {
             kernel.tick();
             KernelSnapshot s = kernel.snapshot();
             double expected = Math.min(1.0, prevMass / KernelConfig.SELF_MASS_SCALE);
-            assertEquals(expected, s.outputs[SELF_MASS_IDX], 1.0e-12,
+            assertEquals(expected, s.outputs[SELF_MASS_IDX], 1.0e-6,
                     "SELF_MASS must equal min(1, mass_at_tick_start/scale) at tick " + s.tick);
             prevMass = s.mass[0];
         }

@@ -41,7 +41,7 @@ class MulNodeTest {
         double output = mulOutputAfterTwoTicks(constToMul(rawA), constToMul(rawB));
 
         // assert
-        assertEquals(weight(rawA) * weight(rawB), output, 0.0);
+        assertEquals(weight(rawA) * weight(rawB), output, 1.0e-6);
     }
 
     @Test
@@ -53,7 +53,7 @@ class MulNodeTest {
         double output = mulOutputAfterTwoTicks(constToMul(raw));
 
         // assert
-        assertEquals(weight(raw), output, 0.0);
+        assertEquals(weight(raw), output, 1.0e-6);
     }
 
     @Test
@@ -81,7 +81,7 @@ class MulNodeTest {
                 constToMul(rawSmall), constToMul(rawBig), constToMul(rawMid));
 
         // assert
-        assertEquals(weight(rawBig) * weight(rawMid), output, 0.0);
+        assertEquals(weight(rawBig) * weight(rawMid), output, 1.0e-6);
     }
 
     @Test
@@ -95,7 +95,7 @@ class MulNodeTest {
                 constToMul(rawPositive), constToMul(rawNegative), constToMul(rawPositive));
 
         // assert
-        assertEquals(weight(rawPositive) * weight(rawNegative), output, 0.0);
+        assertEquals(weight(rawPositive) * weight(rawNegative), output, 1.0e-6);
     }
 
     @Test

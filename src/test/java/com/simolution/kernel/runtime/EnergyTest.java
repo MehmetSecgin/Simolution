@@ -79,7 +79,7 @@ class EnergyTest {
         int ticksToOutlast = 5000;
 
         // act
-        double[] frozenOutputs = null;
+        float[] frozenOutputs = null;
         boolean everDied = false;
         for (int i = 0; i < ticksToOutlast; i++) {
             kernel.tick();
@@ -206,8 +206,8 @@ class EnergyTest {
         for (int i = 0; i < 200; i++) {
             alone.tick();
             paired.tick();
-            double[] aloneOut = alone.snapshot().outputs;
-            double[] pairedOut = paired.snapshot().outputs;
+            float[] aloneOut = alone.snapshot().outputs;
+            float[] pairedOut = paired.snapshot().outputs;
             for (int n = 0; n < NodeLayout.TOTAL; n++) {
                 assertEquals(aloneOut[n], pairedOut[n], 0.0,
                         "unit 0 trajectory must not depend on unit 1 at tick " + (i + 1));

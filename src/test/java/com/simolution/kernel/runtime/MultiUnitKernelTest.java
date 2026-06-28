@@ -68,8 +68,8 @@ class MultiUnitKernelTest {
         for (int tick = 0; tick < 20; tick++) {
             alone.tick();
             crowded.tick();
-            double[] aloneOutputs = alone.snapshot().outputs;
-            double[] crowdedOutputs = crowded.snapshot().outputs;
+            float[] aloneOutputs = alone.snapshot().outputs;
+            float[] crowdedOutputs = crowded.snapshot().outputs;
             for (int node = 0; node < NodeLayout.TOTAL; node++) {
                 assertEquals(aloneOutputs[node], crowdedOutputs[node], 0.0, "node " + node + " at tick " + tick);
             }

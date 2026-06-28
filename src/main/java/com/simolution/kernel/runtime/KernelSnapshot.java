@@ -2,8 +2,8 @@ package com.simolution.kernel.runtime;
 
 public final class KernelSnapshot {
     public final int tick;
-    public final double[] outputs;
-    public final double[] delayMemory;
+    public final float[] outputs;
+    public final float[] delayMemory;
     public final double[] energy;
     public final double[] damage;
     public final double energySink;
@@ -25,7 +25,7 @@ public final class KernelSnapshot {
     public final double massTotal;
     public final double creditedInitialMass;
 
-    public KernelSnapshot(int tick, double[] outputs, double[] delayMemory, double[] energy,
+    public KernelSnapshot(int tick, float[] outputs, float[] delayMemory, double[] energy,
                           double[] damage, double energySink, double reservoir, double[] resourceField,
                           int worldWidth, int[] position, double initialResourceTotal, double cumulativeInflow,
                           long[] lineageId, int[] generation, long birthsTotal,

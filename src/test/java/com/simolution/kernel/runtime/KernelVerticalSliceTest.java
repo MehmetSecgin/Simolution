@@ -48,33 +48,33 @@ class KernelVerticalSliceTest {
         double wDelayToAdd = W_DELAY_TO_ADD * KernelConfig.WEIGHT_MULTIPLIER;
         double wAddToAction = W_ADD_TO_ACTION * KernelConfig.WEIGHT_MULTIPLIER;
 
-        double constPrev = 0.0;
-        double addPrev = 0.0;
-        double delayPrev = 0.0;
-        double delayMemory = 0.0;
+        float constPrev = 0.0f;
+        float addPrev = 0.0f;
+        float delayPrev = 0.0f;
+        float delayMemory = 0.0f;
 
         for (int tick = 1; tick <= 10; tick++) {
             // act
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
 
-            double addAccumulator = constPrev * wConstToAdd + delayPrev * wDelayToAdd;
-            double delayAccumulator = addPrev * wAddToDelay;
-            double actionAccumulator = addPrev * wAddToAction;
+            float addAccumulator = (float) (constPrev * wConstToAdd) + (float) (delayPrev * wDelayToAdd);
+            float delayAccumulator = (float) (addPrev * wAddToDelay);
+            float actionAccumulator = (float) (addPrev * wAddToAction);
 
-            double constNext = 1.0;
-            double addNext = addAccumulator;
-            double delayNext = delayMemory;
+            float constNext = 1.0f;
+            float addNext = addAccumulator;
+            float delayNext = delayMemory;
             delayMemory = delayAccumulator;
-            double actionNext = actionAccumulator;
+            float actionNext = actionAccumulator;
 
             // assert
             assertEquals(tick, snapshot.tick);
-            assertEquals(constNext, snapshot.outputs[CONST_IDX], 0.0, "CONST at tick " + tick);
-            assertEquals(addNext, snapshot.outputs[ADD_IDX], 0.0, "ADD at tick " + tick);
-            assertEquals(delayNext, snapshot.outputs[DELAY_IDX], 0.0, "DELAY at tick " + tick);
-            assertEquals(actionNext, snapshot.outputs[ACTION_IDX], 0.0, "ACTION at tick " + tick);
-            assertEquals(delayMemory, snapshot.delayMemory[DELAY_IDX], 0.0, "DELAY memory at tick " + tick);
+            assertEquals(constNext, snapshot.outputs[CONST_IDX], 0.0f, "CONST at tick " + tick);
+            assertEquals(addNext, snapshot.outputs[ADD_IDX], 0.0f, "ADD at tick " + tick);
+            assertEquals(delayNext, snapshot.outputs[DELAY_IDX], 0.0f, "DELAY at tick " + tick);
+            assertEquals(actionNext, snapshot.outputs[ACTION_IDX], 0.0f, "ACTION at tick " + tick);
+            assertEquals(delayMemory, snapshot.delayMemory[DELAY_IDX], 0.0f, "DELAY memory at tick " + tick);
 
             constPrev = constNext;
             addPrev = addNext;
@@ -98,8 +98,8 @@ class KernelVerticalSliceTest {
         for (int tick = 0; tick < 50; tick++) {
             first.tick();
             second.tick();
-            double[] firstOutputs = first.snapshot().outputs;
-            double[] secondOutputs = second.snapshot().outputs;
+            float[] firstOutputs = first.snapshot().outputs;
+            float[] secondOutputs = second.snapshot().outputs;
             for (int node = 0; node < firstOutputs.length; node++) {
                 assertEquals(firstOutputs[node], secondOutputs[node], 0.0);
             }

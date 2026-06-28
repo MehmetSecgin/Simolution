@@ -11,10 +11,10 @@ import com.simolution.kernel.layout.NodeLayout;
 
 public final class Kernel {
 
-    private double[] outputsPrev;
-    private double[] outputsNext;
-    private final double[] accumulators;
-    private final double[] delayMemory;
+    private float[] outputsPrev;
+    private float[] outputsNext;
+    private final float[] accumulators;
+    private final float[] delayMemory;
 
     private final CompiledConnection[] connections;
     private final int[] sumStart;
@@ -26,8 +26,8 @@ public final class Kernel {
     private final int[] geneCount;
     private final int maxGenes;
 
-    private final double[] mulTop1;
-    private final double[] mulTop2;
+    private final float[] mulTop1;
+    private final float[] mulTop2;
     private final int[] mulInDegree;
 
     private final double[] energy;
@@ -100,13 +100,13 @@ public final class Kernel {
 
         final int totalNodes = maxUnits * NodeLayout.TOTAL;
 
-        this.outputsPrev = new double[totalNodes];
-        this.outputsNext = new double[totalNodes];
-        this.accumulators = new double[totalNodes];
-        this.delayMemory = new double[totalNodes];
+        this.outputsPrev = new float[totalNodes];
+        this.outputsNext = new float[totalNodes];
+        this.accumulators = new float[totalNodes];
+        this.delayMemory = new float[totalNodes];
 
-        this.mulTop1 = new double[maxUnits];
-        this.mulTop2 = new double[maxUnits];
+        this.mulTop1 = new float[maxUnits];
+        this.mulTop2 = new float[maxUnits];
         this.mulInDegree = new int[maxUnits];
 
         // empty slots start dead (energy 0, contract v2 §5): they are skipped
@@ -315,9 +315,9 @@ public final class Kernel {
     }
 
     private void clearAccumulators() {
-        Arrays.fill(accumulators, 0.0);
-        Arrays.fill(mulTop1, 0.0);
-        Arrays.fill(mulTop2, 0.0);
+        Arrays.fill(accumulators, 0.0f);
+        Arrays.fill(mulTop1, 0.0f);
+        Arrays.fill(mulTop2, 0.0f);
     }
 
     /**
@@ -338,23 +338,23 @@ public final class Kernel {
 
             for (int i = sumStart[unit]; i < sumEnd[unit]; i++) {
                 final CompiledConnection c = connections[i];
-                final double signal = outputsPrev[c.sourceAbsoluteIndex] * c.weight;
+                final float signal = (float) (outputsPrev[c.sourceAbsoluteIndex] * c.weight);
                 accumulators[c.destinationAbsoluteIndex] += signal;
-                if (signal != 0.0) {
+                if (signal != 0.0f) {
                     active++;
                 }
             }
 
             for (int i = mulStart[unit]; i < mulEnd[unit]; i++) {
                 final CompiledConnection c = connections[i];
-                final double signal = outputsPrev[c.sourceAbsoluteIndex] * c.weight;
+                final float signal = (float) (outputsPrev[c.sourceAbsoluteIndex] * c.weight);
                 if (Math.abs(signal) > Math.abs(mulTop1[unit])) {
                     mulTop2[unit] = mulTop1[unit];
                     mulTop1[unit] = signal;
                 } else if (Math.abs(signal) > Math.abs(mulTop2[unit])) {
                     mulTop2[unit] = signal;
                 }
-                if (signal != 0.0) {
+                if (signal != 0.0f) {
                     active++;
                 }
             }
@@ -394,12 +394,12 @@ public final class Kernel {
         final int selfEnergyIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_ENERGY * NodeLayout.Sensor.INSTANCES_PER_TYPE);
         final int selfMassIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_MASS * NodeLayout.Sensor.INSTANCES_PER_TYPE);
 
-        outputsNext[constIdx] = 1.0;
-        outputsNext[randIdx] = Noise.sample(KernelConfig.RANDOM_SEED, unit, tick);
+        outputsNext[constIdx] = 1.0f;
+        outputsNext[randIdx] = (float) Noise.sample(KernelConfig.RANDOM_SEED, unit, tick);
         // a unit senses only the cell it currently occupies (contract v3 §3)
-        outputsNext[localResourceIdx] = Math.min(1.0, resourceField[position[unit]] / KernelConfig.CELL_CAPACITY);
-        outputsNext[selfEnergyIdx] = Math.min(1.0, energy[unit] / KernelConfig.SELF_ENERGY_SCALE);
-        outputsNext[selfMassIdx] = Math.min(1.0, mass[unit] / KernelConfig.SELF_MASS_SCALE);
+        outputsNext[localResourceIdx] = (float) Math.min(1.0, resourceField[position[unit]] / KernelConfig.CELL_CAPACITY);
+        outputsNext[selfEnergyIdx] = (float) Math.min(1.0, energy[unit] / KernelConfig.SELF_ENERGY_SCALE);
+        outputsNext[selfMassIdx] = (float) Math.min(1.0, mass[unit] / KernelConfig.SELF_MASS_SCALE);
 
         final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[addIdx] = accumulators[addIdx];
@@ -410,21 +410,21 @@ public final class Kernel {
         // strongest (slice section 2, ADR 0005)
         final int mulIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.MUL * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[mulIdx] = switch (mulInDegree[unit]) {
-            case 0 -> 0.0;
+            case 0 -> 0.0f;
             case 1 -> mulTop1[unit];
             default -> mulTop1[unit] * mulTop2[unit];
         };
 
         final int clampIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.CLAMP * NodeLayout.Internal.INSTANCES_PER_TYPE);
         final double clampIn = accumulators[clampIdx];
-        outputsNext[clampIdx] = Math.max(-1.0, Math.min(1.0, clampIn));
+        outputsNext[clampIdx] = (float) Math.max(-1.0, Math.min(1.0, clampIn));
 
         final int delayIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.DELAY * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[delayIdx] = delayMemory[delayIdx];
         delayMemory[delayIdx] = accumulators[delayIdx];
 
         final int threshIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.THRESH * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        outputsNext[threshIdx] = accumulators[threshIdx] > 0.0 ? 1.0 : -1.0;
+        outputsNext[threshIdx] = accumulators[threshIdx] > 0.0f ? 1.0f : -1.0f;
 
         final int actionIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.Y * NodeLayout.Action.INSTANCES_PER_TYPE);
         outputsNext[actionIdx] = accumulators[actionIdx];
@@ -449,7 +449,7 @@ public final class Kernel {
     }
 
     private void swapBuffers() {
-        final double[] tmp = outputsPrev;
+        final float[] tmp = outputsPrev;
         outputsPrev = outputsNext;
         outputsNext = tmp;
     }
@@ -939,9 +939,9 @@ public final class Kernel {
             final double childEnergy, final double childMass) {
         final int nodeBase = child * NodeLayout.TOTAL;
         for (int n = 0; n < NodeLayout.TOTAL; n++) {
-            outputsPrev[nodeBase + n] = 0.0;
-            outputsNext[nodeBase + n] = 0.0;
-            delayMemory[nodeBase + n] = 0.0;
+            outputsPrev[nodeBase + n] = 0.0f;
+            outputsNext[nodeBase + n] = 0.0f;
+            delayMemory[nodeBase + n] = 0.0f;
         }
         activeThisTick[child] = 0;
 
@@ -1143,10 +1143,10 @@ public final class Kernel {
             out.writeInt(cellOccupant[cell]);
         }
         for (int i = 0; i < outputsPrev.length; i++) {
-            out.writeDouble(outputsPrev[i]);
+            out.writeFloat(outputsPrev[i]);
         }
         for (int i = 0; i < delayMemory.length; i++) {
-            out.writeDouble(delayMemory[i]);
+            out.writeFloat(delayMemory[i]);
         }
         out.writeDouble(energySink);
         out.writeDouble(cumulativeInflow);
@@ -1193,11 +1193,11 @@ public final class Kernel {
             cellOccupant[cell] = in.readInt();
         }
         for (int i = 0; i < outputsPrev.length; i++) {
-            outputsPrev[i] = in.readDouble();
+            outputsPrev[i] = in.readFloat();
         }
-        Arrays.fill(outputsNext, 0.0);
+        Arrays.fill(outputsNext, 0.0f);
         for (int i = 0; i < delayMemory.length; i++) {
-            delayMemory[i] = in.readDouble();
+            delayMemory[i] = in.readFloat();
         }
         this.energySink = in.readDouble();
         this.cumulativeInflow = in.readDouble();

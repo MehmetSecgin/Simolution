@@ -48,8 +48,8 @@ public final class DynamicsObserver {
     private final int[] lineageGenScratch;
     private final double[] lineageEnergyScratch;
 
-    private final double[] prevOutputs;
-    private final double[] prevDelay;
+    private final float[] prevOutputs;
+    private final float[] prevDelay;
     private final double[] accumulators;
     private final boolean[] activeThisTick;
 
@@ -104,8 +104,8 @@ public final class DynamicsObserver {
         this.lineageEnergyScratch = new double[unitCount];
 
         final int totalNodes = unitCount * NodeLayout.TOTAL;
-        this.prevOutputs = new double[totalNodes];
-        this.prevDelay = new double[totalNodes];
+        this.prevOutputs = new float[totalNodes];
+        this.prevDelay = new float[totalNodes];
         this.accumulators = new double[totalNodes];
         this.activeThisTick = new boolean[unitCount];
 
