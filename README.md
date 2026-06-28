@@ -3,10 +3,10 @@
 > **Artificial life under honest thermodynamics.** The kernel defines physical laws — energy, decay, diffusion, signal propagation — and *never* meanings, goals, or fitness. Lifelike strategies must **evolve**; they are never coded in.
 
 <p align="center">
-  <img src="docs/images/lattice.png" width="540" alt="A 100x100 toroidal world, each colour a distinct genome lineage">
+  <img src="docs/images/bloom.gif" width="460" alt="Every tick of a run: founders bloom, entropy culls them, survivors cluster around the breathing resource">
 </p>
 
-<p align="center"><sub>A 100×100 toroidal world mid-run — <b>3,143 units, 457 distinct genomes</b>, each colour one lineage clustering into territory. Nothing tells a cell where to go; the patches are emergent.</sub></p>
+<p align="center"><sub>Every tick of one real run (seed 100): 400 scattered founders <b>bloom to ~3,000</b>, entropy and competition <b>cull them in waves</b>, and survivors persist around the breathing resource disk pulsing in at centre. No script — just physics and selection. Each colour is one genome lineage.</sub></p>
 
 Simolution is a small, deterministic virtual machine for *evolving* signal-graph organisms on a 2D toroidal grid. Each organism is a genome — a list of 32-bit genes, each gene one weighted wire between nodes of a fixed substrate. The kernel ticks physics forward; mutation rewires the genomes; survival does the rest.
 
@@ -86,6 +86,12 @@ bash scripts/serve-live.sh                      # serves runs/ on :8090
 
 The viewer is what produced the images above: scrub the lattice (colour by genome), click any cell to inspect its **evolved circuit** as a force-directed graph, and walk a lineage's genome diffs over its `.births.csv.gz` (DuckDB-queryable). A deterministic-replay observability layer (`--observe`) adds checkpoints + time-travel.
 
+<p align="center">
+  <img src="docs/images/lattice.png" width="460" alt="A single tick at peak, full resolution">
+</p>
+
+<p align="center"><sub>A single tick at peak, full resolution — <b>3,143 units, 457 distinct genomes</b>. Each colour is one lineage; the patches are territory nobody assigned.</sub></p>
+
 ## Determinism — the prime invariant
 
 Same genome + same seed → **byte-identical history, always.** Fixed seed, no wall-clock, no unseeded randomness, fixed evaluation order, and a counter-based RNG that is a pure function of `(seed, unit, tick)`. The signal state is single-precision `float` (the energy economy stays `double` so conservation is exact); strict IEEE-754 keeps it reproducible — verified byte-identical run-to-run *and* across JDK 25 ↔ 26.
@@ -112,3 +118,7 @@ Simolution owes its gene-as-wiring representation to **David Miller's [biosim4](
 ## Docs
 
 [`AGENTS.md`](AGENTS.md) is the deep guide — architecture, invariants, the performance doctrine, and the full spec index. If code and a binding spec ever disagree, the spec wins.
+
+## License
+
+[MIT](LICENSE) — use it, fork it, build on it.
