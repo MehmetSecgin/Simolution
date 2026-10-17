@@ -1,6 +1,9 @@
 package com.simolution.kernel.phase;
 
+import java.util.List;
+
 import com.simolution.kernel.config.EngineConfig;
+import com.simolution.kernel.layout.NodeCatalog;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.layout.NodeSpec;
 import com.simolution.kernel.runtime.Noise;
@@ -8,7 +11,7 @@ import com.simolution.kernel.state.WorldState;
 
 /**
  * Phase 3: evaluates every node of every slot into {@code outputsNext}. Sensors are raw
- * local taps (chemical 0 of the unit's own cell, its own energy and mass); a dead unit
+ * local taps (the declared chemical of the unit's own cell, its own energy and mass); a dead unit
  * computes nothing and is frozen at its last living configuration.
  */
 public final class EvaluatePhase implements Phase {
@@ -16,14 +19,17 @@ public final class EvaluatePhase implements Phase {
     private static final NodeSpec.Role[] SENSOR_ROLES = sensorRoles();
 
     private final WorldState state;
-    private final double chemicalZeroCapacity;
+    private final int[] sensorCellOffset;
+    private final double[] sensorCapacity;
     private final double selfEnergyScale;
     private final double selfMassScale;
     private final long seed;
 
     public EvaluatePhase(final WorldState state, final EngineConfig config) {
         this.state = state;
-        this.chemicalZeroCapacity = config.chemicals().get(0).capacity();
+        final SensorTaps taps = bindSensors(NodeCatalog.V5.nodes(NodeSpec.Kind.SENSOR), config);
+        this.sensorCellOffset = taps.cellOffset();
+        this.sensorCapacity = taps.capacity();
         this.selfEnergyScale = config.selfEnergyScale();
         this.selfMassScale = config.selfMassScale();
         this.seed = config.seed();
@@ -55,6 +61,34 @@ public final class EvaluatePhase implements Phase {
                 evaluateUnit(unit);
             }
         }
+    }
+
+    /**
+     * Per-sensor tap constants, precomputed once: the offset of the sensor's chemical
+     * block in {@code cellChem} and the capacity that normalises its reading. Non-chemical
+     * sensors carry offset 0 and capacity 1 and never read them.
+     */
+    record SensorTaps(int[] cellOffset, double[] capacity) {
+    }
+
+    static SensorTaps bindSensors(final List<NodeSpec> sensors, final EngineConfig config) {
+        final int cells = config.worldWidth() * config.worldWidth();
+        final int[] cellOffset = new int[sensors.size()];
+        final double[] capacity = new double[sensors.size()];
+        for (int s = 0; s < sensors.size(); s++) {
+            final NodeSpec spec = sensors.get(s);
+            capacity[s] = 1.0;
+            if (spec.role() != NodeSpec.Role.CHEMICAL_HERE) {
+                continue;
+            }
+            if (spec.chemical() < 0 || spec.chemical() >= config.chemicals().size()) {
+                throw new IllegalArgumentException("sensor " + spec.name() + " taps chemical " + spec.chemical()
+                        + " but the config declares " + config.chemicals().size() + " chemicals");
+            }
+            cellOffset[s] = spec.chemical() * cells;
+            capacity[s] = config.chemicals().get(spec.chemical()).capacity();
+        }
+        return new SensorTaps(cellOffset, capacity);
     }
 
     private static NodeSpec.Role[] sensorRoles() {
@@ -99,7 +133,7 @@ public final class EvaluatePhase implements Phase {
                 case CONST -> outputsNext[idx] = 1.0f;
                 case RAND -> outputsNext[idx] = (float) Noise.sample(seed, unit, state.tick);
                 // a unit senses only the cell it currently occupies (contract v3 §3)
-                case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, cellChem[position[unit]] / chemicalZeroCapacity);
+                case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, cellChem[sensorCellOffset[s] + position[unit]] / sensorCapacity[s]);
                 case SELF_ENERGY -> outputsNext[idx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);
                 case SELF_MASS -> outputsNext[idx] = (float) Math.min(1.0, mass[unit] / selfMassScale);
                 default -> throw new IllegalStateException("not a sensor role: " + SENSOR_ROLES[s]);
