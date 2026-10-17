@@ -1,7 +1,6 @@
 package com.simolution.sim;
 
 import com.simolution.kernel.EngineVersion;
-import java.util.Arrays;
 
 /**
  * Renders a run into the report text format. Every value is deterministic: same
@@ -12,7 +11,7 @@ import java.util.Arrays;
  */
 public final class RunReport {
 
-    public static final String SCHEMA = "report-v14";
+    public static final String SCHEMA = "report-v15";
 
     private RunReport() {}
 
@@ -47,12 +46,6 @@ public final class RunReport {
         out.append("\n## dynamics\n");
         out.append("ticks-with-any-activity: ").append(dynamics.ticksWithAnyActivity()).append('\n');
         out.append("signal-propagations-total: ").append(dynamics.propagationsTotal()).append('\n');
-        out.append("junk-sink-propagations: ").append(dynamics.junkSinkPropagations()).append('\n');
-        out.append("junk-sink-propagation-fraction: ").append(dynamics.junkSinkPropagationFraction()).append('\n');
-        out.append("clamp-saturation-events: ").append(dynamics.clampSaturationEvents()).append('\n');
-        out.append("thresh-flips-total: ").append(dynamics.threshFlipsTotal()).append('\n');
-        out.append("units-dormant-from-birth: ").append(dynamics.countDormantFromBirth()).append('\n');
-        out.append("units-dormant-at-end: ").append(dynamics.countDormantAtEnd()).append('\n');
 
         out.append("\n## reproduction\n");
         out.append("births-total: ").append(dynamics.birthsTotal()).append('\n');
@@ -70,14 +63,6 @@ public final class RunReport {
         out.append("cumulative-inflow: ").append(dynamics.cumulativeInflow()).append('\n');
         out.append("intake-total: ").append(dynamics.intakeTotal()).append('\n');
         out.append("energy-audit-error: ").append(dynamics.energyAuditError()).append('\n');
-        out.append("units-alive-at-end: ").append(dynamics.countAliveAtEnd()).append('\n');
-        out.append("units-dead-at-end: ").append(units - dynamics.countAliveAtEnd()).append('\n');
-        final int[] deathTicks = dynamics.sortedDeathTicks();
-        out.append("death-tick-first: ").append(deathTicks.length == 0 ? -1 : deathTicks[0]).append('\n');
-        out.append("death-tick-median: ")
-           .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length / 2]).append('\n');
-        out.append("death-tick-last: ")
-           .append(deathTicks.length == 0 ? -1 : deathTicks[deathTicks.length - 1]).append('\n');
 
         out.append("\n## mass\n");
         final int massPopulation = dynamics.finalPopulation();
@@ -87,51 +72,7 @@ public final class RunReport {
            .append(massPopulation == 0 ? 0.0 : dynamics.finalMassTotal() / massPopulation).append('\n');
         out.append("final-mass-max: ").append(dynamics.finalMassMax()).append('\n');
 
-        out.append("\n## intake\n");
-        out.append("units-ever-harvested: ").append(dynamics.countEverHarvested()).append('\n');
-        out.append("harvest-active-ticks-total: ").append(dynamics.harvestActiveTicksTotal()).append('\n');
-
-        out.append("\n## burn-rate\n");
-        final double[] burnRates = dynamics.meanBurnRates().clone();
-        Arrays.sort(burnRates);
-        out.append("mean-burn-rate-p0: ").append(quantile(burnRates, 0)).append('\n');
-        out.append("mean-burn-rate-p50: ").append(quantile(burnRates, 50)).append('\n');
-        out.append("mean-burn-rate-p90: ").append(quantile(burnRates, 90)).append('\n');
-        out.append("mean-burn-rate-p100: ").append(quantile(burnRates, 100)).append('\n');
-
-        out.append("\n## terminal-regimes\n");
-        out.append("fixed-point: ").append(dynamics.countRegime(DynamicsSummary.Regime.FIXED_POINT)).append('\n');
-        out.append("bounded: ").append(dynamics.countRegime(DynamicsSummary.Regime.BOUNDED)).append('\n');
-        out.append("divergent: ").append(dynamics.countRegime(DynamicsSummary.Regime.DIVERGENT)).append('\n');
-        out.append("divergence-cutoff: ").append(DynamicsSummary.DIVERGENCE_CUTOFF).append('\n');
-
-        out.append("\n## action-channel\n");
-        final double[] finiteFinalY = Arrays.stream(dynamics.finalAbsAction())
-                                            .filter(Double::isFinite)
-                                            .sorted()
-                                            .toArray();
-        final int nonFiniteCount = units - finiteFinalY.length;
-        out.append("units-final-y-nonfinite: ").append(nonFiniteCount).append('\n');
-        out.append("final-abs-y-p0: ").append(quantile(finiteFinalY, 0)).append('\n');
-        out.append("final-abs-y-p50: ").append(quantile(finiteFinalY, 50)).append('\n');
-        out.append("final-abs-y-p90: ").append(quantile(finiteFinalY, 90)).append('\n');
-        out.append("final-abs-y-p100: ").append(quantile(finiteFinalY, 100)).append('\n');
-
         out.append("state-digest: ").append(String.format("%016x", dynamics.stateDigest())).append('\n');
         return out.toString();
-    }
-
-    /**
-     * Nearest-rank-style quantile on the sorted array:
-     * index = floor(p/100 * (n-1)). Deterministic, no interpolation.
-     * Computed over finite values only — non-finite units are counted
-     * separately and classified divergent.
-     */
-    private static double quantile(final double[] sorted, final int p) {
-        if (sorted.length == 0) {
-            return 0.0;
-        }
-        final int index = (int) Math.floor(p / 100.0 * (sorted.length - 1));
-        return sorted[index];
     }
 }

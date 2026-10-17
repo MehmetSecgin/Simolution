@@ -2,8 +2,6 @@ package com.simolution.bench;
 
 import java.util.Arrays;
 
-import com.simolution.kernel.genome.GenomeCompiler;
-import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.DynamicsObserver;
@@ -55,10 +53,9 @@ public final class Bench {
 
     private static Row runOnce(final RunConfig config, final String name) {
         final int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
-        final CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         final int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, config.worldWidth());
         final Kernel kernel = new Kernel(genomes, founderCells, config.engine(), config.threads());
-        final DynamicsObserver observer = new DynamicsObserver(config.units(), connections, config.engine());
+        final DynamicsObserver observer = new DynamicsObserver();
         final TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
 
         final long start = System.nanoTime();

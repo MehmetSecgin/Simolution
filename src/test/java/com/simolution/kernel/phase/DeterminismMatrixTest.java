@@ -10,7 +10,6 @@ import java.io.IOException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import com.simolution.kernel.TestDigest;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
@@ -38,7 +37,7 @@ class DeterminismMatrixTest {
         try (Kernel k = kernel(config, founders, threads)) {
             for (int t = 0; t < ticks; t++) {
                 k.tick();
-                digests[t] = TestDigest.of(k);
+                digests[t] = k.stateDigest();
             }
         }
         return digests;
@@ -75,7 +74,7 @@ class DeterminismMatrixTest {
         final long uninterrupted;
         try (Kernel k = kernel(config, founders, 1)) {
             k.step(400);
-            uninterrupted = TestDigest.of(k);
+            uninterrupted = k.stateDigest();
         }
         final ByteArrayOutputStream checkpoint = new ByteArrayOutputStream();
         try (Kernel first = kernel(config, founders, 2)) {
@@ -87,7 +86,7 @@ class DeterminismMatrixTest {
         final long resumed;
         try (Kernel second = CheckpointCodec.read(new ByteArrayInputStream(checkpoint.toByteArray()), 4)) {
             second.step(250);
-            resumed = TestDigest.of(second);
+            resumed = second.stateDigest();
         }
 
         // assert

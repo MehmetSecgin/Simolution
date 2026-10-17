@@ -25,7 +25,8 @@ public record RunConfig(
         int mapFrom,
         int mapTo,
         EngineConfig engine,
-        int threads
+        int threads,
+        boolean digestEveryTick
 ) {
 
     public long seed() {
@@ -58,6 +59,7 @@ public record RunConfig(
         String configPath = null;
         boolean trace = false;
         boolean observe = false;
+        boolean digestEveryTick = false;
         boolean resourceCycle = false;
         String inflowSpec = null;
         String outPath = null;
@@ -75,6 +77,7 @@ public record RunConfig(
                 case "--config" -> configPath = args[++i];
                 case "--trace" -> trace = true;
                 case "--observe" -> observe = true;
+                case "--digest-every-tick" -> digestEveryTick = true;
                 case "--resource-cycle" -> resourceCycle = true;
                 case "--cycle-period" -> cyclePeriod = Integer.parseInt(args[++i]);
                 case "--cycle-radius" -> cycleRadius = Integer.parseInt(args[++i]);
@@ -114,7 +117,7 @@ public record RunConfig(
                     : EngineConfig.v5Defaults(seed == null ? 0L : seed, 1, 0);
             return new RunConfig(1, ticks == null ? 10 : ticks, 0, true, true, outPath,
                     mapFrames == null ? -1 : mapFrames, observe, checkpointEvery == null ? 2000 : checkpointEvery,
-                    -1, -1, engine, threadCount);
+                    -1, -1, engine, threadCount, digestEveryTick);
         }
         int u = units == null ? 1 : units;
         int g = genes == null ? 32 : genes;
@@ -152,7 +155,8 @@ public record RunConfig(
                 mapFrom == null ? -1 : mapFrom,
                 mapTo == null ? -1 : mapTo,
                 engine,
-                threadCount
+                threadCount,
+                digestEveryTick
         );
     }
 

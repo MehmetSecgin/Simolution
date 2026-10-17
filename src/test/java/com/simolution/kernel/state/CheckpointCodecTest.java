@@ -121,11 +121,21 @@ class CheckpointCodecTest {
     @Test
     void refusesOtherFormatVersion() throws IOException {
         final byte[] bytes = write(newKernel());
-        bytes[7] = 2;
+        bytes[7] = 1;
 
         final IllegalStateException e = refused(bytes);
 
         assertTrue(e.getMessage().contains("format version"), e.getMessage());
+    }
+
+    @Test
+    void refusesCorruptedState() throws IOException {
+        final byte[] bytes = write(newKernel());
+        bytes[bytes.length - 1] ^= 1;
+
+        final IllegalStateException e = refused(bytes);
+
+        assertTrue(e.getMessage().contains("digest"), e.getMessage());
     }
 
     @Test

@@ -84,4 +84,10 @@ class RunConfigTest {
         assertEquals(-1, RunConfig.parse(new String[] {"--out", "x.txt"}).mapFrames());
         assertEquals(0, RunConfig.parse(new String[] {"--out", "x.txt", "--map-frames", "0"}).mapFrames());
     }
+
+    @Test
+    void digestEveryTickDefaultsOff() {
+        assertEquals(false, RunConfig.parse(new String[] {"--units", "10"}).digestEveryTick());
+        assertEquals(true, RunConfig.parse(new String[] {"--units", "10", "--digest-every-tick"}).digestEveryTick());
+    }
 }

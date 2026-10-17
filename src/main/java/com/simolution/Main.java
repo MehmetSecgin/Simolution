@@ -56,7 +56,7 @@ public class Main {
         int maxUnits = worldWidth * worldWidth;
         int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, worldWidth);
         Kernel kernel = new Kernel(genomes, founderCells, engine, config.threads());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), connections, engine);
+        DynamicsObserver observer = new DynamicsObserver();
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
 
@@ -110,6 +110,9 @@ public class Main {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
             observer.observe(snapshot);
+            if (config.digestEveryTick()) {
+                System.out.printf("digest %d %016x%n", kernel.currentTick(), kernel.stateDigest());
+            }
             timeSeries.sample(i, snapshot);
             if (birthLog != null) {
                 birthLog.observe(snapshot);
@@ -126,6 +129,7 @@ public class Main {
                 trace.log(snapshot, unitsToTrace);
             }
         }
+        long finalDigest = kernel.stateDigest();
         kernel.close();
         if (mapWriter != null) {
             mapWriter.close();
@@ -142,7 +146,7 @@ public class Main {
         }
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000;
 
-        DynamicsSummary summary = observer.summarize();
+        DynamicsSummary summary = observer.summarize(finalDigest);
         String report = RunReport.render(config, structure, summary);
         System.out.println();
         System.out.print(report);

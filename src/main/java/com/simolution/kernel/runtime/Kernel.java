@@ -22,6 +22,7 @@ import com.simolution.kernel.phase.PropagatePhase;
 import com.simolution.kernel.phase.ReproductionPhase;
 import com.simolution.kernel.phase.ParallelRunner;
 import com.simolution.kernel.phase.SwapPhase;
+import com.simolution.kernel.state.StateDigest;
 import com.simolution.kernel.state.WorldState;
 
 public final class Kernel implements AutoCloseable {
@@ -31,6 +32,7 @@ public final class Kernel implements AutoCloseable {
     private final int unitCount;
     private final List<Phase> phases;
     private final ParallelRunner runner;
+    private final StateDigest digest;
 
     /**
      * The substrate is a fixed pool of {@code genomes.length} slots; a slot is
@@ -132,6 +134,7 @@ public final class Kernel implements AutoCloseable {
                 new DiffusionPhase(state, config),
                 new DecayPhase(state, config));
         this.runner = new ParallelRunner(threads);
+        this.digest = new StateDigest(state);
     }
 
     private static void validateChemicals(final EngineConfig config) {
@@ -279,6 +282,11 @@ public final class Kernel implements AutoCloseable {
     /** Totals are {@link Chunks#orderedSum chunk-ordered sums}, so they do not depend on the thread count. */
     public KernelSnapshot snapshot() {
         return new KernelSnapshot(state, Chunks.orderedSum(state.cellChem), Chunks.orderedSum(state.mass));
+    }
+
+    /** {@link StateDigest} of the current state, folded on this kernel's own runner. */
+    public long stateDigest() {
+        return digest.compute(runner);
     }
 
     /** Stops the runner's worker threads. Idempotent. */

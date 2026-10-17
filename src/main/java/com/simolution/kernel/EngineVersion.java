@@ -6,7 +6,7 @@ package com.simolution.kernel;
  */
 public final class EngineVersion {
 
-    public static final String ID = "v5";
+    public static final String ID = "v6";
 
     private EngineVersion() {}
 }

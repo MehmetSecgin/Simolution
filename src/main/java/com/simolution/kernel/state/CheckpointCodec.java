@@ -22,7 +22,8 @@ import com.simolution.kernel.state.FieldSpec.Persist;
 /**
  * Self-sufficient, versioned checkpoint of a {@link Kernel} (design §8). Big-endian layout:
  * magic {@code "SIMO"}, {@code int formatVersion}, engine version, config JSON, node layout
- * JSON, the saved scalars (tick, energy sink, cumulative inflow, births, max generation,
+ * JSON, the {@link StateDigest} of the saved state (a {@code long}, checked after the load),
+ * the saved scalars (tick, energy sink, cumulative inflow, births, max generation,
  * credited initial energy and mass, initial resource total), then every
  * {@link Persist#SAVED} field of {@link WorldState#fields()} in declared order, each as an
  * {@code int} length followed by its elements.
@@ -37,7 +38,7 @@ import com.simolution.kernel.state.FieldSpec.Persist;
  */
 public final class CheckpointCodec {
 
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
 
     private static final byte[] MAGIC = {'S', 'I', 'M', 'O'};
     private static final int MAX_STRING_BYTES = 1 << 26;
@@ -52,6 +53,7 @@ public final class CheckpointCodec {
         writeString(data, EngineVersion.ID);
         writeString(data, ConfigJson.write(kernel.config()));
         writeString(data, NodeLayout.toJson());
+        data.writeLong(kernel.stateDigest());
         data.writeInt(state.tick);
         data.writeDouble(state.energySink);
         data.writeDouble(state.cumulativeInflow);
@@ -105,6 +107,7 @@ public final class CheckpointCodec {
             if (!layout.equals(NodeLayout.toJson())) {
                 throw new IllegalStateException("checkpoint node layout differs from this engine's node layout");
             }
+            final long expectedDigest = data.readLong();
             if (override != null && !written.branchCompatible(override)) {
                 throw new IllegalStateException(
                         "branch config changes the state shape (world width, max genes or chemical count)");
@@ -112,6 +115,9 @@ public final class CheckpointCodec {
             final Kernel kernel = new Kernel(new int[0][], new int[0], override == null ? written : override, threads);
             try {
                 readState(data, kernel.state());
+                if (kernel.stateDigest() != expectedDigest) {
+                    throw new IllegalStateException("corrupt checkpoint: state digest mismatch");
+                }
             } catch (final IOException | RuntimeException e) {
                 kernel.close();
                 throw e;

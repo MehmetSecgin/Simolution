@@ -1,15 +1,12 @@
 package com.simolution.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
-import com.simolution.kernel.genome.GenomeCompiler;
-import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.Kernel;
 
@@ -34,127 +31,95 @@ class DynamicsObserverTest {
                        .build()
     };
 
+    private static final int WORLD = 64;
+
+    private static Kernel kernelOf(int[][] genomes) {
+        EngineConfig engine = EngineConfig.v5Defaults(0L, WORLD, 32);
+        return new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), engine, 1);
+    }
+
     private static DynamicsSummary runAndSummarize(int[][] genomes, int ticks) {
-        CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        final int worldWidth = (int) Math.ceil(Math.sqrt(Math.max(genomes.length, 4000)));
-        EngineConfig engine = EngineConfig.v5Defaults(0L, worldWidth, 32);
-        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), engine, 1);
-        DynamicsObserver observer = new DynamicsObserver(genomes.length, connections, engine);
-        for (int i = 0; i < ticks; i++) {
-            kernel.tick();
-            observer.observe(kernel.snapshot());
+        try (Kernel kernel = kernelOf(genomes)) {
+            DynamicsObserver observer = new DynamicsObserver();
+            for (int i = 0; i < ticks; i++) {
+                kernel.tick();
+                observer.observe(kernel.snapshot());
+            }
+            return observer.summarize(kernel.stateDigest());
         }
-        return observer.summarize();
     }
 
     @Test
-    void emptyGenomeUnitIsDormantFromBirthAtFixedPoint() {
+    void emptyGenomeUnitNeverPropagates() {
         // act
         DynamicsSummary summary = runAndSummarize(new int[][] {{}}, 10);
 
-        // assert: no genes -> no propagation, dormant from birth. Regime is BOUNDED,
-        // not FIXED_POINT: the LOCAL_RESOURCE sensor node is a live input that ramps
-        // from 0 as inflow fills against decay (contract v7.1), so the observed node
-        // trajectory varies even though the unit computes nothing.
-        assertEquals(1, summary.countDormantFromBirth());
-        assertEquals(1, summary.countDormantAtEnd());
-        assertEquals(DynamicsSummary.Regime.BOUNDED, summary.regime(0));
+        // assert
+        assertEquals(10, summary.ticks());
+        assertEquals(0, summary.ticksWithAnyActivity());
         assertEquals(0, summary.propagationsTotal());
     }
 
     @Test
-    void feedbackGenomeReachesExactFixedPoint() {
+    void feedbackGenomePropagatesFromTheThirdTick() {
         // act
         DynamicsSummary summary = runAndSummarize(new int[][] {FEEDBACK_GENOME}, 50);
 
-        // assert: the feedback loop itself settles, but the regime is BOUNDED (not
-        // FIXED_POINT) because the LOCAL_RESOURCE sensor node ramps as inflow fills
-        // against decay (contract v7.1) — the field is no longer a static input.
-        assertEquals(DynamicsSummary.Regime.BOUNDED, summary.regime(0));
-        assertEquals(2, summary.firstActivityTick()[0]);
-        assertEquals(false, summary.dormantAtEnd()[0]);
-        assertEquals(0, summary.countDormantFromBirth());
-        assertTrue(summary.propagationsTotal() > 0);
-        assertEquals(0, summary.clampSaturationEvents());
-        assertEquals(0, summary.threshFlipsTotal());
+        // assert
+        assertTrue(summary.ticksWithAnyActivity() > 0);
+        assertTrue(summary.ticksWithAnyActivity() < 50);
+        assertTrue(summary.propagationsTotal() >= summary.ticksWithAnyActivity());
     }
 
     @Test
-    void junkSinkSignalsAreCounted() {
+    void countsEveryLivingUnitIncludingDescendants() {
         // arrange
-        int junkInternalTypeId = NodeLayout.Internal.MEANINGFUL_COUNT;
-        int[] genome = {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(junkInternalTypeId)
-                           .weightRaw((short) 8192)
-                           .build()
-        };
+        int[][] genomes = GenomeFactory.random(5L, 200, 16);
+        long expectedPropagations = 0;
+        long expectedActiveTicks = 0;
+        long peak = 0;
+        DynamicsSummary summary;
 
         // act
-        DynamicsSummary summary = runAndSummarize(new int[][] {genome}, 5);
+        try (Kernel kernel = kernelOf(genomes)) {
+            DynamicsObserver observer = new DynamicsObserver();
+            for (int i = 0; i < 300; i++) {
+                kernel.tick();
+                long tickTotal = 0;
+                long alive = 0;
+                for (int slot = 0; slot < kernel.state().unitCount; slot++) {
+                    tickTotal += kernel.state().activeThisTick[slot];
+                    if (kernel.state().energy[slot] > 0.0) {
+                        alive++;
+                    }
+                }
+                expectedPropagations += tickTotal;
+                expectedActiveTicks += tickTotal > 0 ? 1 : 0;
+                peak = Math.max(peak, alive);
+                observer.observe(kernel.snapshot());
+            }
+            assertTrue(kernel.state().birthsTotal > 0, "descendants must exist for the test to bite");
+            summary = observer.summarize(kernel.stateDigest());
+        }
 
         // assert
-        assertTrue(summary.junkSinkPropagations() > 0);
-        assertEquals(summary.propagationsTotal(), summary.junkSinkPropagations());
-        assertEquals(1.0, summary.junkSinkPropagationFraction(), 0.0);
+        assertEquals(expectedPropagations, summary.propagationsTotal());
+        assertEquals(expectedActiveTicks, summary.ticksWithAnyActivity());
+        assertEquals(peak, summary.peakPopulation());
     }
 
     @Test
-    void divergentFeedbackIsClassified() {
-        // arrange
-        int[] genome = {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw((short) 8192)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw((short) 16384)
-                           .build()
-        };
-
+    void summaryCarriesTheGivenDigest() {
         // act
-        DynamicsSummary summary = runAndSummarize(new int[][] {genome}, 200);
+        DynamicsSummary summary;
+        try (Kernel kernel = kernelOf(new int[][] {FEEDBACK_GENOME})) {
+            DynamicsObserver observer = new DynamicsObserver();
+            kernel.tick();
+            observer.observe(kernel.snapshot());
+            summary = observer.summarize(0x1234L);
+        }
 
         // assert
-        assertEquals(DynamicsSummary.Regime.DIVERGENT, summary.regime(0));
-    }
-
-    @Test
-    void overflowToNonFiniteStillClassifiesAsDivergent() {
-        // arrange
-        int[] genome = {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw((short) 8192)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw(Short.MAX_VALUE)
-                           .build()
-        };
-
-        // act
-        DynamicsSummary summary = runAndSummarize(new int[][] {genome}, 2000);
-
-        // assert
-        assertTrue(summary.reachedNonFinite()[0]);
-        assertEquals(DynamicsSummary.Regime.DIVERGENT, summary.regime(0));
-    }
-
-    @Test
-    void digestIsDeterministicAndSeedSensitive() {
-        // arrange
-        int[][] genomesA = GenomeFactory.random(5L, 10, 16);
-        int[][] genomesB = GenomeFactory.random(6L, 10, 16);
-
-        // act
-        DynamicsSummary first = runAndSummarize(genomesA, 100);
-        DynamicsSummary second = runAndSummarize(genomesA, 100);
-        DynamicsSummary other = runAndSummarize(genomesB, 100);
-
-        // assert
-        assertEquals(first.stateDigest(), second.stateDigest());
-        assertNotEquals(first.stateDigest(), other.stateDigest());
+        assertEquals(0x1234L, summary.stateDigest());
     }
 }

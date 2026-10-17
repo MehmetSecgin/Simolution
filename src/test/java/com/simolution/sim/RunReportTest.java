@@ -17,20 +17,21 @@ class RunReportTest {
         int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
-        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(),
-                config.engine(), 1);
-        DynamicsObserver observer = new DynamicsObserver(config.units(), connections, config.engine());
-        for (int i = 0; i < config.ticks(); i++) {
-            kernel.tick();
-            observer.observe(kernel.snapshot());
+        try (Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(),
+                config.engine(), 1)) {
+            DynamicsObserver observer = new DynamicsObserver();
+            for (int i = 0; i < config.ticks(); i++) {
+                kernel.tick();
+                observer.observe(kernel.snapshot());
+            }
+            return RunReport.render(config, structure, observer.summarize(kernel.stateDigest()));
         }
-        return RunReport.render(config, structure, observer.summarize());
     }
 
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 16, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(42L, 64, 16), 1);
+        RunConfig config = new RunConfig(25, 200, 16, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(42L, 64, 16), 1, false);
 
         // act
         String first = runAndRender(config);
@@ -43,7 +44,7 @@ class RunReportTest {
     @Test
     void reportDoesNotInlinePerUnitDetail() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(1L, 64, 8), 1));
+        String report = runAndRender(new RunConfig(25, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(1L, 64, 8), 1, false));
 
         // assert
         assertFalse(report.contains("## units"));
@@ -54,21 +55,34 @@ class RunReportTest {
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(9L, 64, 8), 1));
+        String report = runAndRender(new RunConfig(5, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(9L, 64, 8), 1, false));
 
         // assert
-        assertTrue(report.contains("schema: report-v14"));
+        assertTrue(report.contains("schema: report-v15"));
+        assertTrue(report.contains("kernel: v6"));
         assertTrue(report.contains("## structure"));
         assertTrue(report.contains("## dynamics"));
+        assertTrue(report.contains("ticks-with-any-activity: "));
+        assertTrue(report.contains("signal-propagations-total: "));
+        assertTrue(report.contains("## reproduction"));
         assertTrue(report.contains("## energy"));
+        assertTrue(report.contains("intake-total: "));
         assertTrue(report.contains("## mass"));
         assertTrue(report.contains("final-mass-total: "));
-        assertTrue(report.contains("## intake"));
-        assertTrue(report.contains("intake-total: "));
-        assertTrue(report.contains("## burn-rate"));
-        assertTrue(report.contains("## terminal-regimes"));
-        assertTrue(report.contains("## action-channel"));
         assertTrue(report.contains("energy-audit-error: "));
         assertTrue(report.contains("state-digest: "));
+    }
+
+    @Test
+    void reportOmitsRetiredLines() {
+        // act
+        String report = runAndRender(new RunConfig(5, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(9L, 64, 8), 1, false));
+
+        // assert
+        for (String retired : new String[] {"## intake", "## burn-rate", "## terminal-regimes", "## action-channel",
+                "junk-sink-", "clamp-saturation-events", "thresh-flips-total", "units-dormant-",
+                "units-alive-at-end", "units-dead-at-end", "death-tick-"}) {
+            assertFalse(report.contains(retired), retired);
+        }
     }
 }

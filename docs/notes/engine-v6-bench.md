@@ -40,3 +40,18 @@ Flat `short`/`double` connection arrays, compile-time junk pruning, hoisted muta
 | big500 (W=500, 20000 founders) | 4 | 1000 | 68941 | 14 | 428 |
 
 W=64 is a single chunk, so it never splits. On the larger worlds 4 threads give only 3 to 7 percent: the time goes to the serial phases and the harness, not to the phases split here.
+
+## after B5
+
+`DynamicsObserver` no longer re-propagates the founders' connections or folds a per-tick hash chain: it sums `activeThisTick` and counts the living in one pass. The state digest runs once, at the end of the run. Movement and reproduction are the claim phases of B2 and B3 (their resolution is still serial); the world differs from the earlier tables because B2 to B4 changed the dynamics, so the rows are not a like-for-like comparison of one workload. Same machine and command, `--threads 1` and `--threads 4`.
+
+| config | threads | ticks | wall ms | ticks/s | heap MB |
+|---|---|---|---|---|---|
+| small (W=64, 200 founders) | 1 | 2000 | 165 | 12121 | 20 |
+| small (W=64, 200 founders) | 4 | 2000 | 167 | 11976 | 34 |
+| dense200 (W=200, 4000 founders) | 1 | 3000 | 4746 | 632 | 71 |
+| dense200 (W=200, 4000 founders) | 4 | 3000 | 3312 | 905 | 77 |
+| big500 (W=500, 20000 founders) | 1 | 1000 | 11055 | 90 | 391 |
+| big500 (W=500, 20000 founders) | 4 | 1000 | 5278 | 189 | 395 |
+
+W=64 is a single chunk, so it never splits.
