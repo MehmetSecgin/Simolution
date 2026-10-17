@@ -5,85 +5,58 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
 
-import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.kernel.state.WorldState;
 
-/**
- * Streams exact life-cycle events to {@code events.jsonl}, one JSON object per
- * line (report-v8). The kernel exposes no event hook (it stays pure); births come
- * from the engine's published per-tick birth list ({@code WorldState.birthParent} /
- * {@code birthChild}, engine v6 design §5.6) and the rest is derived from snapshot
- * deltas:
- * <ul>
- *   <li><b>BIRTH</b> — one per entry of the birth list, with the exact parent. The
- *       mutated bit count is {@code popcount(child ⊕ parent)} over the genes, or
- *       {@code -1} when an indel changed the length.</li>
- *   <li><b>DEATH</b> — a slot that held a living unit last tick is now empty, or was
- *       reused by a birth this tick, i.e. it crossed {@code energy ≤ 0} (contract §9).
- *       {@code lifespan} is ticks since that occupant's birth.</li>
- *   <li><b>EXTINCTION</b> — a lineage's living count fell to zero, never to recover
- *       within this slot pool (it cannot: lineage ids are founder-rooted and never
- *       reissued). Emitted once, with the lineage's peak membership and deepest
- *       generation.</li>
- * </ul>
- * Founders are recorded in the checkpoints and {@code run.json}, not as events; there is no abiogenesis in
- * the current kernel.
- * <p>
- * All buffers are sized once in the constructor; {@link #observe} allocates only
- * the JSONL text it streams, and only on an actual event (events are rare relative
- * to ticks).
- */
+/** Streams birth, death and extinction events to events.jsonl; format in docs/specs/report-v8.md. */
 public final class EventLogWriter implements TickObserver, Closeable {
 
     private final Writer out;
-    private final int maxUnits;
+    private final int slotCount;
     private final int founderCount;
-    private final StringBuilder line;
+    private final StringBuilder line = new StringBuilder(160);
 
     private final double[] prevEnergy;
     private final long[] prevLineage;
     private final int[] prevGeneration;
     private final int[] prevPosition;
-    private final int[] birthTick;
+    private final int[] birthTickBySlot;
 
     private final int[] lineageCount;
     private final int[] lineagePrevCount;
     private final int[] lineagePeak;
-    private final int[] lineageMaxGen;
+    private final int[] lineageMaxGeneration;
     private final boolean[] lineageExtinct;
 
-    public EventLogWriter(final Writer out, final int maxUnits,
-                          final int founderCount, final int[] founderCells,
-                          final EngineConfig config) throws IOException {
+    public EventLogWriter(final Writer out, final int slotCount, final int founderCount,
+                          final int[] founderCells, final double founderEnergy) {
         this.out = out;
-        this.maxUnits = maxUnits;
+        this.slotCount = slotCount;
         this.founderCount = founderCount;
-        this.line = new StringBuilder(160);
 
-        this.prevEnergy = new double[maxUnits];
-        this.prevLineage = new long[maxUnits];
+        this.prevEnergy = new double[slotCount];
+        this.prevLineage = new long[slotCount];
         Arrays.fill(prevLineage, -1L);
-        this.prevGeneration = new int[maxUnits];
-        this.prevPosition = new int[maxUnits];
+        this.prevGeneration = new int[slotCount];
+        this.prevPosition = new int[slotCount];
         Arrays.fill(prevPosition, -1);
-        this.birthTick = new int[maxUnits];
+        this.birthTickBySlot = new int[slotCount];
 
         this.lineageCount = new int[founderCount];
         this.lineagePrevCount = new int[founderCount];
         this.lineagePeak = new int[founderCount];
-        this.lineageMaxGen = new int[founderCount];
+        this.lineageMaxGeneration = new int[founderCount];
         this.lineageExtinct = new boolean[founderCount];
 
-        // tick-0 state: founders alive at their scattered cells, lineage == slot,
-        // generation 0, born at tick 0. This is the "previous" state the first
-        // observed tick (tick 1) is differenced against.
+        seedFounderState(founderCells, founderEnergy);
+    }
+
+    private void seedFounderState(final int[] founderCells, final double founderEnergy) {
         for (int slot = 0; slot < founderCount; slot++) {
-            prevEnergy[slot] = config.founder().initialEnergy();
+            prevEnergy[slot] = founderEnergy;
             prevLineage[slot] = slot;
             prevGeneration[slot] = 0;
-            final int cell = founderCells[slot];
-            prevPosition[slot] = cell;
+            prevPosition[slot] = founderCells[slot];
             lineagePrevCount[slot] = 1;
             lineagePeak[slot] = 1;
         }
@@ -91,98 +64,89 @@ public final class EventLogWriter implements TickObserver, Closeable {
 
     @Override
     public void observe(final KernelSnapshot snapshot) throws IOException {
-        final int tick = snapshot.tick;
-        final double[] energy = snapshot.energy;
-        final long[] lineage = snapshot.lineageId;
-        final int[] generation = snapshot.generation;
-        final int[] position = snapshot.position;
+        tallyLivingLineages(snapshot);
+        diffSlots(snapshot);
+        emitExtinctions(snapshot.tick);
+        rememberCurrentState(snapshot);
+    }
 
+    private void tallyLivingLineages(final KernelSnapshot snapshot) {
         Arrays.fill(lineageCount, 0);
+        for (int slot = 0; slot < slotCount; slot++) {
+            if (snapshot.energy[slot] <= 0.0) {
+                continue;
+            }
+            final long lineageId = snapshot.lineageId[slot];
+            if (lineageId >= 0 && lineageId < founderCount) {
+                final int lineageIndex = (int) lineageId;
+                lineageCount[lineageIndex]++;
+                lineageMaxGeneration[lineageIndex] =
+                        Math.max(lineageMaxGeneration[lineageIndex], snapshot.generation[slot]);
+            }
+        }
+    }
 
+    private void diffSlots(final KernelSnapshot snapshot) throws IOException {
         final WorldState state = snapshot.state;
-        final int birthCount = state.birthCount;
         int nextBirth = 0;
-        for (int slot = 0; slot < maxUnits; slot++) {
-            final boolean prevAlive = prevEnergy[slot] > 0.0;
-            final boolean curAlive = energy[slot] > 0.0;
-
-            if (curAlive) {
-                final long l = lineage[slot];
-                if (l >= 0 && l < founderCount) {
-                    final int li = (int) l;
-                    lineageCount[li]++;
-                    if (generation[slot] > lineageMaxGen[li]) {
-                        lineageMaxGen[li] = generation[slot];
-                    }
-                }
+        for (int slot = 0; slot < slotCount; slot++) {
+            final boolean wasAlive = prevEnergy[slot] > 0.0;
+            final boolean isAlive = snapshot.energy[slot] > 0.0;
+            final boolean slotReceivedBirth = nextBirth < state.birthCount && state.birthChild[nextBirth] == slot;
+            if (wasAlive && (!isAlive || slotReceivedBirth)) {
+                emitDeath(snapshot.tick, slot);
             }
-
-            final boolean born = nextBirth < birthCount && state.birthChild[nextBirth] == slot;
-
-            if (prevAlive && (!curAlive || born)) {
-                emitDeath(tick, slot);
-            }
-            if (born) {
-                emitBirth(tick, slot, state.birthParent[nextBirth], snapshot);
+            if (slotReceivedBirth) {
+                emitBirth(snapshot.tick, slot, state.birthParent[nextBirth], snapshot);
                 nextBirth++;
             }
         }
+    }
 
-        // peak membership and extinction edges, per founder-rooted lineage
-        for (int l = 0; l < founderCount; l++) {
-            if (lineageCount[l] > lineagePeak[l]) {
-                lineagePeak[l] = lineageCount[l];
-            }
-            if (lineagePrevCount[l] > 0 && lineageCount[l] == 0 && !lineageExtinct[l]) {
-                lineageExtinct[l] = true;
-                emitExtinction(tick, l);
+    private void emitExtinctions(final int tick) throws IOException {
+        for (int lineage = 0; lineage < founderCount; lineage++) {
+            lineagePeak[lineage] = Math.max(lineagePeak[lineage], lineageCount[lineage]);
+            if (lineagePrevCount[lineage] > 0 && lineageCount[lineage] == 0 && !lineageExtinct[lineage]) {
+                lineageExtinct[lineage] = true;
+                emitExtinction(tick, lineage);
             }
         }
+    }
 
-        // roll current state into the prev buffers for the next tick's deltas
-        System.arraycopy(energy, 0, prevEnergy, 0, maxUnits);
-        System.arraycopy(lineage, 0, prevLineage, 0, maxUnits);
-        System.arraycopy(generation, 0, prevGeneration, 0, maxUnits);
-        System.arraycopy(position, 0, prevPosition, 0, maxUnits);
+    private void rememberCurrentState(final KernelSnapshot snapshot) {
+        System.arraycopy(snapshot.energy, 0, prevEnergy, 0, slotCount);
+        System.arraycopy(snapshot.lineageId, 0, prevLineage, 0, slotCount);
+        System.arraycopy(snapshot.generation, 0, prevGeneration, 0, slotCount);
+        System.arraycopy(snapshot.position, 0, prevPosition, 0, slotCount);
         System.arraycopy(lineageCount, 0, lineagePrevCount, 0, founderCount);
     }
 
     private void emitBirth(final int tick, final int child, final int parent,
-                           final KernelSnapshot s) throws IOException {
-        final int cell = s.position[child];
-        final long childLineage = s.lineageId[child];
-        final int childGen = s.generation[child];
-        final int mutations = countMutations(child, parent, s);
-        final long parentLineage = s.lineageId[parent];
-
-        birthTick[child] = tick;
-
+                           final KernelSnapshot snapshot) throws IOException {
+        birthTickBySlot[child] = tick;
         line.setLength(0);
         line.append("{\"t\":").append(tick)
             .append(",\"ev\":\"BIRTH\",\"slot\":").append(child)
-            .append(",\"lineage\":").append(childLineage)
-            .append(",\"gen\":").append(childGen)
-            .append(",\"cell\":").append(cell)
+            .append(",\"lineage\":").append(snapshot.lineageId[child])
+            .append(",\"gen\":").append(snapshot.generation[child])
+            .append(",\"cell\":").append(snapshot.position[child])
             .append(",\"parentSlot\":").append(parent)
-            .append(",\"parentLineage\":").append(parentLineage)
-            .append(",\"mutations\":").append(mutations)
+            .append(",\"parentLineage\":").append(snapshot.lineageId[parent])
+            .append(",\"mutations\":").append(countMutations(child, parent, snapshot))
             .append("}\n");
-        out.write(line.toString());
-        out.flush();
+        flushLine();
     }
 
     private void emitDeath(final int tick, final int slot) throws IOException {
-        final int lifespan = tick - birthTick[slot];
         line.setLength(0);
         line.append("{\"t\":").append(tick)
             .append(",\"ev\":\"DEATH\",\"slot\":").append(slot)
             .append(",\"lineage\":").append(prevLineage[slot])
             .append(",\"gen\":").append(prevGeneration[slot])
             .append(",\"cell\":").append(prevPosition[slot])
-            .append(",\"lifespan\":").append(lifespan)
+            .append(",\"lifespan\":").append(tick - birthTickBySlot[slot])
             .append("}\n");
-        out.write(line.toString());
-        out.flush();
+        flushLine();
     }
 
     private void emitExtinction(final int tick, final int lineage) throws IOException {
@@ -191,23 +155,26 @@ public final class EventLogWriter implements TickObserver, Closeable {
             .append(",\"ev\":\"EXTINCTION\",\"lineage\":").append(lineage)
             .append(",\"lastTick\":").append(tick)
             .append(",\"peakMembers\":").append(lineagePeak[lineage])
-            .append(",\"maxGeneration\":").append(lineageMaxGen[lineage])
+            .append(",\"maxGeneration\":").append(lineageMaxGeneration[lineage])
             .append("}\n");
+        flushLine();
+    }
+
+    private void flushLine() throws IOException {
         out.write(line.toString());
         out.flush();
     }
 
-    private int countMutations(final int child, final int parent, final KernelSnapshot s) {
-        final int childCount = s.geneCount[child];
-        final int parentCount = s.geneCount[parent];
-        if (childCount != parentCount) {
+    private int countMutations(final int child, final int parent, final KernelSnapshot snapshot) {
+        final int childCount = snapshot.geneCount[child];
+        if (childCount != snapshot.geneCount[parent]) {
             return -1;
         }
-        final int childBase = child * s.maxGenes;
-        final int parentBase = parent * s.maxGenes;
+        final int childBase = child * snapshot.maxGenes;
+        final int parentBase = parent * snapshot.maxGenes;
         int bits = 0;
         for (int g = 0; g < childCount; g++) {
-            bits += Integer.bitCount(s.genes[childBase + g] ^ s.genes[parentBase + g]);
+            bits += Integer.bitCount(snapshot.genes[childBase + g] ^ snapshot.genes[parentBase + g]);
         }
         return bits;
     }

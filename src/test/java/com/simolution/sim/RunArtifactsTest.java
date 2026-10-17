@@ -1,12 +1,17 @@
 package com.simolution.sim;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.GZIPInputStream;
 
 import org.junit.jupiter.api.Test;
@@ -47,6 +52,51 @@ class RunArtifactsTest {
         assertTrue(gunzip(paths.births()).startsWith("tick,child_slot"));
         assertTrue(gunzip(paths.catalog()).startsWith("g "));
         assertTrue(Files.readString(paths.framesIdx()).endsWith("end 5\n"));
+    }
+
+    @Test
+    void closeRunsEveryCloseableAndRethrowsTheFirstFailureWithTheRestSuppressed() {
+        // arrange
+        List<String> closed = new ArrayList<>();
+        IllegalStateException framesFailure = new IllegalStateException("frames close failed");
+        IOException birthsFailure = new IOException("disk full");
+        List<Closeable> inOpenOrder = List.of(
+                () -> closed.add("catalog"),
+                () -> {
+                    closed.add("births");
+                    throw birthsFailure;
+                },
+                () -> {
+                    closed.add("frames");
+                    throw framesFailure;
+                });
+
+        // act
+        IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> RunArtifacts.closeInReverseOrder(inOpenOrder));
+
+        // assert
+        assertEquals(List.of("frames", "births", "catalog"), closed);
+        assertSame(framesFailure, thrown);
+        assertSame(birthsFailure, thrown.getSuppressed()[0]);
+    }
+
+    @Test
+    void failedOpenFinishesTheStreamsItAlreadyOpened() throws Exception {
+        // arrange
+        RunPaths paths = new RunPaths(dir.resolve("run.txt"));
+        Files.createDirectories(paths.framesIdx());
+        RunConfig config = RunConfig.parse(new String[] {"--units", "20", "--ticks", "5", "--seed", "1",
+                "--world", "10", "--map-frames", "0", "--out", paths.report().toString()});
+        Founders founders = Founders.create(config);
+
+        // act
+        try (Kernel kernel = founders.newKernel(1)) {
+            assertThrows(IOException.class, () -> RunArtifacts.open(config, founders, kernel));
+        }
+
+        // assert
+        assertTrue(gunzip(paths.births()).startsWith("tick,child_slot"));
     }
 
     private static String gunzip(Path file) throws IOException {

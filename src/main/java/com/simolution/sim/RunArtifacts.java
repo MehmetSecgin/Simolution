@@ -2,6 +2,7 @@ package com.simolution.sim;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -43,8 +44,8 @@ public final class RunArtifacts implements Closeable {
             artifacts.openWriters(config, founders, kernel);
         } catch (IOException | RuntimeException e) {
             try {
-                artifacts.closeInReverseOpenOrder();
-            } catch (IOException suppressed) {
+                artifacts.closeAllInReverseOpenOrder();
+            } catch (IOException | RuntimeException suppressed) {
                 e.addSuppressed(suppressed);
             }
             throw e;
@@ -71,7 +72,10 @@ public final class RunArtifacts implements Closeable {
             return;
         }
         closed = true;
-        closeInReverseOpenOrder();
+        closeAllInReverseOpenOrder();
+    }
+
+    public void announceObservabilityWritten() {
         if (obsDir != null) {
             RunConsole.announceObservabilityWritten(obsDir);
         }
@@ -81,13 +85,11 @@ public final class RunArtifacts implements Closeable {
             throws IOException {
         paths.createParentDirectory();
         Files.writeString(paths.layoutJson(), NodeLayout.toJson());
-        final GenomeCatalogWriter catalog = new GenomeCatalogWriter(gzipWriter(paths.catalog()));
-        writers.add(catalog);
-        addWriter(new BirthLogWriter(gzipWriter(paths.births()), catalog));
+        final GenomeCatalogWriter catalog = track(new GenomeCatalogWriter(openGzipText(paths.catalog())));
+        addWriter(new BirthLogWriter(openGzipText(paths.births()), catalog));
         if (framesEnabled) {
-            addWriter(new MapFrameWriter(Files.newOutputStream(paths.framesZst()),
-                    Files.newBufferedWriter(paths.framesIdx()), catalog, config.ticks(), config.mapSampling(),
-                    founders.engine()));
+            addWriter(new MapFrameWriter(openBytes(paths.framesZst()), openText(paths.framesIdx()), catalog,
+                    config.ticks(), config.mapSampling(), founders.engine()));
         }
         if (obsDir != null) {
             openObservability(config, founders, kernel);
@@ -98,10 +100,9 @@ public final class RunArtifacts implements Closeable {
             throws IOException {
         Files.createDirectories(obsDir);
         final int founderCount = founders.genomes().length;
-        addWriter(new EventLogWriter(Files.newBufferedWriter(obsDir.resolve("events.jsonl")),
-                founders.slotCount(), founderCount, founders.cells(), founders.engine()));
-        addWriter(new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
-                founderCount, founders.slotCount()));
+        addWriter(new EventLogWriter(openText(obsDir.resolve("events.jsonl")), founders.slotCount(),
+                founderCount, founders.cells(), founders.engine().founder().initialEnergy()));
+        addWriter(new MetricsWriter(openText(obsDir.resolve("metrics.csv")), founderCount));
         final int checkpointEvery = config.observation().checkpointEvery();
         final RunDirectory runDirectory = RunDirectory.create(obsDir, kernel, checkpointEvery);
         observers.add(snapshot -> runDirectory.checkpointIfDue(kernel));
@@ -109,16 +110,39 @@ public final class RunArtifacts implements Closeable {
     }
 
     private <W extends TickObserver & Closeable> void addWriter(final W writer) {
-        writers.add(writer);
-        observers.add(writer);
+        observers.add(track(writer));
     }
 
-    private void closeInReverseOpenOrder() throws IOException {
-        IOException failure = null;
-        for (int i = writers.size() - 1; i >= 0; i--) {
+    private <C extends Closeable> C track(final C closeable) {
+        writers.add(closeable);
+        return closeable;
+    }
+
+    private OutputStream openBytes(final Path file) throws IOException {
+        return track(Files.newOutputStream(file));
+    }
+
+    private Writer openText(final Path file) throws IOException {
+        return track(Files.newBufferedWriter(file));
+    }
+
+    private Writer openGzipText(final Path file) throws IOException {
+        final OutputStream bytes = openBytes(file);
+        return track(new OutputStreamWriter(new GZIPOutputStream(bytes), StandardCharsets.UTF_8));
+    }
+
+    private void closeAllInReverseOpenOrder() throws IOException {
+        final List<Closeable> toClose = List.copyOf(writers);
+        writers.clear();
+        closeInReverseOrder(toClose);
+    }
+
+    static void closeInReverseOrder(final List<? extends Closeable> closeables) throws IOException {
+        Exception failure = null;
+        for (int i = closeables.size() - 1; i >= 0; i--) {
             try {
-                writers.get(i).close();
-            } catch (IOException e) {
+                closeables.get(i).close();
+            } catch (IOException | RuntimeException e) {
                 if (failure == null) {
                     failure = e;
                 } else {
@@ -126,13 +150,11 @@ public final class RunArtifacts implements Closeable {
                 }
             }
         }
-        writers.clear();
-        if (failure != null) {
-            throw failure;
+        if (failure instanceof IOException ioFailure) {
+            throw ioFailure;
         }
-    }
-
-    private static Writer gzipWriter(final Path file) throws IOException {
-        return new OutputStreamWriter(new GZIPOutputStream(Files.newOutputStream(file)), StandardCharsets.UTF_8);
+        if (failure instanceof RuntimeException runtimeFailure) {
+            throw runtimeFailure;
+        }
     }
 }

@@ -20,16 +20,8 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
 
-/**
- * report-v14 frames: the {@code u} line is lean ({@code cell slot genomeId} — mass and
- * action dropped, no genome bytes, no node outputs); the raw genes live in a
- * {@link GenomeCatalogWriter} sidecar; and the frame stream is a binary sequence of
- * independently zstd-compressed {@code CHUNK_FRAMES}-frame chunks, indexed per chunk in
- * {@code .frames.idx}. The tests decode the chunks (via the idx) back to text to assert.
- */
 class MapFrameWriterTest {
 
-    /** Decompress every chunk listed in the idx and concatenate the decoded text. */
     private static String decode(ByteArrayOutputStream frames, String idxText) {
         byte[] bytes = frames.toByteArray();
         StringBuilder all = new StringBuilder();
@@ -130,7 +122,6 @@ class MapFrameWriterTest {
                 "distinct genomes are written to the catalog as 'g <id> <count> <genes>'");
         assertFalse(framesText.contains(" * ") || framesText.contains(" ^"),
                 "the frame no longer carries raw genome markers — only a genomeId");
-        // u line is lean: u <cell> <slot> <genomeId> = 4 whitespace tokens
         assertTrue(framesText.lines().filter(l -> l.startsWith("u "))
                         .allMatch(l -> l.trim().split("\\s+").length == 4),
                 "u line carries exactly cell, slot, genomeId");
@@ -151,7 +142,6 @@ class MapFrameWriterTest {
 
         assertFalse(Pattern.compile("\\.[0-9]").matcher(out).find(),
                 "no decimals: mass dropped, node outputs gone; cells and ids are integers");
-        // no action letters: a lean u line is three integer tokens only
         assertTrue(out.lines().filter(l -> l.startsWith("u "))
                         .noneMatch(l -> l.matches(".*[HRNSEWGy.].*")),
                 "no fired-action tag on the u line");
@@ -171,8 +161,6 @@ class MapFrameWriterTest {
         w.close();
         byte[] bytes = frames.toByteArray();
 
-        // each chunk idx line: <firstTick> <lastTick> <off> <len> <count> — [off,off+len)
-        // must zstd-decompress to a block starting at frame t <firstTick>
         boolean sawChunk = false;
         for (String row : idx.toString().lines().toList()) {
             if (row.startsWith("format ") || row.startsWith("end")) {

@@ -39,6 +39,7 @@ public class Main {
             TickObserver[] observers = observers(config, kernel, dynamics, timeSeries, artifacts);
             RunResult result = SimulationRun.execute(kernel, config.ticks(), observers);
             artifacts.close();
+            artifacts.announceObservabilityWritten();
             String report = RunReport.render(config, structure, dynamics.summarize(result.finalDigest()));
             RunConsole.printReport(report, result.elapsedMillis());
             artifacts.writeReport(report, timeSeries.render());

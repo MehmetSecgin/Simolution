@@ -13,19 +13,10 @@ public sealed interface MapSampling {
         return 1;
     }
 
-    default boolean samples(final int tick, final int totalTicks) {
-        return tick % sampleEvery(totalTicks) == 0;
-    }
-
     record Off() implements MapSampling {
 
         @Override
         public boolean enabled() {
-            return false;
-        }
-
-        @Override
-        public boolean samples(final int tick, final int totalTicks) {
             return false;
         }
     }
@@ -42,10 +33,5 @@ public sealed interface MapSampling {
     }
 
     record Window(int fromTick, int toTick) implements MapSampling {
-
-        @Override
-        public boolean samples(final int tick, final int totalTicks) {
-            return tick >= fromTick && tick <= toTick;
-        }
     }
 }

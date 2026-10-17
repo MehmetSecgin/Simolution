@@ -5,23 +5,7 @@ import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
-/**
- * A one-shot, self-contained text dump of a replayed tick T (report-v8
- * time-travel surface): the lattice (resource heatmap + per-cell occupancy),
- * a per-unit table, and every living unit's evolved circuit. Rendered to HTML by
- * {@code tools/timetravel.py}; aggregate panels come from {@code metrics.csv} /
- * {@code events.jsonl} via DuckDB. Line-oriented so the Python parser stays
- * trivial:
- * <pre>
- *   tick &lt;T&gt;
- *   world &lt;W&gt;
- *   resource &lt;W·W digits 0-9, quantized to CELL_CAPACITY&gt;
- *   unit &lt;slot&gt; &lt;cell&gt; &lt;energy&gt; &lt;damage&gt; &lt;generation&gt; &lt;lineage&gt;
- *   ... (one per living unit, slot order)
- *   wire &lt;slot&gt; &lt;srcLocal&gt; &lt;srcName&gt; &lt;dstLocal&gt; &lt;dstName&gt; &lt;weight&gt;
- *   ... (one per connection of every living unit, slot order)
- * </pre>
- */
+/** One-shot text dump of a replayed tick, read by tools/timetravel.py. */
 public final class SnapshotDump {
 
     private SnapshotDump() {}
@@ -29,37 +13,44 @@ public final class SnapshotDump {
     public static String render(final KernelSnapshot snapshot, final CompiledConnection[] liveConnections,
             final EngineConfig config) {
         final StringBuilder out = new StringBuilder(4096);
+        appendHeader(out, snapshot);
+        appendResourceHeatmap(out, snapshot, new ResourceLevels(config.chemicals().get(0).capacity()));
+        appendUnits(out, snapshot);
+        appendWires(out, liveConnections);
+        return out.toString();
+    }
+
+    private static void appendHeader(final StringBuilder out, final KernelSnapshot snapshot) {
         out.append("tick ").append(snapshot.tick).append('\n');
         out.append("world ").append(snapshot.worldWidth).append('\n');
+    }
 
-        final double cellCapacity = config.chemicals().get(0).capacity();
+    private static void appendResourceHeatmap(final StringBuilder out, final KernelSnapshot snapshot,
+            final ResourceLevels levels) {
         out.append("resource ");
         final int cellCount = snapshot.worldWidth * snapshot.worldWidth;
         for (int cell = 0; cell < cellCount; cell++) {
-            int level = (int) Math.round(9.0 * snapshot.resourceField[cell] / cellCapacity);
-            if (level < 0) {
-                level = 0;
-            } else if (level > 9) {
-                level = 9;
-            }
-            out.append((char) ('0' + level));
+            out.append((char) ('0' + levels.level(snapshot.resourceField[cell])));
         }
         out.append('\n');
+    }
 
-        final double[] energy = snapshot.energy;
-        for (int slot = 0; slot < energy.length; slot++) {
-            if (energy[slot] <= 0.0) {
+    private static void appendUnits(final StringBuilder out, final KernelSnapshot snapshot) {
+        for (int slot = 0; slot < snapshot.energy.length; slot++) {
+            if (snapshot.energy[slot] <= 0.0) {
                 continue;
             }
             out.append("unit ").append(slot)
                .append(' ').append(snapshot.position[slot])
-               .append(' ').append(energy[slot])
+               .append(' ').append(snapshot.energy[slot])
                .append(' ').append(snapshot.damage[slot])
                .append(' ').append(snapshot.generation[slot])
                .append(' ').append(snapshot.lineageId[slot])
                .append('\n');
         }
+    }
 
+    private static void appendWires(final StringBuilder out, final CompiledConnection[] liveConnections) {
         for (final CompiledConnection c : liveConnections) {
             final int slot = c.sourceAbsoluteIndex / NodeLayout.TOTAL;
             final int srcLocal = c.sourceAbsoluteIndex % NodeLayout.TOTAL;
@@ -72,6 +63,5 @@ public final class SnapshotDump {
                .append(' ').append(c.weight)
                .append('\n');
         }
-        return out.toString();
     }
 }

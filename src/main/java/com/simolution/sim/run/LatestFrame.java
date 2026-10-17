@@ -8,15 +8,9 @@ import com.simolution.kernel.runtime.Noise;
 import com.simolution.kernel.state.WorldState;
 
 /**
- * Latest-frame-wins publisher: the tick loop calls {@link #publish} every N ticks and never
- * waits for a reader; any number of readers call {@link #latest}. Two frame buffers are
- * allocated up front, publishing copies into the one that is not current, then makes it
- * current through an {@link AtomicReference}, so publishing allocates nothing.
- * <p>
- * A {@link Frame} stays intact until the publish after the next one reuses its buffer, so a
- * reader must copy or serialise it promptly. {@code genomeId} is a 64-bit content hash of the
- * occupant's live genes (equal genomes share an id; unlike a catalog id it needs no state),
- * and is {@code 0} for an empty cell, which {@code cellOccupant == -1} also marks.
+ * Latest-frame-wins publisher: {@link #publish} never waits for a reader and allocates nothing.
+ * A {@link Frame} stays intact only until the publish after the next one, so readers copy it promptly.
+ * {@code genomeHash} is a 64-bit content hash of the occupant's genes, and 0 for an empty cell.
  */
 public final class LatestFrame {
 
@@ -24,12 +18,12 @@ public final class LatestFrame {
 
         private int tick;
         private final int[] cellOccupant;
-        private final long[] genomeId;
+        private final long[] genomeHash;
         private final double[] chemicals;
 
         private Frame(final int cells, final int chemCount) {
             this.cellOccupant = new int[cells];
-            this.genomeId = new long[cells];
+            this.genomeHash = new long[cells];
             this.chemicals = new double[chemCount * cells];
         }
 
@@ -41,8 +35,8 @@ public final class LatestFrame {
             return cellOccupant;
         }
 
-        public long[] genomeId() {
-            return genomeId;
+        public long[] genomeHash() {
+            return genomeHash;
         }
 
         public double[] chemicals() {
@@ -68,7 +62,7 @@ public final class LatestFrame {
         System.arraycopy(state.cellChem, 0, frame.chemicals, 0, frame.chemicals.length);
         for (int cell = 0; cell < frame.cellOccupant.length; cell++) {
             final int slot = frame.cellOccupant[cell];
-            frame.genomeId[cell] = slot < 0 ? 0L : genomeHash(state, slot);
+            frame.genomeHash[cell] = slot < 0 ? 0L : genomeHash(state, slot);
         }
         latest.set(frame);
         next ^= 1;

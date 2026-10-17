@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.file.Path;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -16,10 +17,6 @@ import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.run.RunDirectory;
 
-/**
- * Conformance for the observability layer: replay is exact and the sink never
- * perturbs the run. These are the guarantees the spec calls out as must-hold.
- */
 class ObservabilityTest {
 
     private static final long SEED = 42L;
@@ -44,27 +41,33 @@ class ObservabilityTest {
         return new Kernel(genomes(), founderCells(), ENGINE, 1);
     }
 
-    // replay from a checkpoint reproduces the canonical history exactly:
-    // seekTo(T) state == ticking a fresh kernel from 0 to T, bit for bit.
     @Test
+    @DisplayName("seek to tick T equals ticking a fresh kernel from 0 to T, bit for bit")
     void replaySeekMatchesCanonicalAtEveryTick(@TempDir Path obsDir) throws IOException {
+        // arrange
         recordRun(obsDir);
         for (int t : new int[] {0, 1, 137, 200, 400, 401, 600}) {
             Kernel canonical = freshKernel();
             for (int i = 0; i < t; i++) {
                 canonical.tick();
             }
-            assertSnapshotsEqual(canonical.snapshot(), RunDirectory.seek(obsDir, t, 1).snapshot(), t);
+
+            // act
+            Kernel seeked = RunDirectory.seek(obsDir, t, 1);
+
+            // assert
+            assertSnapshotsEqual(canonical.snapshot(), seeked.snapshot(), t);
         }
     }
 
-    // the observability sink only reads snapshots; attaching the writers must
-    // not perturb the kernel's history (the live arrays handed out must not be
-    // mutated). Digest with and without the writers attached is identical.
     @Test
+    @DisplayName("attaching the event and metrics writers leaves the run's history unchanged")
     void attachingSinkLeavesRunByteIdentical() throws IOException {
+        // act
         long bare = digestOfRun(false);
         long observed = digestOfRun(true);
+
+        // assert
         assertEquals(bare, observed, "observability sink changed the run");
     }
 
@@ -83,8 +86,8 @@ class ObservabilityTest {
         MetricsWriter metrics = null;
         if (observe) {
             eventLog = new EventLogWriter(new BufferedWriter(new StringWriter()),
-                    WORLD * WORLD, UNITS, founderCells(), ENGINE);
-            metrics = new MetricsWriter(new BufferedWriter(new StringWriter()), UNITS, WORLD * WORLD);
+                    WORLD * WORLD, UNITS, founderCells(), ENGINE.founder().initialEnergy());
+            metrics = new MetricsWriter(new BufferedWriter(new StringWriter()), UNITS);
         }
         long digest = 0L;
         for (int i = 0; i < TICKS; i++) {
