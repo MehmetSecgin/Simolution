@@ -85,7 +85,7 @@ python3 tools/mapviz.py runs/run.frames.zst    # -> runs/run.map.html
 bash scripts/serve-live.sh                      # serves runs/ on :8090
 ```
 
-The viewer is what produced the images above: scrub the lattice (colour by genome), click any cell to inspect its **evolved circuit** as a force-directed graph, and walk a lineage's genome diffs over its `.births.csv.gz` (DuckDB-queryable). `--observe` writes a run directory with self-sufficient versioned checkpoints: seek to any tick (`--replay <dir> --at T`) on any thread count, or branch a run from a tick under changed rates, costs or inflow.
+The viewer is what produced the images above: scrub the lattice (colour by genome), click any cell to inspect its **evolved circuit** as a force-directed graph, and walk a lineage's genome diffs over its `.births.csv.gz` (DuckDB-queryable). `--observe` writes a run directory with self-sufficient versioned checkpoints: seek to any tick (`--replay <dir> --at T`) on any thread count.
 
 <p align="center">
   <img src="docs/images/lattice.png" width="460" alt="A single tick at peak, full resolution">
@@ -115,7 +115,7 @@ A 1000×1000 world with 50000 founders runs 100 ticks in 2.8 s (4 threads) insid
 - **The node layout is generated** from `NodeCatalog` and exported as `<base>.layout.json`; adding a sensor or action is one declaration.
 - **Phases are a list with shapes**, run by a fixed-size `ParallelRunner` over fixed chunks with an allocation-free barrier.
 - **The resource field is a chemical table** (one chemical today), with inflow, diffusion and decay per chemical.
-- **A run is `EngineConfig` (JSON) + seed + founders.** Checkpoints store the full config, the node layout and the state digest, so they resume without side files; `seek` and `branch` build on them.
+- **A run is `EngineConfig` (JSON) + seed + founders.** Checkpoints store the full config, the node layout and the state digest, so they resume without side files; `seek` builds on them.
 - Decisions are in [`docs/decisions/`](docs/decisions/) (0038 to 0045) and the binding laws in [`docs/contract/contract-v9.md`](docs/contract/contract-v9.md).
 
 ## Milestones
@@ -130,7 +130,7 @@ The kernel grew one honest law at a time, each on its own branch:
 | **v3** | space + motility — toroidal lattice, per-cell resource, `MOVE` effectors |
 | **v4** | variable-length genomes — heritable gene count via indels |
 | **v5** | biomass: `mass` as crystallized energy, growth, symmetric fission |
-| **engine v6** | parallel, declaratively extensible engine: claim phases, per-run config, versioned checkpoints with seek and branch |
+| **engine v6** | parallel, declaratively extensible engine: claim phases, per-run config, versioned checkpoints with seek |
 
 Next: sensors beyond the own cell, several resources, secretions and corpses. Each decision is recorded in a short ADR under [`docs/decisions/`](docs/decisions/), and the binding physical laws live in [`docs/contract/`](docs/contract/).
 

@@ -93,7 +93,7 @@ exactly.
 
 Because the counter is **one monotone index across all of a birth's decisions**, point
 and indel draws occupy disjoint `opIndex` ranges and can never collide — so the
-implementation reuses the existing `Noise.mutationUniform(seed, slot, tick, opIndex)`
+implementation reuses the existing `Noise.mutationUniformFromPrefix(prefix, opIndex)`
 stream for the indel draws rather than adding a separate stream. (The handover note
 suggested a distinct indel stream; that is unnecessary given the single-counter key
 this section mandates, and a second stream would contradict the one-key wording above.)

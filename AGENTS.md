@@ -65,9 +65,7 @@ python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.ht
 # any thread count and for inflow runs (the checkpoint carries the full config):
 ./gradlew run --args="--replay runs/foo.obs --at 600 --snapshot-out runs/foo.obs/snap-600.txt"
 python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
-# branch (API, no CLI flag): CheckpointCodec.readBranch(in, changedConfig, threads) + RunDirectoryWriter.createBranch.
-# A branch may change rates, costs, thresholds and inflow; it may not change world size, maxGenes
-# or chemical count. Checkpoints from another engine version or format are refused.
+# Checkpoints from another engine version or format are refused.
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
 
 # watch a run LIVE while it ticks (report-v14): the viewer (live.html) loads the tiny
@@ -106,16 +104,15 @@ com.simolution
 └── kernel
     ├── EngineVersion         the one engine version constant (report header, checkpoints, run.json)
     ├── config
-    │   ├── EngineConfig      per-run law constants as one immutable record grouped into `World`, `Founder`, `Metabolism`, `Harvest`, `Motility`, `Growth`, `Sensing`, `Reproduction`, `Mutation` (plus the chemical table); `defaults(seed, worldWidth, maxGenes)` and `with…` copies; JSON stays flat through `ConfigJson` (`--config`); `branchCompatible` says which changes keep the state shape
+    │   ├── EngineConfig      per-run law constants as one immutable record grouped into `World`, `Founder`, `Metabolism`, `Harvest`, `Motility`, `Growth`, `Sensing`, `Reproduction`, `Mutation` (plus the chemical table); `defaults(seed, worldWidth, maxGenes)` and `with…` copies; JSON stays flat through `ConfigJson` (`--config`)
     │   ├── ChemicalSpec      one diffusing field: inflow, capacity, initial, diffusion, decay, decay target (ADR 0042)
     │   └── InflowConfig / InflowSource / CompiledInflowField / ValueNoise   programmable inflow field (contract-v7), static sources baked once
     ├── layout
     │   ├── NodeCatalog/NodeSpec  declared sensors, internals, actions + junk counts (ADR 0038)
     │   ├── NodeLayout        offsets, TOTAL, TYPE_COUNT and name lookup generated from the catalog; `toJson()` is `<base>.layout.json`
-    │   └── CompiledConnection {srcAbsIdx, dstAbsIdx, weight}   inspection view only (`Kernel.connectionsOf`), not the engine's storage
+    │   └── CompiledConnection {srcAbsIdx, dstAbsIdx, weight}   inspection view only (`Kernel.liveConnections`), not the engine's storage
     ├── genome
-    │   ├── GeneLayout        the 32-bit gene layout once: shifts, masks, `pack` and the named field accessors
-    │   ├── GeneBuilder       fluent gene packing over `GeneLayout` (manual/test use only)
+    │   ├── GeneLayout        the 32-bit gene layout once: shifts, masks and the named field accessors
     │   ├── GeneDecoder       gene → local source/destination index, weight; modulo ID wrap; weight scaling (`NOMINAL_MAX_WEIGHT` is nominal, raw -32768 decodes just past it)
     │   ├── SlotCompiler      writes a slot's flat connection region (source/destination/weight arrays), junk-source connections pruned; once per slot at start, at birth and at restore, no allocation
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (harness structure stats and tests)
@@ -130,7 +127,7 @@ com.simolution
     │   ├── PhaseRunner / ParallelRunner   run the list; the parallel one uses a fixed pool, an atomic chunk counter and an allocation-free barrier
     │   └── Clear, Propagate, Evaluate, Swap, Intake, Inflow, Cost, Growth, Reproduction, Movement, Diffusion, Decay   the 12 phases of the tick, in that order (Reproduction and Movement are CLAIM, Swap is SERIAL)
     ├── runtime
-    │   ├── Kernel            builds the phase list and runs it: W×W toroidal lattice, slot = permanent storage identity, cell = position[slot]; `tick()`, `step(n)`, `snapshot()`, `stateDigest()`, `connectionsOf(slot)`, `close()` (stops workers). Population is derived (energy>0)
+    │   ├── Kernel            builds the phase list and runs it: W×W toroidal lattice, slot = permanent storage identity, cell = position[slot]; `tick()`, `step(n)`, `snapshot()`, `stateDigest()`, `liveConnections()`, `close()` (stops workers). Population is derived (energy>0)
     │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + mass + sink; the tick's birth list (`birthParent`, `birthChild`, `birthCount`) is published in `WorldState`
     │   └── Noise             stateless counter-based RNG with tagged streams (RAND 1, mutation 2, placement 3), all keyed by the run seed
     └── logging
@@ -154,9 +151,8 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── MetricsWriter             metrics.csv (observe): per-tick aggregates, streamed, O(1)/tick
 ├── SnapshotDump              one-shot tick-T state page (lattice + per-unit + evolved circuits) for tools/timetravel.py
 └── run
-    ├── RunDirectoryWriter    run.json + ckpt/<tick>.ckpt, `runId`, `checkpointIfDue`, `createBranch`
-    ├── RunDirectoryReader    `seek(dir, T, threads)`: nearest checkpoint, then step forward
-    └── LatestFrame           latest-frame-wins publisher: the tick loop publishes a compact frame every N ticks, readers never block it (kept for the web app; nothing in production calls it yet)
+    ├── RunDirectoryWriter    run.json (carries the run id) + ckpt/<tick>.ckpt, `checkpointIfDue`
+    └── RunDirectoryReader    `seek(dir, T, threads)`: nearest checkpoint, then step forward
 ```
 
 The tick, in order: `clear → propagate → evaluate → swap → intake → inflow → cost → growth → reproduction → movement → diffusion → decay`. Shapes: `clear`, `propagate`, `evaluate`, `intake`, `cost`, `growth` are per-unit; `inflow`, `diffusion`, `decay` are per-cell; `reproduction` and `movement` are claims; `swap` is serial.
@@ -234,6 +230,7 @@ The owner wants autonomous implementation but full understanding. So: small sing
 
 - Conventional Commits (`feat:`, `refactor(kernel):`, ...).
 - Comments only for an invariant or numeric trick a name cannot carry (examples: MUL in-degree rule, saturating-drive overflow rearrangement, mutation operation-counter determinism, Noise hashing, barrier handshake, signed-zero junk pruning). Everything else is a name or lives in docs/. No history in code. Tests: only `// arrange`, `// act`, `// assert`.
+- Production code has no test-only or unused members: if all tests were deleted, nothing in src/main would be unused. Test helpers live in src/test (support/).
 - Tests mirror main package layout and build worlds, genes, audits and frame output through the shared helpers in `src/test/java/com/simolution/support` (`Worlds`, `Genes`, `EnergyAudit`, `Ticks`, `FrameHarness`, `CheckpointBytes`). Spec-conformance tests compare kernel output against an independent reference model that stays out of those helpers (see KernelVerticalSliceTest, GeneDecoderTest).
 - No known deviations from binding specs. MUL semantics (in-degree 0 → 0, 1 → pass-through, ≥2 → product of two strongest) per ADR 0005.
 
@@ -256,5 +253,5 @@ Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://
 11. ~~Biomass (Pirt size physics)~~ done (contract-v5, ADR 0028): `mass` as a distinct crystallized-energy variable, `GROW` effector + `SELF_MASS` sensor, maintenance ∝ mass (replaces the energy proxy), harvest ∝ mass^α surface law, move cost ∝ mass, **symmetric binary fission** (split mass+energy 50/50), ungated `REPRODUCE` trigger (size-control checkpoint emergent — no `M_DIV_MIN`), growth phase 7, death dissipates mass→sink.
 12. ~~report-v10 (surface mass)~~ done: `## mass` report section, `final_mass` (units.csv) + `mass_total` (metrics.csv) columns, `mass` on map-frame `u` lines, colour-by-mass in `tools/mapviz.py` + `live.html`.
 13. ~~Fluctuating/patchy inflow~~ done (contract-v6 ADR 0029 + contract-v7 ADR 0034): v6 opt-in central pulsing disk (`--resource-cycle`); **v7 generalized to a programmable inflow field**: composable `InflowSource`s (disk w/ ORBIT/DRIFT motion, rect, explicit points, seeded value-noise worldgen) combined MAX/ADD over a baseline, `--inflow "<spec>"` DSL, static-source bake. Closes multiple/moving patches. Remaining: seed-from-evolved-founder, fractal/Perlin noise octaves.
-14. ~~Engine v6~~ done (contract-v9, ADRs 0038 to 0045, report-v15): state declared once (`WorldState`/`FieldSpec`), node layout generated from `NodeCatalog` and exported as `.layout.json`, flat connection arrays with junk pruning, the tick as a declared list of shaped phases run by a fixed-chunk `ParallelRunner`, claim-based movement and reproduction, parent-keyed skip-sampled mutation, all randomness keyed by the run seed, chemical table, per-run `EngineConfig` from JSON, self-sufficient versioned checkpoints with seek and branch, chunked state digest. Benchmarks and the stopping-rule result (rule 2, 4-thread scaling on big500, not met) are in [docs/notes/engine-v6-bench.md](docs/notes/engine-v6-bench.md); the CX33 run is pending.
+14. ~~Engine v6~~ done (contract-v9, ADRs 0038 to 0045, report-v15): state declared once (`WorldState`/`FieldSpec`), node layout generated from `NodeCatalog` and exported as `.layout.json`, flat connection arrays with junk pruning, the tick as a declared list of shaped phases run by a fixed-chunk `ParallelRunner`, claim-based movement and reproduction, parent-keyed skip-sampled mutation, all randomness keyed by the run seed, chemical table, per-run `EngineConfig` from JSON, self-sufficient versioned checkpoints with seek, chunked state digest. Benchmarks and the stopping-rule result (rule 2, 4-thread scaling on big500, not met) are in [docs/notes/engine-v6-bench.md](docs/notes/engine-v6-bench.md); the CX33 run is pending.
 15. Later: sensors beyond the own cell (gradients), several resources with separate harvesting, secretions and quorum (CROWDING/EMIT), corpse release and decomposers, sub-gene/selfish-DNA/whole-genome-duplication indel variants, multi-cell bodies (contract-v5 omissions), the web app (design §9).

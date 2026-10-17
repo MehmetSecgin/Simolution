@@ -165,6 +165,6 @@ error stays at floating-point noise.
 
 ## 8. Not covered
 
-Checkpoint byte format, run directory layout and the branch rules are specified in
+Checkpoint byte format, run directory layout and the seek rules are specified in
 [ADR 0043](../decisions/0043-per-run-config-versioned-checkpoints-seek-branch.md). The report
 changes (observer without founder state, digest line) are in [report-v15](../specs/report-v15.md).
