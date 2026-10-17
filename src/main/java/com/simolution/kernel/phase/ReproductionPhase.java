@@ -20,12 +20,17 @@ import com.simolution.kernel.state.WorldState;
  * The act of copying costs {@code buildCost = BUILD_COST + BUILD_COST_PER_GENE · childGeneCount}
  * (contract v4 §3), charged to the sink before the split. Indel decisions never read gene values,
  * so {@link #childLength} knows the post-indel length from the parent's key alone, before any
- * slot is claimed. Because the parent always retains {@code (energy − buildCost)/2 > 0}, fission
+ * slot is claimed. The propose needs that length only to decide affordability, so it first
+ * compares against the longest child the indels could build ({@code min(maxGenes, 2·count)}:
+ * survivors at most {@code count}, each duplicated at most once, never past the cap). A parent
+ * richer than that ceiling can afford any child, and skips the dry run; only a parent in the band
+ * below the ceiling runs it. The decision is the same either way (the cost is monotone in the
+ * length), and the install takes the exact cost from the length its real {@link #mutate} returns. Because the parent always retains {@code (energy − buildCost)/2 > 0}, fission
  * is never terminal, so this phase frees no cell and kills no unit.
  * <p>
  * {@link #run} (parallel, per parent) reads only phase-start state and writes only the parent's
- * own {@code birthCell} and {@code birthCost}: the lowest-indexed free Moore neighbour (contract
- * v3 §5) and the build cost, or {@code birthCell = -1} when the unit does not want to divide,
+ * own {@code birthCell}: the lowest-indexed free Moore neighbour (contract v3 §5), or
+ * {@code birthCell = -1} when the unit does not want to divide,
  * has no free neighbour, or cannot afford its child. A proposing parent claims its child cell in
  * {@code cellWinner} through {@link CellClaim}, so after the pass each claimed cell holds its
  * lowest claiming parent: the first claim in ascending parent slot, as the contract's serial
@@ -47,9 +52,10 @@ import com.simolution.kernel.state.WorldState;
  *       of each chunk's first winner in ascending parent slot, and fixes
  *       {@code birthCount = min(winners, free slots)}. Pass 1 (install) gives the winner of rank
  *       {@code k < birthCount} the child slot {@code birthChild[k]}: winners in ascending parent
- *       slot take free slots in ascending slot order, as the serial cursor did. It charges the
- *       parent, splits, copies, mutates, compiles and installs the child, and writes
- *       {@code birthParent[k]} and {@code birthChildCell[k]}. Winners of rank
+ *       slot take free slots in ascending slot order, as the serial cursor did. It copies,
+ *       mutates and compiles the child genome, charges the parent the build cost of the
+ *       resulting length (kept in {@code birthCost[parent]}), splits, installs the child, and
+ *       writes {@code birthParent[k]} and {@code birthChildCell[k]}. Winners of rank
  *       {@code ≥ birthCount} find no free slot and pay nothing.</li>
  * </ol>
  * Installs never collide: each writes its own parent slot, its own child slot (dead at phase
@@ -113,7 +119,6 @@ public final class ReproductionPhase implements Phase {
         final double[] energy = state.energy;
         final int[] position = state.position;
         final int[] birthCell = state.birthCell;
-        final double[] birthCost = state.birthCost;
         final int[] cellWinner = state.cellWinner;
         final int tick = state.tick;
 
@@ -131,14 +136,13 @@ public final class ReproductionPhase implements Phase {
             if (childCell < 0) {
                 continue;
             }
-            final long prefix = Noise.mutationPrefix(seed, parent, tick);
-            final double buildCost = buildCostBase
-                    + buildCostPerGene * childLength(geneCount[parent], prefix);
-            if (energy[parent] <= buildCost) {
+            final int count = geneCount[parent];
+            if (energy[parent] <= buildCostBase + buildCostPerGene * Math.min(maxGenes, 2 * count)
+                    && energy[parent] <= buildCostBase + buildCostPerGene
+                            * childLength(count, Noise.mutationPrefix(seed, parent, tick))) {
                 continue;
             }
             birthCell[parent] = childCell;
-            birthCost[parent] = buildCost;
             CellClaim.claim(cellWinner, childCell, parent);
         }
         state.chunkFreeSlots[chunk] = free;
@@ -212,19 +216,21 @@ public final class ReproductionPhase implements Phase {
                 continue;
             }
             final int child = birthChild[rank];
-            final double buildCost = birthCost[parent];
+            final int count = geneCount[parent];
+            System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
+            final int childCount = mutate(genes, child * maxGenes, count,
+                    Noise.mutationPrefix(seed, parent, state.tick));
+            geneCount[child] = childCount;
+            SlotCompiler.compile(state, child);
+
+            final double buildCost = buildCostBase + buildCostPerGene * childCount;
+            birthCost[parent] = buildCost;
             energy[parent] -= buildCost;
             damage[parent] += buildCost;
             final double childEnergy = energy[parent] * 0.5;
             final double childMass = mass[parent] * 0.5;
             energy[parent] = childEnergy;
             mass[parent] = childMass;
-
-            final int count = geneCount[parent];
-            System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
-            geneCount[child] = mutate(genes, child * maxGenes, count,
-                    Noise.mutationPrefix(seed, parent, state.tick));
-            SlotCompiler.compile(state, child);
             finishChild(child, cell, parent, childEnergy, childMass);
 
             state.birthParent[rank] = parent;
