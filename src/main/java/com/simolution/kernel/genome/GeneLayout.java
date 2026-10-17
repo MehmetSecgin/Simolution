@@ -30,17 +30,4 @@ public final class GeneLayout {
     static short weightRaw(final int gene) {
         return (short) (gene & WEIGHT_MASK);
     }
-
-    static int pack(
-            final boolean sourceInternal,
-            final int sourceId,
-            final boolean destinationAction,
-            final int destinationId,
-            final short weightRaw) {
-        return (sourceInternal ? 1 : 0) << SOURCE_KIND_SHIFT
-                | (sourceId & ID_MASK) << SOURCE_ID_SHIFT
-                | (destinationAction ? 1 : 0) << DESTINATION_KIND_SHIFT
-                | (destinationId & ID_MASK) << DESTINATION_ID_SHIFT
-                | (weightRaw & WEIGHT_MASK);
-    }
 }

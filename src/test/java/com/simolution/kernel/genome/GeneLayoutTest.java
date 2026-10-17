@@ -22,7 +22,7 @@ class GeneLayoutTest {
             short weightRaw = (short) random.nextInt();
 
             // act
-            int gene = GeneLayout.pack(sourceInternal, sourceId, destinationAction, destinationId, weightRaw);
+            int gene = GeneBuilder.pack(sourceInternal, sourceId, destinationAction, destinationId, weightRaw);
 
             // assert
             assertEquals(sourceInternal, GeneLayout.sourceIsInternal(gene));
@@ -36,7 +36,7 @@ class GeneLayoutTest {
     @Test
     void minRawWeightDecodesJustBeyondMinusFour() {
         // arrange
-        int gene = GeneLayout.pack(false, 0, false, 0, Short.MIN_VALUE);
+        int gene = GeneBuilder.pack(false, 0, false, 0, Short.MIN_VALUE);
 
         // act
         double weight = GeneDecoder.weight(gene);

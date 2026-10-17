@@ -14,6 +14,19 @@ public final class GeneBuilder {
         return new SourceStage(Kind.INTERNAL, internalTypeId);
     }
 
+    static int pack(
+            final boolean sourceInternal,
+            final int sourceId,
+            final boolean destinationAction,
+            final int destinationId,
+            final short weightRaw) {
+        return (sourceInternal ? 1 : 0) << GeneLayout.SOURCE_KIND_SHIFT
+                | (sourceId & GeneLayout.ID_MASK) << GeneLayout.SOURCE_ID_SHIFT
+                | (destinationAction ? 1 : 0) << GeneLayout.DESTINATION_KIND_SHIFT
+                | (destinationId & GeneLayout.ID_MASK) << GeneLayout.DESTINATION_ID_SHIFT
+                | (weightRaw & GeneLayout.WEIGHT_MASK);
+    }
+
     public record SourceStage(Kind sourceKind, int sourceId) {
 
         public DestinationStage toInternal(int internalTypeId) {
@@ -35,7 +48,7 @@ public final class GeneBuilder {
     public record WeightStage(DestinationStage destination, short weightRaw) {
 
         public int build() {
-            return GeneLayout.pack(
+            return pack(
                     destination.source().sourceKind() == Kind.INTERNAL,
                     destination.source().sourceId(),
                     destination.destinationKind() == Kind.ACTION,
