@@ -20,9 +20,6 @@ import com.simolution.kernel.state.CheckpointCodec;
  */
 public final class RunDirectoryWriter {
 
-    private record Parent(String runId, int tick) {
-    }
-
     private final Path ckptDir;
     private final int checkpointEvery;
     private final String runId;
@@ -37,24 +34,14 @@ public final class RunDirectoryWriter {
             throws IOException {
         if (kernel.currentTick() != 0) {
             throw new IllegalArgumentException(
-                    "a new run starts at tick 0, kernel is at tick " + kernel.currentTick() + "; use createBranch");
+                    "a new run starts at tick 0, kernel is at tick " + kernel.currentTick());
         }
-        return open(dir, kernel, checkpointEvery, null);
-    }
-
-    public static RunDirectoryWriter createBranch(final Path dir, final Kernel branched, final int checkpointEvery,
-            final String parentRunId, final int parentTick) throws IOException {
-        return open(dir, branched, checkpointEvery, new Parent(parentRunId, parentTick));
-    }
-
-    private static RunDirectoryWriter open(final Path dir, final Kernel kernel, final int checkpointEvery,
-            final Parent parentOrNull) throws IOException {
         final Path ckptDir = dir.resolve("ckpt");
         Files.createDirectories(ckptDir);
         final byte[] first = checkpointBytes(kernel);
         final String runId = sha256Hex(first);
         Files.write(ckptDir.resolve(RunDirectoryReader.checkpointFileName(kernel.currentTick())), first);
-        Files.writeString(dir.resolve("run.json"), runManifestJson(runId, parentOrNull));
+        Files.writeString(dir.resolve("run.json"), runManifestJson(runId));
         return new RunDirectoryWriter(ckptDir, checkpointEvery, runId);
     }
 
@@ -72,12 +59,8 @@ public final class RunDirectoryWriter {
         }
     }
 
-    private static String runManifestJson(final String runId, final Parent parentOrNull) {
-        final String parent = parentOrNull == null
-                ? "null"
-                : "{\"runId\": \"" + parentOrNull.runId() + "\", \"tick\": " + parentOrNull.tick() + "}";
-        return "{\"runId\": \"" + runId + "\", \"engine\": \"" + EngineVersion.ID + "\", \"parent\": "
-                + parent + "}\n";
+    private static String runManifestJson(final String runId) {
+        return "{\"runId\": \"" + runId + "\", \"engine\": \"" + EngineVersion.ID + "\", \"parent\": null}\n";
     }
 
     private static byte[] checkpointBytes(final Kernel kernel) throws IOException {

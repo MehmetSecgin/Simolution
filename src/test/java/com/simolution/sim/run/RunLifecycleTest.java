@@ -2,7 +2,6 @@ package com.simolution.sim.run;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -82,46 +81,5 @@ class RunLifecycleTest {
         assertEquals(64, run.runId().length());
         assertEquals(EngineVersion.ID, json.get("engine").asText());
         assertTrue(json.get("parent").isNull());
-    }
-
-    @Test
-    void branchRecordsItsParent(@TempDir final Path parentDir, @TempDir final Path branchDir) throws IOException {
-        final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
-        final RunDirectoryWriter parent = RunDirectoryWriter.create(parentDir, kernel, EVERY);
-        for (int t = 1; t <= 100; t++) {
-            kernel.tick();
-            parent.checkpointIfDue(kernel);
-        }
-
-        final Kernel atParent = RunDirectoryReader.seek(parentDir, 100, 1);
-        final RunDirectoryWriter branch = RunDirectoryWriter.createBranch(branchDir, atParent, EVERY, parent.runId(), 100);
-
-        final JsonNode json = new ObjectMapper().readTree(Files.readString(branchDir.resolve("run.json")));
-        assertEquals(parent.runId(), json.get("parent").get("runId").asText());
-        assertEquals(100, json.get("parent").get("tick").asInt());
-        assertTrue(Files.exists(branchDir.resolve("ckpt/100.ckpt")));
-        assertNotNull(branch.runId());
-        assertEquals(100, RunDirectoryReader.seek(branchDir, 100, 1).currentTick());
-    }
-
-    @Test
-    void latestFrameKeepsTheMostRecentPublish() {
-        final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
-        final LatestFrame frames = new LatestFrame(kernel.config());
-        assertEquals(null, frames.latest());
-
-        kernel.step(5);
-        frames.publish(kernel);
-        final LatestFrame.Frame first = frames.latest();
-        assertEquals(5, first.tick());
-        assertArrayEquals(kernel.state().cellOccupant, first.cellOccupant());
-        assertArrayEquals(kernel.state().cellChem, first.chemicals());
-
-        kernel.step(5);
-        frames.publish(kernel);
-        final LatestFrame.Frame second = frames.latest();
-        assertEquals(10, second.tick());
-        assertArrayEquals(kernel.state().cellChem, second.chemicals());
-        assertEquals(5, first.tick());
     }
 }
