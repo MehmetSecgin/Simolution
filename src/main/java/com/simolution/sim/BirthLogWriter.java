@@ -35,10 +35,10 @@ public final class BirthLogWriter implements TickObserver, Closeable {
         final int mutated = childId == parentId ? 0 : 1;
         line.setLength(0);
         line.append(snapshot.tick).append(',').append(child)
-            .append(',').append(snapshot.lineageId[child]).append(',').append(snapshot.generation[child])
-            .append(',').append(parent)
-            .append(',').append(childId).append(',').append(parentId)
-            .append(',').append(mutated).append('\n');
+                .append(',').append(snapshot.lineageId[child]).append(',').append(snapshot.generation[child])
+                .append(',').append(parent)
+                .append(',').append(childId).append(',').append(parentId)
+                .append(',').append(mutated).append('\n');
         out.write(line.toString());
         out.flush();
     }

@@ -81,7 +81,8 @@ class ConfigJsonTest {
     @Test
     void unknownKeyIsNamedInTheMessage() {
         // arrange
-        final String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replace("\"basalCost\"", "\"basalCostt\"");
+        final String json =
+                ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replace("\"basalCost\"", "\"basalCostt\"");
 
         // act
         final String message = messageOf(json);
@@ -168,7 +169,8 @@ class ConfigJsonTest {
     @Test
     void nullInflowSourcesIsNamedInTheMessage() {
         // arrange
-        final String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replaceAll("\"sources\"\\s*:\\s*\\[ \\]", "\"sources\" : null");
+        final String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replaceAll("\"sources\"\\s*:\\s*\\[ \\]",
+                "\"sources\" : null");
 
         // act
         final String message = messageOf(json);

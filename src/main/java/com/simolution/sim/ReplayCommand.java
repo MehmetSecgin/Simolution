@@ -10,7 +10,12 @@ import com.simolution.sim.run.RunDirectoryReader;
 
 public final class ReplayCommand {
 
-    record ReplayArgs(Path obsDir, int tick, Path snapshotOut, int threads) {
+    record ReplayArgs(
+            Path obsDir,
+            int tick,
+            Path snapshotOut,
+            int threads
+    ) {
 
         static ReplayArgs parse(final String[] args) {
             String obs = null;

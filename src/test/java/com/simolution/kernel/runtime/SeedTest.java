@@ -24,7 +24,8 @@ class SeedTest {
     private static Kernel kernel(final long seed, final int[] founderCells) {
         return new Kernel(GenomeFactory.random(11L, FOUNDERS, GENES), founderCells,
                 EngineConfig.defaults(seed, WORLD, GENES * 2)
-                        .withResourceInflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
+                        .withResourceInflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)),
+                1);
     }
 
     @Test
@@ -46,7 +47,8 @@ class SeedTest {
 
         // assert
         assertNotEquals(randOne, randTwo, "RAND sensor must follow the run seed");
-        assertFalse(Arrays.equals(Kernel.scatterFounders(1L, FOUNDERS, WORLD), Kernel.scatterFounders(2L, FOUNDERS, WORLD)),
+        assertFalse(
+                Arrays.equals(Kernel.scatterFounders(1L, FOUNDERS, WORLD), Kernel.scatterFounders(2L, FOUNDERS, WORLD)),
                 "founder placement must follow the run seed");
         assertTrue(one.state().birthsTotal > 0 && two.state().birthsTotal > 0, "both runs reproduce");
         assertFalse(Arrays.equals(one.state().genes, two.state().genes), "child genomes must follow the run seed");

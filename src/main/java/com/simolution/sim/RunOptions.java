@@ -48,7 +48,7 @@ final class RunOptions {
         if (resourceCycle && inflowSpec != null) {
             throw new IllegalArgumentException(
                     "--resource-cycle and --inflow are mutually exclusive "
-                    + "(--resource-cycle is sugar for a single central pulsing disk)");
+                            + "(--resource-cycle is sugar for a single central pulsing disk)");
         }
         if (mapFrom != null && (mapTo == null || mapTo < mapFrom)) {
             throw new IllegalArgumentException("--map-from requires --map-to >= --map-from");

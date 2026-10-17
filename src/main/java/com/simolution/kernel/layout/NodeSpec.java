@@ -7,7 +7,11 @@ package com.simolution.kernel.layout;
  * Action nodes are {@link Role#PASSTHROUGH} (output = accumulator); their meaning
  * lives in the settle phases that read them.
  */
-public record NodeSpec(String name, Role role, int chemical) {
+public record NodeSpec(
+        String name,
+        Role role,
+        int chemical
+) {
 
     public enum Kind { SENSOR, INTERNAL, ACTION }
 

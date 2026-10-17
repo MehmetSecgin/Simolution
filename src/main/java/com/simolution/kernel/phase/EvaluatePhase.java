@@ -68,8 +68,10 @@ public final class EvaluatePhase implements Phase {
      * block in {@code cellChem} and the capacity that normalises its reading. Non-chemical
      * sensors carry offset 0 and capacity 1 and never read them.
      */
-    record SensorTaps(int[] cellOffset, double[] capacity) {
-    }
+    record SensorTaps(
+            int[] cellOffset,
+            double[] capacity
+    ) {}
 
     static SensorTaps bindSensors(final List<NodeSpec> sensors, final EngineConfig config) {
         final int cells = config.world().worldWidth() * config.world().worldWidth();
@@ -133,36 +135,42 @@ public final class EvaluatePhase implements Phase {
                 case CONST -> outputsNext[idx] = 1.0f;
                 case RAND -> outputsNext[idx] = (float) Noise.sample(seed, unit, state.tick);
                 // a unit senses only the cell it currently occupies (contract v3 §3)
-                case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, cellChem[sensorCellOffset[s] + position[unit]] / sensorCapacity[s]);
+                case CHEMICAL_HERE -> outputsNext[idx] =
+                        (float) Math.min(1.0, cellChem[sensorCellOffset[s] + position[unit]] / sensorCapacity[s]);
                 case SELF_ENERGY -> outputsNext[idx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);
                 case SELF_MASS -> outputsNext[idx] = (float) Math.min(1.0, mass[unit] / selfMassScale);
                 default -> throw new IllegalStateException("not a sensor role: " + SENSOR_ROLES[s]);
             }
         }
 
-        final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
+        final int addIdx =
+                base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[addIdx] = accumulators[addIdx];
 
         // MUL by structural in-degree: 0 inputs -> 0; 1 input -> that signal
         // (the binding slice's own example wires DELAY -> MUL -> ADD, so a
         // lone input must pass through); 2+ inputs -> product of the two
         // strongest (slice section 2, ADR 0005)
-        final int mulIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.MUL * NodeLayout.Internal.INSTANCES_PER_TYPE);
+        final int mulIdx =
+                base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.MUL * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[mulIdx] = switch (mulInDegree[unit]) {
             case 0 -> 0.0f;
             case 1 -> mulTop1[unit];
             default -> mulTop1[unit] * mulTop2[unit];
         };
 
-        final int clampIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.CLAMP * NodeLayout.Internal.INSTANCES_PER_TYPE);
+        final int clampIdx = base + NodeLayout.INTERNAL_OFFSET
+                + (NodeLayout.Internal.CLAMP * NodeLayout.Internal.INSTANCES_PER_TYPE);
         final double clampIn = accumulators[clampIdx];
         outputsNext[clampIdx] = (float) Math.max(-1.0, Math.min(1.0, clampIn));
 
-        final int delayIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.DELAY * NodeLayout.Internal.INSTANCES_PER_TYPE);
+        final int delayIdx = base + NodeLayout.INTERNAL_OFFSET
+                + (NodeLayout.Internal.DELAY * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[delayIdx] = delayMemory[delayIdx];
         delayMemory[delayIdx] = accumulators[delayIdx];
 
-        final int threshIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.THRESH * NodeLayout.Internal.INSTANCES_PER_TYPE);
+        final int threshIdx = base + NodeLayout.INTERNAL_OFFSET
+                + (NodeLayout.Internal.THRESH * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[threshIdx] = accumulators[threshIdx] > 0.0f ? 1.0f : -1.0f;
 
         for (int a = 0; a < NodeLayout.Action.MEANINGFUL_COUNT; a++) {

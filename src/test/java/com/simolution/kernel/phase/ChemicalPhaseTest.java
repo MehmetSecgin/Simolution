@@ -30,8 +30,10 @@ class ChemicalPhaseTest {
     @Test
     void decayIntoAnotherChemicalConserves() {
         // arrange
-        final ChemicalSpec source = new ChemicalSpec("source", InflowConfig.uniform(1.0), 100.0, 50.0, DIFFUSION, DECAY, 1);
-        final ChemicalSpec product = new ChemicalSpec("product", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, 0.0, -1);
+        final ChemicalSpec source =
+                new ChemicalSpec("source", InflowConfig.uniform(1.0), 100.0, 50.0, DIFFUSION, DECAY, 1);
+        final ChemicalSpec product =
+                new ChemicalSpec("product", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, 0.0, -1);
         final Kernel kernel = emptyKernel(List.of(source, product));
 
         // act
@@ -53,7 +55,8 @@ class ChemicalPhaseTest {
     @Test
     void decayToSinkMatchesV5() {
         // arrange
-        final ChemicalSpec resource = new ChemicalSpec("resource", InflowConfig.uniform(0.0), 100.0, 50.0, DIFFUSION, DECAY, -1);
+        final ChemicalSpec resource =
+                new ChemicalSpec("resource", InflowConfig.uniform(0.0), 100.0, 50.0, DIFFUSION, DECAY, -1);
         final Kernel kernel = emptyKernel(List.of(resource));
         final double[] expected = new double[CELLS];
         java.util.Arrays.fill(expected, 50.0);
@@ -74,8 +77,10 @@ class ChemicalPhaseTest {
     @Test
     void chemicalDecayTargetMustBeASinkOrAnotherChemical() {
         // arrange
-        final ChemicalSpec selfTarget = new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 0);
-        final ChemicalSpec outOfRange = new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 1);
+        final ChemicalSpec selfTarget =
+                new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 0);
+        final ChemicalSpec outOfRange =
+                new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 1);
 
         // assert
         assertThrows(IllegalArgumentException.class, () -> emptyKernel(List.of(selfTarget)));

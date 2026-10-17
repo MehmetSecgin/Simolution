@@ -15,10 +15,10 @@ class InflowSpecParserTest {
     void parsesComposedSourcesCombineAndBaseline() {
         InflowConfig cfg = InflowSpecParser.parse(
                 "disk fx=0.5 fy=0.5 r=22 peak=10 period=2000; "
-                + "rect fx0=0 fy0=0 fx1=0.3 fy1=1 peak=5; "
-                + "points cells=100,250,4000 peak=8; "
-                + "noise seed=42 freq=0.05 thr=0.6 gain=3 peak=9 anim=8000; "
-                + "combine=add baseline=0.2");
+                        + "rect fx0=0 fy0=0 fx1=0.3 fy1=1 peak=5; "
+                        + "points cells=100,250,4000 peak=8; "
+                        + "noise seed=42 freq=0.05 thr=0.6 gain=3 peak=9 anim=8000; "
+                        + "combine=add baseline=0.2");
 
         assertEquals(InflowConfig.Combine.ADD, cfg.combine());
         assertEquals(0.2, cfg.baseline(), 0.0);

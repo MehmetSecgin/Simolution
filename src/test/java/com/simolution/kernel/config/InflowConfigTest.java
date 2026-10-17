@@ -19,7 +19,6 @@ import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.support.EnergyAudit;
@@ -83,7 +82,7 @@ class InflowConfigTest {
     @Test
     void pointsHitExactCellsOnly() {
         int w = 30;
-        InflowSource pts = new InflowSource.Points(new int[] { 10, 250, 800 }, 9.0, 0, 0);
+        InflowSource pts = new InflowSource.Points(new int[] {10, 250, 800}, 9.0, 0, 0);
         CompiledInflowField f = InflowConfig.field(0, InflowConfig.Combine.MAX, pts).compile(w);
         assertEquals(9.0, f.cap(250, 0), 1e-9);
         assertEquals(0.0, f.cap(251, 0), 1e-9);
@@ -181,7 +180,7 @@ class InflowConfigTest {
         Random random = new Random(5);
         int[][] triples = new int[64][];
         for (int i = 0; i < triples.length; i++) {
-            triples[i] = new int[] { random.nextInt(w), random.nextInt(w), random.nextInt(5000) };
+            triples[i] = new int[] {random.nextInt(w), random.nextInt(w), random.nextInt(5000)};
         }
 
         // act
@@ -225,9 +224,12 @@ class InflowConfigTest {
             cells[i] = i * 7;
         }
         Map<String, InflowSource> sources = new LinkedHashMap<>();
-        sources.put("diskStatic", new InflowSource.Disk(0.3, 0.6, 9.0, 5.0, 0, 0, InflowSource.Motion.STATIC, 0.0, 0.0, 0));
-        sources.put("diskOrbit", new InflowSource.Disk(0.5, 0.5, 7.0, 6.0, 300, 17, InflowSource.Motion.ORBIT, 0.25, 0.0, 500));
-        sources.put("diskDrift", new InflowSource.Disk(0.9, 0.1, 8.0, 4.0, 150, -30, InflowSource.Motion.DRIFT, 0.03, -0.02, 0));
+        sources.put("diskStatic",
+                new InflowSource.Disk(0.3, 0.6, 9.0, 5.0, 0, 0, InflowSource.Motion.STATIC, 0.0, 0.0, 0));
+        sources.put("diskOrbit",
+                new InflowSource.Disk(0.5, 0.5, 7.0, 6.0, 300, 17, InflowSource.Motion.ORBIT, 0.25, 0.0, 500));
+        sources.put("diskDrift",
+                new InflowSource.Disk(0.9, 0.1, 8.0, 4.0, 150, -30, InflowSource.Motion.DRIFT, 0.03, -0.02, 0));
         sources.put("rectStatic", new InflowSource.Rect(0.2, 0.1, 0.7, 0.8, 3.0, 0, 0, 0.0, 0.0));
         sources.put("rectDrifting", new InflowSource.Rect(0.1, 0.0, 0.3, 1.0, 5.0, 200, 11, 0.05, -0.01));
         sources.put("points", new InflowSource.Points(cells, 4.5, 90, 5));

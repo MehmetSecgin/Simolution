@@ -94,7 +94,8 @@ class WorldStateTest {
         state.swapChem();
         assertSame(prev, state.outputsNext);
         assertSame(chem, state.cellChemNext);
-        final FieldSpec outputs = state.fields().stream().filter(s -> s.name().equals("outputsPrev")).findFirst().orElseThrow();
+        final FieldSpec outputs =
+                state.fields().stream().filter(s -> s.name().equals("outputsPrev")).findFirst().orElseThrow();
         assertSame(state.outputsPrev, outputs.array());
         assertTrue(state.cellChem != chem);
     }

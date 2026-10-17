@@ -2,7 +2,11 @@ package com.simolution.kernel.config;
 
 import java.util.List;
 
-public record InflowConfig(double baseline, List<InflowSource> sources, Combine combine) {
+public record InflowConfig(
+        double baseline,
+        List<InflowSource> sources,
+        Combine combine
+) {
 
     private static final double CENTRE = 0.5;
 

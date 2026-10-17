@@ -14,7 +14,8 @@ public record EngineConfig(
         Growth growth,
         Sensing sensing,
         Reproduction reproduction,
-        Mutation mutation) {
+        Mutation mutation
+) {
 
     public EngineConfig {
         validateChemicals(chemicals);
@@ -22,7 +23,8 @@ public record EngineConfig(
 
     static void validateChemicals(final List<ChemicalSpec> chemicals) {
         if (chemicals.isEmpty()) {
-            throw new IllegalArgumentException("chemicals must hold at least one entry (units sense and harvest chemical 0)");
+            throw new IllegalArgumentException(
+                    "chemicals must hold at least one entry (units sense and harvest chemical 0)");
         }
         for (int k = 0; k < chemicals.size(); k++) {
             final ChemicalSpec chemical = chemicals.get(k);
@@ -46,7 +48,8 @@ public record EngineConfig(
         return new EngineConfig(
                 seed,
                 new World(worldWidth, maxGenes),
-                List.of(new ChemicalSpec("resource", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, ChemicalSpec.SINK)),
+                List.of(new ChemicalSpec("resource", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02,
+                        ChemicalSpec.SINK)),
                 new Founder(1000.0, 1.0),
                 new Metabolism(0.5, 0.06, 0.5, 0.0005),
                 new Harvest(1.5, 1.0, 0.5),

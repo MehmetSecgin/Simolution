@@ -61,21 +61,21 @@ public final class MetricsWriter implements TickObserver, Closeable {
     }
 
     private void appendRow(final KernelSnapshot snapshot, final double fieldTotal, final double massTotal,
-                           final double auditError) throws IOException {
+            final double auditError) throws IOException {
         final long deaths = founderCount + snapshot.birthsTotal - population;
         line.setLength(0);
         line.append(snapshot.tick).append(',')
-            .append(population).append(',')
-            .append(lineagesAlive).append(',')
-            .append(snapshot.birthsTotal).append(',')
-            .append(deaths).append(',')
-            .append(energyTotal).append(',')
-            .append(fieldTotal).append(',')
-            .append(snapshot.energySink).append(',')
-            .append(snapshot.cumulativeInflow).append(',')
-            .append(auditError).append(',')
-            .append(snapshot.maxGeneration).append(',')
-            .append(massTotal).append('\n');
+                .append(population).append(',')
+                .append(lineagesAlive).append(',')
+                .append(snapshot.birthsTotal).append(',')
+                .append(deaths).append(',')
+                .append(energyTotal).append(',')
+                .append(fieldTotal).append(',')
+                .append(snapshot.energySink).append(',')
+                .append(snapshot.cumulativeInflow).append(',')
+                .append(auditError).append(',')
+                .append(snapshot.maxGeneration).append(',')
+                .append(massTotal).append('\n');
         out.write(line.toString());
         out.flush();
     }

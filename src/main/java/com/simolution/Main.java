@@ -35,7 +35,7 @@ public class Main {
         DynamicsObserver dynamics = new DynamicsObserver();
         TimeSeriesSampler timeSeries = new TimeSeriesSampler(config.ticks());
         try (Kernel kernel = founders.newKernel(config.threads());
-             RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
+                RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
             TickObserver[] observers = observers(config, kernel, dynamics, timeSeries, artifacts);
             RunResult result = SimulationRun.execute(kernel, config.ticks(), observers);
             artifacts.close();
@@ -51,7 +51,8 @@ public class Main {
         List<TickObserver> observers = new ArrayList<>();
         observers.add(dynamics);
         if (config.digestEveryTick()) {
-            observers.add(snapshot -> System.out.printf("digest %d %016x%n", kernel.currentTick(), kernel.stateDigest()));
+            observers.add(
+                    snapshot -> System.out.printf("digest %d %016x%n", kernel.currentTick(), kernel.stateDigest()));
         }
         observers.add(timeSeries);
         observers.addAll(artifacts.observers());

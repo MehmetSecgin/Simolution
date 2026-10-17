@@ -29,7 +29,7 @@ public final class EventLogWriter implements TickObserver, Closeable {
     private final boolean[] lineageExtinct;
 
     public EventLogWriter(final Writer out, final int slotCount, final int founderCount,
-                          final int[] founderCells, final double founderEnergy) {
+            final int[] founderCells, final double founderEnergy) {
         this.out = out;
         this.slotCount = slotCount;
         this.founderCount = founderCount;
@@ -122,41 +122,41 @@ public final class EventLogWriter implements TickObserver, Closeable {
     }
 
     private void emitBirth(final int tick, final int child, final int parent,
-                           final KernelSnapshot snapshot) throws IOException {
+            final KernelSnapshot snapshot) throws IOException {
         birthTickBySlot[child] = tick;
         line.setLength(0);
         line.append("{\"t\":").append(tick)
-            .append(",\"ev\":\"BIRTH\",\"slot\":").append(child)
-            .append(",\"lineage\":").append(snapshot.lineageId[child])
-            .append(",\"gen\":").append(snapshot.generation[child])
-            .append(",\"cell\":").append(snapshot.position[child])
-            .append(",\"parentSlot\":").append(parent)
-            .append(",\"parentLineage\":").append(snapshot.lineageId[parent])
-            .append(",\"mutations\":").append(countMutations(child, parent, snapshot))
-            .append("}\n");
+                .append(",\"ev\":\"BIRTH\",\"slot\":").append(child)
+                .append(",\"lineage\":").append(snapshot.lineageId[child])
+                .append(",\"gen\":").append(snapshot.generation[child])
+                .append(",\"cell\":").append(snapshot.position[child])
+                .append(",\"parentSlot\":").append(parent)
+                .append(",\"parentLineage\":").append(snapshot.lineageId[parent])
+                .append(",\"mutations\":").append(countMutations(child, parent, snapshot))
+                .append("}\n");
         flushLine();
     }
 
     private void emitDeath(final int tick, final int slot) throws IOException {
         line.setLength(0);
         line.append("{\"t\":").append(tick)
-            .append(",\"ev\":\"DEATH\",\"slot\":").append(slot)
-            .append(",\"lineage\":").append(prevLineage[slot])
-            .append(",\"gen\":").append(prevGeneration[slot])
-            .append(",\"cell\":").append(prevPosition[slot])
-            .append(",\"lifespan\":").append(tick - birthTickBySlot[slot])
-            .append("}\n");
+                .append(",\"ev\":\"DEATH\",\"slot\":").append(slot)
+                .append(",\"lineage\":").append(prevLineage[slot])
+                .append(",\"gen\":").append(prevGeneration[slot])
+                .append(",\"cell\":").append(prevPosition[slot])
+                .append(",\"lifespan\":").append(tick - birthTickBySlot[slot])
+                .append("}\n");
         flushLine();
     }
 
     private void emitExtinction(final int tick, final int lineage) throws IOException {
         line.setLength(0);
         line.append("{\"t\":").append(tick)
-            .append(",\"ev\":\"EXTINCTION\",\"lineage\":").append(lineage)
-            .append(",\"lastTick\":").append(tick)
-            .append(",\"peakMembers\":").append(lineagePeak[lineage])
-            .append(",\"maxGeneration\":").append(lineageMaxGeneration[lineage])
-            .append("}\n");
+                .append(",\"ev\":\"EXTINCTION\",\"lineage\":").append(lineage)
+                .append(",\"lastTick\":").append(tick)
+                .append(",\"peakMembers\":").append(lineagePeak[lineage])
+                .append(",\"maxGeneration\":").append(lineageMaxGeneration[lineage])
+                .append("}\n");
         flushLine();
     }
 

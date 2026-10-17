@@ -15,9 +15,9 @@ class GeneDecoderTest {
     void roundTripsBuilderGene() {
         // arrange
         int gene = GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                              .toInternal(NodeLayout.Internal.DELAY)
-                              .weightRaw((short) -16384)
-                              .build();
+                .toInternal(NodeLayout.Internal.DELAY)
+                .weightRaw((short) -16384)
+                .build();
 
         // act
         CompiledConnection connection = GeneDecoder.decode(gene, 0);
@@ -32,25 +32,26 @@ class GeneDecoderTest {
     void wrapsOutOfRangeIdsWithModulo() {
         // arrange
         int gene = GeneBuilder.fromSensor(127)
-                              .toInternal(127)
-                              .weightRaw((short) 1)
-                              .build();
+                .toInternal(127)
+                .weightRaw((short) 1)
+                .build();
 
         // act
         CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
         // assert
         assertEquals(NodeLayout.SENSOR_OFFSET + (127 % NodeLayout.Sensor.TYPE_COUNT), connection.sourceAbsoluteIndex);
-        assertEquals(NodeLayout.INTERNAL_OFFSET + (127 % NodeLayout.Internal.TYPE_COUNT), connection.destinationAbsoluteIndex);
+        assertEquals(NodeLayout.INTERNAL_OFFSET + (127 % NodeLayout.Internal.TYPE_COUNT),
+                connection.destinationAbsoluteIndex);
     }
 
     @Test
     void appliesUnitOffsetToAbsoluteIndices() {
         // arrange
         int gene = GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                              .toAction(NodeLayout.Action.Y)
-                              .weightRaw((short) 1)
-                              .build();
+                .toAction(NodeLayout.Action.Y)
+                .weightRaw((short) 1)
+                .build();
         int unitOffset = NodeLayout.TOTAL * 3;
 
         // act
@@ -89,11 +90,15 @@ class GeneDecoderTest {
             int dstId = (gene >>> 16) & 0x7F;
             int low16 = gene & 0xFFFF;
             int expectedSource = srcType == 0
-                    ? NodeLayout.SENSOR_OFFSET + (srcId % NodeLayout.Sensor.TYPE_COUNT) * NodeLayout.Sensor.INSTANCES_PER_TYPE
-                    : NodeLayout.INTERNAL_OFFSET + (srcId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
+                    ? NodeLayout.SENSOR_OFFSET
+                            + (srcId % NodeLayout.Sensor.TYPE_COUNT) * NodeLayout.Sensor.INSTANCES_PER_TYPE
+                    : NodeLayout.INTERNAL_OFFSET
+                            + (srcId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
             int expectedDestination = dstType == 0
-                    ? NodeLayout.INTERNAL_OFFSET + (dstId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE
-                    : NodeLayout.ACTION_OFFSET + (dstId % NodeLayout.Action.TYPE_COUNT) * NodeLayout.Action.INSTANCES_PER_TYPE;
+                    ? NodeLayout.INTERNAL_OFFSET
+                            + (dstId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE
+                    : NodeLayout.ACTION_OFFSET
+                            + (dstId % NodeLayout.Action.TYPE_COUNT) * NodeLayout.Action.INSTANCES_PER_TYPE;
             double expectedWeight = (short) low16 * (4.0 / 32767);
 
             // act

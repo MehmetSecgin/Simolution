@@ -32,8 +32,10 @@ public final class RunConsole {
         if (framesEnabled) {
             System.out.println("spatial map frames written to " + paths.framesZst()
                     + " (chunked zstd; genome catalog: " + paths.catalog() + ")");
-            System.out.println("  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails these files)");
-            System.out.println("  bake offline:     python3 tools/mapviz.py " + paths.framesZst() + "  (self-contained .map.html)");
+            System.out.println(
+                    "  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails these files)");
+            System.out.println("  bake offline:     python3 tools/mapviz.py " + paths.framesZst()
+                    + "  (self-contained .map.html)");
         }
     }
 }

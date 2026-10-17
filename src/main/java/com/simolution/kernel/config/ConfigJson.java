@@ -16,11 +16,11 @@ public final class ConfigJson {
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
     @JsonSubTypes({
-        @JsonSubTypes.Type(value = InflowSource.Disk.class, name = "disk"),
-        @JsonSubTypes.Type(value = InflowSource.Rect.class, name = "rect"),
-        @JsonSubTypes.Type(value = InflowSource.Points.class, name = "points"),
-        @JsonSubTypes.Type(value = InflowSource.Noise.class, name = "noise"),
-        @JsonSubTypes.Type(value = InflowSource.Ring.class, name = "ring")
+            @JsonSubTypes.Type(value = InflowSource.Disk.class, name = "disk"),
+            @JsonSubTypes.Type(value = InflowSource.Rect.class, name = "rect"),
+            @JsonSubTypes.Type(value = InflowSource.Points.class, name = "points"),
+            @JsonSubTypes.Type(value = InflowSource.Noise.class, name = "noise"),
+            @JsonSubTypes.Type(value = InflowSource.Ring.class, name = "ring")
     })
     private interface InflowSourceMixin {
 
@@ -66,8 +66,8 @@ public final class ConfigJson {
             double mutationRateStruct,
             double indelRateDup,
             double indelRateDel,
-            double agingCost) {
-    }
+            double agingCost
+    ) {}
 
     private ConfigJson() {
     }
@@ -86,7 +86,8 @@ public final class ConfigJson {
             return readStrict(json);
         } catch (final ValueInstantiationException e) {
             final Throwable cause = e.getCause() instanceof IllegalArgumentException ? e.getCause() : e;
-            throw new IllegalArgumentException("invalid config: " + (cause == e ? e.getOriginalMessage() : cause.getMessage()), e);
+            throw new IllegalArgumentException(
+                    "invalid config: " + (cause == e ? e.getOriginalMessage() : cause.getMessage()), e);
         } catch (final JsonProcessingException e) {
             throw new IllegalArgumentException("invalid config: " + e.getOriginalMessage(), e);
         } catch (final IllegalArgumentException e) {

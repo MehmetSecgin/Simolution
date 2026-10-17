@@ -18,7 +18,7 @@ public final class MapFrameWriter implements TickObserver, Closeable {
     private final int cellCount;
 
     public MapFrameWriter(final OutputStream out, final Writer idx, final GenomeCatalogWriter catalog,
-                          final int totalTicks, final MapSampling sampling, final EngineConfig config)
+            final int totalTicks, final MapSampling sampling, final EngineConfig config)
             throws IOException {
         final int worldWidth = config.world().worldWidth();
         this.cellCount = worldWidth * worldWidth;
@@ -76,10 +76,10 @@ public final class MapFrameWriter implements TickObserver, Closeable {
                 continue;
             }
             text.append('u')
-                .append(' ').append(snapshot.position[slot])
-                .append(' ').append(slot)
-                .append(' ').append(genomes.catalogIdFor(snapshot, slot))
-                .append('\n');
+                    .append(' ').append(snapshot.position[slot])
+                    .append(' ').append(slot)
+                    .append(' ').append(genomes.catalogIdFor(snapshot, slot))
+                    .append('\n');
         }
     }
 

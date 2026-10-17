@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.function.UnaryOperator;
 
 import com.github.luben.zstd.Zstd;
-
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.GenomeCatalogWriter;
@@ -22,7 +21,11 @@ public final class FrameHarness {
     private static final int DEFAULT_FOUNDERS = 4;
     private static final int DEFAULT_GENES = 8;
 
-    public record Chunk(int firstTick, int offset, String text) {}
+    public record Chunk(
+            int firstTick,
+            int offset,
+            String text
+    ) {}
 
     private final int width;
     private int founders = DEFAULT_FOUNDERS;

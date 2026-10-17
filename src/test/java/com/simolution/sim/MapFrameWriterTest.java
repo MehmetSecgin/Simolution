@@ -77,7 +77,7 @@ class MapFrameWriterTest {
         assertFalse(harness.framesText().contains(" * ") || harness.framesText().contains(" ^"),
                 "the frame carries only a genomeId, never raw genome markers");
         assertTrue(harness.framesText().lines().filter(l -> l.startsWith("u "))
-                        .allMatch(l -> l.trim().split("\\s+").length == 4),
+                .allMatch(l -> l.trim().split("\\s+").length == 4),
                 "u line carries exactly cell, slot, genomeId");
     }
 
@@ -94,7 +94,7 @@ class MapFrameWriterTest {
         assertFalse(Pattern.compile("\\.[0-9]").matcher(harness.framesText()).find(),
                 "no decimals: cells and ids are integers");
         assertTrue(harness.framesText().lines().filter(l -> l.startsWith("u "))
-                        .noneMatch(l -> l.matches(".*[HRNSEWGy.].*")),
+                .noneMatch(l -> l.matches(".*[HRNSEWGy.].*")),
                 "no fired-action tag on the u line");
     }
 

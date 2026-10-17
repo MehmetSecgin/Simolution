@@ -39,12 +39,12 @@ public final class TimeSeriesSampler implements TickObserver {
             unitEnergy += e;
         }
         out.append(snapshot.tick)
-           .append(',').append(population)
-           .append(',').append(snapshot.birthsTotal)
-           .append(',').append(snapshot.maxGeneration)
-           .append(',').append(unitEnergy)
-           .append(',').append(snapshot.reservoir())
-           .append('\n');
+                .append(',').append(population)
+                .append(',').append(snapshot.birthsTotal)
+                .append(',').append(snapshot.maxGeneration)
+                .append(',').append(unitEnergy)
+                .append(',').append(snapshot.reservoir())
+                .append('\n');
     }
 
     public String render() {

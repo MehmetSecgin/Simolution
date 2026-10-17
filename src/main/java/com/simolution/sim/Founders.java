@@ -5,7 +5,11 @@ import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
 
-public record Founders(int[][] genomes, int[] cells, EngineConfig engine) {
+public record Founders(
+        int[][] genomes,
+        int[] cells,
+        EngineConfig engine
+) {
 
     public static Founders create(RunConfig config) {
         long seed = config.engine().seed();

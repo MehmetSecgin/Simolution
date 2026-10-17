@@ -129,7 +129,8 @@ class ParallelRunnerTest {
 
             // assert
             assertEquals(0L, windows[measured - 1],
-                    "no 1000-tick window without allocation on caller + workers: " + java.util.Arrays.toString(windows));
+                    "no 1000-tick window without allocation on caller + workers: "
+                            + java.util.Arrays.toString(windows));
         }
     }
 

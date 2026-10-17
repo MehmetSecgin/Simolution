@@ -33,7 +33,8 @@ class EngineConfigTest {
 
     @Test
     void rejectsMissingKey() {
-        String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replaceAll("\\s*\"growYield\"[^\\n]*\\n", "\n");
+        String json =
+                ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replaceAll("\\s*\"growYield\"[^\\n]*\\n", "\n");
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
 

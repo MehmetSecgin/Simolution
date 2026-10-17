@@ -68,7 +68,7 @@ public record RunConfig(
         if (cells < founders) {
             throw new IllegalArgumentException(
                     "world " + worldWidth + "x" + worldWidth + " (" + cells + " cells) cannot hold "
-                    + founders + " founders");
+                            + founders + " founders");
         }
     }
 
@@ -79,7 +79,8 @@ public record RunConfig(
         if (!options.resourceCycle) {
             return engine;
         }
-        final int radius = options.cycleRadius == null ? defaultCycleRadius(engine.world().worldWidth()) : options.cycleRadius;
+        final int radius =
+                options.cycleRadius == null ? defaultCycleRadius(engine.world().worldWidth()) : options.cycleRadius;
         return engine.withResourceInflow(InflowConfig.cyclic(
                 requireNonNullElse(options.cyclePeriod, DEFAULT_CYCLE_PERIOD),
                 radius,

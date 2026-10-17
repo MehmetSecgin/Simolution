@@ -41,12 +41,12 @@ public final class SnapshotDump {
                 continue;
             }
             out.append("unit ").append(slot)
-               .append(' ').append(snapshot.position[slot])
-               .append(' ').append(snapshot.energy[slot])
-               .append(' ').append(snapshot.damage[slot])
-               .append(' ').append(snapshot.generation[slot])
-               .append(' ').append(snapshot.lineageId[slot])
-               .append('\n');
+                    .append(' ').append(snapshot.position[slot])
+                    .append(' ').append(snapshot.energy[slot])
+                    .append(' ').append(snapshot.damage[slot])
+                    .append(' ').append(snapshot.generation[slot])
+                    .append(' ').append(snapshot.lineageId[slot])
+                    .append('\n');
         }
     }
 
@@ -56,12 +56,12 @@ public final class SnapshotDump {
             final int srcLocal = c.sourceAbsoluteIndex % NodeLayout.TOTAL;
             final int dstLocal = c.destinationAbsoluteIndex % NodeLayout.TOTAL;
             out.append("wire ").append(slot)
-               .append(' ').append(srcLocal)
-               .append(' ').append(NodeLayout.localName(srcLocal))
-               .append(' ').append(dstLocal)
-               .append(' ').append(NodeLayout.localName(dstLocal))
-               .append(' ').append(c.weight)
-               .append('\n');
+                    .append(' ').append(srcLocal)
+                    .append(' ').append(NodeLayout.localName(srcLocal))
+                    .append(' ').append(dstLocal)
+                    .append(' ').append(NodeLayout.localName(dstLocal))
+                    .append(' ').append(c.weight)
+                    .append('\n');
         }
     }
 }

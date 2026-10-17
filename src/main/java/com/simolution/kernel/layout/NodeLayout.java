@@ -140,21 +140,24 @@ public final class NodeLayout {
             sb.append(i == 0 ? "" : ",").append('"').append(localName(i)).append('"');
         }
         sb.append("],\"offsets\":{\"sensor\":").append(SENSOR_OFFSET)
-          .append(",\"internal\":").append(INTERNAL_OFFSET)
-          .append(",\"action\":").append(ACTION_OFFSET);
+                .append(",\"internal\":").append(INTERNAL_OFFSET)
+                .append(",\"action\":").append(ACTION_OFFSET);
         sb.append("},\"typeCounts\":{\"sensor\":").append(Sensor.TYPE_COUNT)
-          .append(",\"internal\":").append(Internal.TYPE_COUNT)
-          .append(",\"action\":").append(Action.TYPE_COUNT);
-        sb.append("},\"junk\":{\"sensor\":[").append(SENSOR_OFFSET + Sensor.MEANINGFUL_COUNT).append(',').append(INTERNAL_OFFSET)
-          .append("],\"internal\":[").append(INTERNAL_OFFSET + Internal.MEANINGFUL_COUNT).append(',').append(ACTION_OFFSET)
-          .append("],\"action\":[").append(ACTION_OFFSET + Action.MEANINGFUL_COUNT).append(',').append(TOTAL);
-        sb.append("]},\"gene\":{\"bits\":32,\"srcType\":{\"shift\":").append(GeneLayout.SOURCE_KIND_SHIFT).append(",\"width\":1}")
-          .append(",\"srcId\":{\"shift\":").append(GeneLayout.SOURCE_ID_SHIFT).append(",\"width\":7}")
-          .append(",\"dstType\":{\"shift\":").append(GeneLayout.DESTINATION_KIND_SHIFT).append(",\"width\":1}")
-          .append(",\"dstId\":{\"shift\":").append(GeneLayout.DESTINATION_ID_SHIFT).append(",\"width\":7}")
-          .append(",\"weight\":{\"shift\":0,\"width\":16,\"signed\":true,\"scale\":")
-          .append(GeneDecoder.WEIGHT_PER_RAW_UNIT).append(",\"max\":").append(GeneDecoder.NOMINAL_MAX_WEIGHT)
-          .append("}}}");
+                .append(",\"internal\":").append(Internal.TYPE_COUNT)
+                .append(",\"action\":").append(Action.TYPE_COUNT);
+        sb.append("},\"junk\":{\"sensor\":[").append(SENSOR_OFFSET + Sensor.MEANINGFUL_COUNT).append(',')
+                .append(INTERNAL_OFFSET)
+                .append("],\"internal\":[").append(INTERNAL_OFFSET + Internal.MEANINGFUL_COUNT).append(',')
+                .append(ACTION_OFFSET)
+                .append("],\"action\":[").append(ACTION_OFFSET + Action.MEANINGFUL_COUNT).append(',').append(TOTAL);
+        sb.append("]},\"gene\":{\"bits\":32,\"srcType\":{\"shift\":").append(GeneLayout.SOURCE_KIND_SHIFT)
+                .append(",\"width\":1}")
+                .append(",\"srcId\":{\"shift\":").append(GeneLayout.SOURCE_ID_SHIFT).append(",\"width\":7}")
+                .append(",\"dstType\":{\"shift\":").append(GeneLayout.DESTINATION_KIND_SHIFT).append(",\"width\":1}")
+                .append(",\"dstId\":{\"shift\":").append(GeneLayout.DESTINATION_ID_SHIFT).append(",\"width\":7}")
+                .append(",\"weight\":{\"shift\":0,\"width\":16,\"signed\":true,\"scale\":")
+                .append(GeneDecoder.WEIGHT_PER_RAW_UNIT).append(",\"max\":").append(GeneDecoder.NOMINAL_MAX_WEIGHT)
+                .append("}}}");
         return sb.toString();
     }
 

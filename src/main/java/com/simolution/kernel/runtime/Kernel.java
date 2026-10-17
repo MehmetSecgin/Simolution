@@ -7,18 +7,18 @@ import com.simolution.kernel.genome.SlotCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.phase.ClearPhase;
+import com.simolution.kernel.phase.CostPhase;
 import com.simolution.kernel.phase.DecayPhase;
 import com.simolution.kernel.phase.DiffusionPhase;
 import com.simolution.kernel.phase.EvaluatePhase;
 import com.simolution.kernel.phase.GrowthPhase;
 import com.simolution.kernel.phase.InflowPhase;
 import com.simolution.kernel.phase.IntakePhase;
-import com.simolution.kernel.phase.CostPhase;
 import com.simolution.kernel.phase.MovementPhase;
+import com.simolution.kernel.phase.ParallelRunner;
 import com.simolution.kernel.phase.Phase;
 import com.simolution.kernel.phase.PropagatePhase;
 import com.simolution.kernel.phase.ReproductionPhase;
-import com.simolution.kernel.phase.ParallelRunner;
 import com.simolution.kernel.phase.SwapPhase;
 import com.simolution.kernel.state.StateDigest;
 import com.simolution.kernel.state.WorldState;
@@ -80,12 +80,12 @@ public final class Kernel implements AutoCloseable {
         if (seededCount > maxUnits) {
             throw new IllegalArgumentException(
                     "initial population " + seededCount + " exceeds grid capacity "
-                    + maxUnits + " (worldWidth " + worldWidth + ")");
+                            + maxUnits + " (worldWidth " + worldWidth + ")");
         }
         if (founderCells.length != seededCount) {
             throw new IllegalArgumentException(
                     "founderCells length " + founderCells.length
-                    + " must equal founder count " + seededCount);
+                            + " must equal founder count " + seededCount);
         }
         this.unitCount = maxUnits;
 
@@ -107,7 +107,7 @@ public final class Kernel implements AutoCloseable {
                 if (genome.length > maxGenes) {
                     throw new IllegalArgumentException(
                             "unit " + unit + " genome has " + genome.length
-                            + " genes, exceeds maxGenes " + maxGenes);
+                                    + " genes, exceeds maxGenes " + maxGenes);
                 }
                 System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
                 geneCount[unit] = genome.length;

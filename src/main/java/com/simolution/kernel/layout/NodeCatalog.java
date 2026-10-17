@@ -44,7 +44,7 @@ public final class NodeCatalog {
     private final int actionJunk;
 
     private NodeCatalog(final List<NodeSpec> sensors, final List<NodeSpec> internals, final List<NodeSpec> actions,
-                        final int sensorJunk, final int internalJunk, final int actionJunk) {
+            final int sensorJunk, final int internalJunk, final int actionJunk) {
         this.sensors = sensors;
         this.internals = internals;
         this.actions = actions;

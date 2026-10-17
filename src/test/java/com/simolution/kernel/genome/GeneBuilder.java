@@ -27,7 +27,10 @@ public final class GeneBuilder {
                 | (weightRaw & GeneLayout.WEIGHT_MASK);
     }
 
-    public record SourceStage(Kind sourceKind, int sourceId) {
+    public record SourceStage(
+            Kind sourceKind,
+            int sourceId
+    ) {
 
         public DestinationStage toInternal(int internalTypeId) {
             return new DestinationStage(this, Kind.INTERNAL, internalTypeId);
@@ -38,14 +41,21 @@ public final class GeneBuilder {
         }
     }
 
-    public record DestinationStage(SourceStage source, Kind destinationKind, int destinationId) {
+    public record DestinationStage(
+            SourceStage source,
+            Kind destinationKind,
+            int destinationId
+    ) {
 
         public WeightStage weightRaw(short weightRaw) {
             return new WeightStage(this, weightRaw);
         }
     }
 
-    public record WeightStage(DestinationStage destination, short weightRaw) {
+    public record WeightStage(
+            DestinationStage destination,
+            short weightRaw
+    ) {
 
         public int build() {
             return pack(

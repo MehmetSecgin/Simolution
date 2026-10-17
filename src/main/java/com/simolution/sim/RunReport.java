@@ -11,7 +11,8 @@ public final class RunReport {
 
     private RunReport() {}
 
-    public static String render(final RunConfig config, final StructuralStats structure, final DynamicsSummary dynamics) {
+    public static String render(final RunConfig config, final StructuralStats structure,
+            final DynamicsSummary dynamics) {
         final StringBuilder out = new StringBuilder(2048);
         appendHeader(out, config);
         appendStructure(out, structure);

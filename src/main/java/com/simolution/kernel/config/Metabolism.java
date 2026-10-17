@@ -1,6 +1,11 @@
 package com.simolution.kernel.config;
 
-public record Metabolism(double basalCost, double costPerPropagation, double maintenancePerMass, double agingCost) {
+public record Metabolism(
+        double basalCost,
+        double costPerPropagation,
+        double maintenancePerMass,
+        double agingCost
+) {
 
     public Metabolism {
         Checks.nonNegative("basalCost", basalCost);

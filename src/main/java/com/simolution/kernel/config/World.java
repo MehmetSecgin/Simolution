@@ -1,6 +1,9 @@
 package com.simolution.kernel.config;
 
-public record World(int worldWidth, int maxGenes) {
+public record World(
+        int worldWidth,
+        int maxGenes
+) {
 
     public World {
         if (worldWidth < 1) {

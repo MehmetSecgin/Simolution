@@ -36,7 +36,7 @@ class RunArtifactsTest {
         // act
         assertThrows(IllegalStateException.class, () -> {
             try (Kernel kernel = founders.newKernel(1);
-                 RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
+                    RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
                 for (int i = 0; i < 5; i++) {
                     kernel.tick();
                     KernelSnapshot snapshot = kernel.snapshot();

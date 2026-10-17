@@ -21,8 +21,7 @@ public sealed interface MapSampling {
         }
     }
 
-    record EveryTick() implements MapSampling {
-    }
+    record EveryTick() implements MapSampling {}
 
     record Spread(int frames) implements MapSampling {
 
@@ -32,6 +31,8 @@ public sealed interface MapSampling {
         }
     }
 
-    record Window(int fromTick, int toTick) implements MapSampling {
-    }
+    record Window(
+            int fromTick,
+            int toTick
+    ) implements MapSampling {}
 }

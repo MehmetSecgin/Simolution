@@ -8,7 +8,14 @@ package com.simolution.kernel.state;
  * called; double-buffered arrays swap references, so a spec must not be kept
  * across ticks.
  */
-public record FieldSpec(String name, Dim dim, Persist persist, OnBirth onBirth, OnDeath onDeath, Object array) {
+public record FieldSpec(
+        String name,
+        Dim dim,
+        Persist persist,
+        OnBirth onBirth,
+        OnDeath onDeath,
+        Object array
+) {
 
     /**
      * Shape of the array: per slot, per cell, per slot node ({@code slot * NodeLayout.TOTAL + node}),
@@ -25,7 +32,9 @@ public record FieldSpec(String name, Dim dim, Persist persist, OnBirth onBirth, 
     public enum Persist { SAVED, DERIVED, SCRATCH }
 
     /** {@code RESET_ZERO} is zeroed by {@link WorldState#resetForBirth}; {@code EXPLICIT} is set by the birth code. */
-    public enum OnBirth { RESET_ZERO, EXPLICIT }
+    public enum OnBirth {
+        RESET_ZERO, EXPLICIT
+    }
 
     /** {@code ZERO} is zeroed by {@link WorldState#applyDeath}. */
     public enum OnDeath { KEEP, ZERO }

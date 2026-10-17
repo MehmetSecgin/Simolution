@@ -12,9 +12,18 @@ public sealed interface InflowSource permits
 
     enum Motion { STATIC, ORBIT, DRIFT }
 
-    record Disk(double fx, double fy, double radius, double peak,
-                int periodTicks, int phaseTicks,
-                Motion motion, double m0, double m1, int motionPeriod) implements InflowSource {
+    record Disk(
+            double fx,
+            double fy,
+            double radius,
+            double peak,
+            int periodTicks,
+            int phaseTicks,
+            Motion motion,
+            double m0,
+            double m1,
+            int motionPeriod
+    ) implements InflowSource {
 
         public double orbitRadiusFraction() {
             return m0;
@@ -62,8 +71,17 @@ public sealed interface InflowSource permits
         }
     }
 
-    record Rect(double fx0, double fy0, double fx1, double fy1, double peak,
-                int periodTicks, int phaseTicks, double vx, double vy) implements InflowSource {
+    record Rect(
+            double fx0,
+            double fy0,
+            double fx1,
+            double fy1,
+            double peak,
+            int periodTicks,
+            int phaseTicks,
+            double vx,
+            double vy
+    ) implements InflowSource {
 
         @Override
         public double capAt(final int x, final int y, final int tick, final int worldWidth) {
@@ -94,7 +112,12 @@ public sealed interface InflowSource permits
         }
     }
 
-    record Points(int[] cells, double peak, int periodTicks, int phaseTicks) implements InflowSource {
+    record Points(
+            int[] cells,
+            double peak,
+            int periodTicks,
+            int phaseTicks
+    ) implements InflowSource {
 
         @Override
         public boolean equals(final Object o) {
@@ -127,8 +150,14 @@ public sealed interface InflowSource permits
         }
     }
 
-    record Noise(long seed, double frequency, double threshold, double gain,
-                 double peak, int animPeriod) implements InflowSource {
+    record Noise(
+            long seed,
+            double frequency,
+            double threshold,
+            double gain,
+            double peak,
+            int animPeriod
+    ) implements InflowSource {
 
         @Override
         public double capAt(final int x, final int y, final int tick, final int worldWidth) {
@@ -150,8 +179,14 @@ public sealed interface InflowSource permits
         }
     }
 
-    record Ring(double fx, double fy, double wavelength, double speed,
-                double peak, double width) implements InflowSource {
+    record Ring(
+            double fx,
+            double fy,
+            double wavelength,
+            double speed,
+            double peak,
+            double width
+    ) implements InflowSource {
 
         @Override
         public double capAt(final int x, final int y, final int tick, final int worldWidth) {

@@ -31,7 +31,8 @@ class RunReportTest {
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 16, false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.defaults(42L, 64, 16), 1, false);
+        RunConfig config = new RunConfig(25, 200, 16, false, null, MapSampling.EVERY_TICK, new Observation(false, 0),
+                EngineConfig.defaults(42L, 64, 16), 1, false);
 
         // act
         String first = runAndRender(config);
@@ -44,7 +45,8 @@ class RunReportTest {
     @Test
     void reportDoesNotInlinePerUnitDetail() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 8, false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.defaults(1L, 64, 8), 1, false));
+        String report = runAndRender(new RunConfig(25, 50, 8, false, null, MapSampling.EVERY_TICK,
+                new Observation(false, 0), EngineConfig.defaults(1L, 64, 8), 1, false));
 
         // assert
         assertFalse(report.contains("## units"));
@@ -54,7 +56,8 @@ class RunReportTest {
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
+        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
+                new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert
         assertTrue(report.contains("schema: report-v15"));
@@ -75,7 +78,8 @@ class RunReportTest {
     @Test
     void sectionsAppearInTodaysOrder() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
+        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
+                new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert
         String[] headers = {"# Simolution run report", "\n## structure\n", "\n## dynamics\n", "\n## reproduction\n",
@@ -92,7 +96,8 @@ class RunReportTest {
     @Test
     void reportOmitsRetiredLines() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
+        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
+                new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert
         for (String retired : new String[] {"## intake", "## burn-rate", "## terminal-regimes", "## action-channel",

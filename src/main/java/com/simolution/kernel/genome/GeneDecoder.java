@@ -20,15 +20,19 @@ public final class GeneDecoder {
     public static int sourceNodeIndex(final int rawGene) {
         final int id = GeneLayout.sourceId(rawGene);
         return GeneLayout.sourceIsInternal(rawGene)
-                ? nodeIndex(NodeLayout.INTERNAL_OFFSET, id, NodeLayout.Internal.TYPE_COUNT, NodeLayout.Internal.INSTANCES_PER_TYPE)
-                : nodeIndex(NodeLayout.SENSOR_OFFSET, id, NodeLayout.Sensor.TYPE_COUNT, NodeLayout.Sensor.INSTANCES_PER_TYPE);
+                ? nodeIndex(NodeLayout.INTERNAL_OFFSET, id, NodeLayout.Internal.TYPE_COUNT,
+                        NodeLayout.Internal.INSTANCES_PER_TYPE)
+                : nodeIndex(NodeLayout.SENSOR_OFFSET, id, NodeLayout.Sensor.TYPE_COUNT,
+                        NodeLayout.Sensor.INSTANCES_PER_TYPE);
     }
 
     public static int destinationNodeIndex(final int rawGene) {
         final int id = GeneLayout.destinationId(rawGene);
         return GeneLayout.destinationIsAction(rawGene)
-                ? nodeIndex(NodeLayout.ACTION_OFFSET, id, NodeLayout.Action.TYPE_COUNT, NodeLayout.Action.INSTANCES_PER_TYPE)
-                : nodeIndex(NodeLayout.INTERNAL_OFFSET, id, NodeLayout.Internal.TYPE_COUNT, NodeLayout.Internal.INSTANCES_PER_TYPE);
+                ? nodeIndex(NodeLayout.ACTION_OFFSET, id, NodeLayout.Action.TYPE_COUNT,
+                        NodeLayout.Action.INSTANCES_PER_TYPE)
+                : nodeIndex(NodeLayout.INTERNAL_OFFSET, id, NodeLayout.Internal.TYPE_COUNT,
+                        NodeLayout.Internal.INSTANCES_PER_TYPE);
     }
 
     public static double weight(final int rawGene) {

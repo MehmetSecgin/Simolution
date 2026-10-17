@@ -7,8 +7,12 @@ public final class StructuralAnalyzer {
 
     private StructuralAnalyzer() {}
 
-    private record UnitWiring(long meaningful, boolean reachable, boolean randWired, long duplicates) {
-    }
+    private record UnitWiring(
+            long meaningful,
+            boolean reachable,
+            boolean randWired,
+            long duplicates
+    ) {}
 
     private static final class WeightTally {
         private double absSum;
@@ -89,7 +93,7 @@ public final class StructuralAnalyzer {
     private static int endOfUnit(final CompiledConnection[] connections, final int start, final int unit) {
         int i = start;
         while (i < connections.length
-               && connections[i].sourceAbsoluteIndex / NodeLayout.TOTAL == unit) {
+                && connections[i].sourceAbsoluteIndex / NodeLayout.TOTAL == unit) {
             i++;
         }
         return i;

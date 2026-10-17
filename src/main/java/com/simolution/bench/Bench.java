@@ -22,8 +22,12 @@ public final class Bench {
     private static final int MAX_GENES = 64;
     private static final int DEFAULT_THREADS = 1;
 
-    private record Row(String name, int ticks, long wallMillis, long heapMegabytes) {
-    }
+    private record Row(
+            String name,
+            int ticks,
+            long wallMillis,
+            long heapMegabytes
+    ) {}
 
     private Bench() {
     }

@@ -1,6 +1,10 @@
 package com.simolution.kernel.config;
 
-public record Motility(double fixedCost, double costPerMass, double deadzone) {
+public record Motility(
+        double fixedCost,
+        double costPerMass,
+        double deadzone
+) {
 
     public Motility {
         Checks.nonNegative("moveCostBase", fixedCost);

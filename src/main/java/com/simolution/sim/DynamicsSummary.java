@@ -1,25 +1,45 @@
 package com.simolution.sim;
 
-public record DynamicsSummary(Activity activity, Population population, EnergyLedger energy, Mass mass,
-        long stateDigest) {
+public record DynamicsSummary(
+        Activity activity,
+        Population population,
+        EnergyLedger energy,
+        Mass mass,
+        long stateDigest
+) {
 
-    public record Activity(long ticksWithAnyActivity, long propagationsTotal) {
-    }
+    public record Activity(
+            long ticksWithAnyActivity,
+            long propagationsTotal
+    ) {}
 
-    public record Population(int peak, int finalCount, int distinctLineagesAlive, long birthsTotal,
-            int maxGeneration) {
-    }
+    public record Population(
+            int peak,
+            int finalCount,
+            int distinctLineagesAlive,
+            long birthsTotal,
+            int maxGeneration
+    ) {}
 
-    public record EnergyLedger(double initialEnergy, double finalEnergy, double finalSink,
-            double initialResource, double finalResource, double cumulativeInflow) {
+    public record EnergyLedger(
+            double initialEnergy,
+            double finalEnergy,
+            double finalSink,
+            double initialResource,
+            double finalResource,
+            double cumulativeInflow
+    ) {
 
         public double intakeTotal() {
             return initialResource + cumulativeInflow - finalResource;
         }
     }
 
-    public record Mass(double initialMass, double finalTotal, double finalMax) {
-    }
+    public record Mass(
+            double initialMass,
+            double finalTotal,
+            double finalMax
+    ) {}
 
     public static DynamicsSummary empty(final long stateDigest) {
         return new DynamicsSummary(

@@ -83,7 +83,8 @@ public final class SlotCompiler {
         return NodeLayout.isMeaningful(src);
     }
 
-    private static void storeConnection(final WorldState state, final int index, final int src, final int dst, final int gene) {
+    private static void storeConnection(final WorldState state, final int index, final int src, final int dst,
+            final int gene) {
         state.connSrc[index] = (short) src;
         state.connDst[index] = (short) dst;
         state.connWeight[index] = GeneDecoder.weight(gene);

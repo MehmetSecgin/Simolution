@@ -40,7 +40,8 @@ class MultiUnitKernelTest {
     void unitZeroIsInvariantUnderPopulationSize() {
         // arrange
         Kernel alone = Worlds.kernel(1, FEEDBACK_GENOME);
-        Kernel crowded = Worlds.kernel(3, FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME);
+        Kernel crowded =
+                Worlds.kernel(3, FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME);
 
         for (int tick = 0; tick < 20; tick++) {
             // act

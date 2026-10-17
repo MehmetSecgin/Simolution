@@ -49,7 +49,8 @@ class RunLifecycleTest {
         }
 
         for (int t = 0; t <= TICKS; t++) {
-            assertArrayEquals(canonical.get(t), CheckpointBytes.of(RunDirectoryReader.seek(dir, t, 1)), "state at tick " + t);
+            assertArrayEquals(canonical.get(t), CheckpointBytes.of(RunDirectoryReader.seek(dir, t, 1)),
+                    "state at tick " + t);
         }
     }
 
