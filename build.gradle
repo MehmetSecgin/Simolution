@@ -29,3 +29,9 @@ dependencies {
 test {
     useJUnitPlatform()
 }
+
+tasks.register('bench', JavaExec) {
+    mainClass = 'com.simolution.bench.Bench'
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs '-Xmx4g'
+}
