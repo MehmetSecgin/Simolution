@@ -67,7 +67,7 @@ class MovementTest {
     void weakDriveInsideDeadzoneDoesNotMove() {
         // arrange: CONST*weight stays below MOVE_DEADZONE, so no step
         short weak = 512; // 512 * 4/32767 ~ 0.0625 < MOVE_DEADZONE 0.1
-        assertTrue(weak * GeneDecoder.WEIGHT_MULTIPLIER < DEFAULTS.motility().deadzone(),
+        assertTrue(weak * GeneDecoder.WEIGHT_PER_RAW_UNIT < DEFAULTS.motility().deadzone(),
                 "test precondition: drive must be inside the deadzone");
         Kernel kernel = new Kernel(new int[][] {{driveEast(weak)}}, new int[] {0}, EngineConfig.defaults(0L, 4, 32), 1);
 

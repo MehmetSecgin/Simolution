@@ -1,6 +1,7 @@
 package com.simolution.kernel.layout;
 
 import com.simolution.kernel.genome.GeneDecoder;
+import com.simolution.kernel.genome.GeneLayout;
 import com.simolution.kernel.layout.NodeSpec.Kind;
 
 /**
@@ -154,12 +155,12 @@ public final class NodeLayout {
         sb.append("},\"junk\":{\"sensor\":[").append(SENSOR_OFFSET + Sensor.MEANINGFUL_COUNT).append(',').append(INTERNAL_OFFSET)
           .append("],\"internal\":[").append(INTERNAL_OFFSET + Internal.MEANINGFUL_COUNT).append(',').append(ACTION_OFFSET)
           .append("],\"action\":[").append(ACTION_OFFSET + Action.MEANINGFUL_COUNT).append(',').append(TOTAL);
-        sb.append("]},\"gene\":{\"bits\":32,\"srcType\":{\"shift\":31,\"width\":1}")
-          .append(",\"srcId\":{\"shift\":24,\"width\":7}")
-          .append(",\"dstType\":{\"shift\":23,\"width\":1}")
-          .append(",\"dstId\":{\"shift\":16,\"width\":7}")
+        sb.append("]},\"gene\":{\"bits\":32,\"srcType\":{\"shift\":").append(GeneLayout.SOURCE_KIND_SHIFT).append(",\"width\":1}")
+          .append(",\"srcId\":{\"shift\":").append(GeneLayout.SOURCE_ID_SHIFT).append(",\"width\":7}")
+          .append(",\"dstType\":{\"shift\":").append(GeneLayout.DESTINATION_KIND_SHIFT).append(",\"width\":1}")
+          .append(",\"dstId\":{\"shift\":").append(GeneLayout.DESTINATION_ID_SHIFT).append(",\"width\":7}")
           .append(",\"weight\":{\"shift\":0,\"width\":16,\"signed\":true,\"scale\":")
-          .append(GeneDecoder.WEIGHT_MULTIPLIER).append(",\"max\":").append(GeneDecoder.MAX_WEIGHT)
+          .append(GeneDecoder.WEIGHT_PER_RAW_UNIT).append(",\"max\":").append(GeneDecoder.NOMINAL_MAX_WEIGHT)
           .append("}}}");
         return sb.toString();
     }

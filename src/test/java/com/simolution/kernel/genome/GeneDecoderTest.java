@@ -1,6 +1,7 @@
 package com.simolution.kernel.genome;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +25,7 @@ class GeneDecoderTest {
         // assert
         assertEquals(NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.CONST, connection.sourceAbsoluteIndex);
         assertEquals(NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.DELAY, connection.destinationAbsoluteIndex);
-        assertEquals(-16384 * GeneDecoder.WEIGHT_MULTIPLIER, connection.weight, 0.0);
+        assertEquals(-16384 * GeneDecoder.WEIGHT_PER_RAW_UNIT, connection.weight, 0.0);
     }
 
     @Test
@@ -72,8 +73,8 @@ class GeneDecoderTest {
             CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
             // assert
-            assertEquals(true, connection != null, "gene " + Integer.toHexString(gene) + " must decode");
-            assertEquals(true, Math.abs(connection.weight) <= 4.0, "weight bounded for gene " + Integer.toHexString(gene));
+            assertTrue(Math.abs(connection.weight) <= 32768 * GeneDecoder.WEIGHT_PER_RAW_UNIT,
+                    "weight bounded for gene " + Integer.toHexString(gene));
         }
     }
 
@@ -96,8 +97,8 @@ class GeneDecoderTest {
             double expectedWeight = (short) low16 * (4.0 / 32767);
 
             // act
-            int source = GeneDecoder.sourceLocal(gene);
-            int destination = GeneDecoder.destinationLocal(gene);
+            int source = GeneDecoder.sourceNodeIndex(gene);
+            int destination = GeneDecoder.destinationNodeIndex(gene);
             double weight = GeneDecoder.weight(gene);
 
             // assert

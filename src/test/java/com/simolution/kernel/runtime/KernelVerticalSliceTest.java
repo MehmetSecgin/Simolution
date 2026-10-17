@@ -44,10 +44,10 @@ class KernelVerticalSliceTest {
         };
         Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
 
-        double wConstToAdd = W_CONST_TO_ADD * GeneDecoder.WEIGHT_MULTIPLIER;
-        double wAddToDelay = W_ADD_TO_DELAY * GeneDecoder.WEIGHT_MULTIPLIER;
-        double wDelayToAdd = W_DELAY_TO_ADD * GeneDecoder.WEIGHT_MULTIPLIER;
-        double wAddToAction = W_ADD_TO_ACTION * GeneDecoder.WEIGHT_MULTIPLIER;
+        double wConstToAdd = W_CONST_TO_ADD * GeneDecoder.WEIGHT_PER_RAW_UNIT;
+        double wAddToDelay = W_ADD_TO_DELAY * GeneDecoder.WEIGHT_PER_RAW_UNIT;
+        double wDelayToAdd = W_DELAY_TO_ADD * GeneDecoder.WEIGHT_PER_RAW_UNIT;
+        double wAddToAction = W_ADD_TO_ACTION * GeneDecoder.WEIGHT_PER_RAW_UNIT;
 
         float constPrev = 0.0f;
         float addPrev = 0.0f;

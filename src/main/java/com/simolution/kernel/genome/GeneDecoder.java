@@ -3,46 +3,39 @@ package com.simolution.kernel.genome;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 
-/**
- * Gene layout {@code [SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]}.
- * Ids wrap modulo the block's type count, so every int decodes.
- */
 public final class GeneDecoder {
 
-    public static final double MAX_WEIGHT = 4.0;
-    public static final double WEIGHT_MULTIPLIER = MAX_WEIGHT / Short.MAX_VALUE;
+    public static final double NOMINAL_MAX_WEIGHT = 4.0;
+    public static final double WEIGHT_PER_RAW_UNIT = NOMINAL_MAX_WEIGHT / Short.MAX_VALUE;
 
     private GeneDecoder() {}
 
     public static CompiledConnection decode(final int rawGene, final int unitNodeOffset) {
         return new CompiledConnection(
-                unitNodeOffset + sourceLocal(rawGene),
-                unitNodeOffset + destinationLocal(rawGene),
+                unitNodeOffset + sourceNodeIndex(rawGene),
+                unitNodeOffset + destinationNodeIndex(rawGene),
                 weight(rawGene));
     }
 
-    public static int sourceLocal(final int rawGene) {
-        final int sourceId = (rawGene >>> 24) & 0x7F;
-        if ((rawGene >>> 31) == 0) {
-            return NodeLayout.SENSOR_OFFSET
-                    + (sourceId % NodeLayout.Sensor.TYPE_COUNT) * NodeLayout.Sensor.INSTANCES_PER_TYPE;
-        }
-        return NodeLayout.INTERNAL_OFFSET
-                + (sourceId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
+    public static int sourceNodeIndex(final int rawGene) {
+        final int id = GeneLayout.sourceId(rawGene);
+        return GeneLayout.sourceIsInternal(rawGene)
+                ? nodeIndex(NodeLayout.INTERNAL_OFFSET, id, NodeLayout.Internal.TYPE_COUNT, NodeLayout.Internal.INSTANCES_PER_TYPE)
+                : nodeIndex(NodeLayout.SENSOR_OFFSET, id, NodeLayout.Sensor.TYPE_COUNT, NodeLayout.Sensor.INSTANCES_PER_TYPE);
     }
 
-    public static int destinationLocal(final int rawGene) {
-        final int destinationId = (rawGene >>> 16) & 0x7F;
-        if (((rawGene >>> 23) & 0b1) == 0) {
-            return NodeLayout.INTERNAL_OFFSET
-                    + (destinationId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
-        }
-        return NodeLayout.ACTION_OFFSET
-                + (destinationId % NodeLayout.Action.TYPE_COUNT) * NodeLayout.Action.INSTANCES_PER_TYPE;
+    public static int destinationNodeIndex(final int rawGene) {
+        final int id = GeneLayout.destinationId(rawGene);
+        return GeneLayout.destinationIsAction(rawGene)
+                ? nodeIndex(NodeLayout.ACTION_OFFSET, id, NodeLayout.Action.TYPE_COUNT, NodeLayout.Action.INSTANCES_PER_TYPE)
+                : nodeIndex(NodeLayout.INTERNAL_OFFSET, id, NodeLayout.Internal.TYPE_COUNT, NodeLayout.Internal.INSTANCES_PER_TYPE);
     }
 
     public static double weight(final int rawGene) {
-        return (short) (rawGene & 0xFFFF) * WEIGHT_MULTIPLIER;
+        return GeneLayout.weightRaw(rawGene) * WEIGHT_PER_RAW_UNIT;
     }
 
+    private static int nodeIndex(final int blockOffset, final int id, final int typeCount, final int instancesPerType) {
+        return blockOffset + (id % typeCount) * instancesPerType;
+    }
 }

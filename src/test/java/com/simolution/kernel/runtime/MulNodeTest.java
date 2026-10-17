@@ -15,7 +15,7 @@ class MulNodeTest {
     private static final int MUL_IDX = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
 
     private static double weight(short raw) {
-        return raw * GeneDecoder.WEIGHT_MULTIPLIER;
+        return raw * GeneDecoder.WEIGHT_PER_RAW_UNIT;
     }
 
     private static int constToMul(short raw) {
