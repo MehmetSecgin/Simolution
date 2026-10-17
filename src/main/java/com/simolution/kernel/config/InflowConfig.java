@@ -6,10 +6,6 @@ public record InflowConfig(double baseline, List<InflowSource> sources, Combine 
 
     private static final double CENTRE = 0.5;
 
-    public InflowConfig {
-        sources = List.copyOf(sources);
-    }
-
     public enum Combine {
         MAX {
             @Override

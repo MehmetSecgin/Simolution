@@ -30,8 +30,9 @@ public sealed interface InflowSource permits
 
         @Override
         public double capAt(final int x, final int y, final int tick, final int worldWidth) {
-            final double dx = wrapDelta(x - centreX(tick, worldWidth), worldWidth);
-            final double dy = wrapDelta(y - centreY(tick, worldWidth), worldWidth);
+            final double angle = motion == Motion.ORBIT ? orbitAngle(tick) : 0.0;
+            final double dx = wrapDelta(x - centreX(tick, worldWidth, angle), worldWidth);
+            final double dy = wrapDelta(y - centreY(tick, worldWidth, angle), worldWidth);
             return dx * dx + dy * dy > radius * radius ? 0.0 : pulse(peak, tick, periodTicks, phaseTicks);
         }
 
@@ -40,17 +41,17 @@ public sealed interface InflowSource permits
             return periodTicks == 0 && motion == Motion.STATIC;
         }
 
-        private double centreX(final int tick, final int worldWidth) {
+        private double centreX(final int tick, final int worldWidth, final double angle) {
             return switch (motion) {
-                case ORBIT -> fx * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.cos(orbitAngle(tick));
+                case ORBIT -> fx * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.cos(angle);
                 case DRIFT -> fx * worldWidth + driftX() * tick;
                 case STATIC -> fx * worldWidth;
             };
         }
 
-        private double centreY(final int tick, final int worldWidth) {
+        private double centreY(final int tick, final int worldWidth, final double angle) {
             return switch (motion) {
-                case ORBIT -> fy * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.sin(orbitAngle(tick));
+                case ORBIT -> fy * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.sin(angle);
                 case DRIFT -> fy * worldWidth + driftY() * tick;
                 case STATIC -> fy * worldWidth;
             };

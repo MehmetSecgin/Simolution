@@ -30,8 +30,11 @@ public final class SlotCompiler {
         for (int g = 0; g < count; g++) {
             final int gene = state.genes[base + g];
             final int dst = GeneDecoder.destinationNodeIndex(gene);
+            if (dst == MUL_NODE) {
+                continue;
+            }
             final int src = GeneDecoder.sourceNodeIndex(gene);
-            if (dst != MUL_NODE && isStored(src)) {
+            if (isStored(src)) {
                 storeConnection(state, cursor++, src, dst, gene);
             }
         }
@@ -60,6 +63,7 @@ public final class SlotCompiler {
         return transporters;
     }
 
+    // Counts every MUL-destined gene, junk source included, before pruning; saturates at 2 (ADR 0005).
     private static int mulInDegreeIncludingJunk(final WorldState state, final int base, final int count) {
         int degree = 0;
         for (int g = 0; g < count; g++) {

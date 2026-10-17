@@ -143,4 +143,30 @@ class ConfigJsonTest {
         // assert
         assertEquals("invalid config: worldWidth must be at least 1, got 0", message);
     }
+
+    @Test
+    void missingInflowSourcesIsNamedInTheMessage() {
+        // arrange
+        final String json = withoutKey(ConfigJson.write(EngineConfig.defaults(1L, 10, 8)), "sources");
+
+        // act
+        final String message = messageOf(json);
+
+        // assert
+        assertEquals("invalid config: Missing creator property 'sources' (index 1); "
+                + "`DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES` enabled", message);
+    }
+
+    @Test
+    void nullInflowSourcesIsNamedInTheMessage() {
+        // arrange
+        final String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replaceAll("\"sources\"\\s*:\\s*\\[ \\]", "\"sources\" : null");
+
+        // act
+        final String message = messageOf(json);
+
+        // assert
+        assertEquals("invalid config: Null value for creator property 'sources' (index 1); "
+                + "`DeserializationFeature.FAIL_ON_NULL_CREATOR_PROPERTIES` enabled", message);
+    }
 }
