@@ -59,7 +59,7 @@ clear → propagate → evaluate → swap
 
 ## Quickstart
 
-Requires **JDK 25** (`.sdkmanrc` pins `25.0.1-oracle`).
+Requires **JDK 26** (`.sdkmanrc` pins `26.0.1.0+8-open`).
 
 ```sh
 ./gradlew run     # demo: a 4-gene feedback genome, 10 ticks, trace + report

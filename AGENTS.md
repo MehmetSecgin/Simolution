@@ -70,7 +70,7 @@ per-unit/wiring CSV sidecars were retired in report-v13). Output is byte-determi
 so every changed line was caused by your change; the `state-digest` line catches drift
 below display rounding. Explain the diff (or its absence) when delivering.
 
-Requires JDK 25 (`.sdkmanrc` pins `25.0.1-oracle`; `sdk env` activates it).
+Requires JDK 26 (`.sdkmanrc` pins `26.0.1.0+8-open`; `sdk env` activates it).
 
 ## Architecture
 
