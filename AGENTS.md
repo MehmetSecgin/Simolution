@@ -227,7 +227,7 @@ The owner wants autonomous implementation but full understanding. So: small sing
 ## Conventions
 
 - Conventional Commits (`feat:`, `refactor(kernel):`, ...).
-- Javadoc is welcome here (project-local exception to any global no-comment rule): the owner wants deep understanding, so document the non-obvious — bit layouts, numeric tricks, invariant reasoning, spec cross-references. Skip prose on self-explanatory code; never narrate what a line does.
+- Comments only for an invariant or numeric trick a name cannot carry (examples: MUL in-degree rule, saturating-drive overflow rearrangement, mutation operation-counter determinism, Noise hashing, barrier handshake, signed-zero junk pruning). Everything else is a name or lives in docs/. No history in code. Tests: only `// arrange`, `// act`, `// assert`.
 - Tests mirror main package layout; spec-conformance tests compare kernel output against an independent reference model (see KernelVerticalSliceTest).
 - No known deviations from binding specs. MUL semantics (in-degree 0 → 0, 1 → pass-through, ≥2 → product of two strongest) per ADR 0005.
 
