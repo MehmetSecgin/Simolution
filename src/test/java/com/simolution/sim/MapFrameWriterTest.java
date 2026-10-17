@@ -4,197 +4,129 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.ByteArrayOutputStream;
-import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.luben.zstd.Zstd;
-
 import com.simolution.kernel.config.ChemicalSpec;
-import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
-import com.simolution.kernel.runtime.Kernel;
+import com.simolution.support.FrameHarness;
 
 class MapFrameWriterTest {
 
-    private static String decode(ByteArrayOutputStream frames, String idxText) {
-        byte[] bytes = frames.toByteArray();
-        StringBuilder all = new StringBuilder();
-        for (String row : idxText.lines().toList()) {
-            if (row.startsWith("format ") || row.startsWith("end")) {
-                continue;
-            }
-            String[] f = row.split(" ");
-            int off = Integer.parseInt(f[2]);
-            int len = Integer.parseInt(f[3]);
-            byte[] comp = new byte[len];
-            System.arraycopy(bytes, off, comp, 0, len);
-            byte[] raw = Zstd.decompress(comp, (int) Zstd.getFrameContentSize(comp));
-            all.append(new String(raw, StandardCharsets.UTF_8));
-        }
-        return all.toString();
-    }
+    private static final int WORLD = 4;
+    private static final int FOUNDERS = 4;
+    private static final int GENES = 8;
+    private static final long GENOME_SEED = 1L;
 
-    private static List<String> tickLines(String out) {
-        List<String> ticks = new ArrayList<>();
-        out.lines().filter(l -> l.startsWith("t ")).forEach(ticks::add);
-        return ticks;
-    }
-
-    private static MapFrameWriter writer(ByteArrayOutputStream frames, StringWriter idx,
-                                         StringWriter catalog, int world, int ticks,
-                                         MapSampling sampling) throws Exception {
-        return new MapFrameWriter(frames, idx, new GenomeCatalogWriter(catalog),
-                ticks, sampling, EngineConfig.defaults(0L, world, 8));
+    private static FrameHarness smallWorld() {
+        return FrameHarness.forWorld(WORLD).founders(GENOME_SEED, FOUNDERS, GENES);
     }
 
     @Test
     void windowModeEmitsEveryTickOnlyInsideTheWindow() throws Exception {
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, new MapSampling.Window(3, 5));
-        for (int i = 0; i < 8; i++) {
-            k.tick();
-            w.observe(k.snapshot());
-        }
-        w.close();
+        // arrange
+        FrameHarness harness = smallWorld().ticks(8).sampling(new MapSampling.Window(3, 5));
 
-        assertTrue(idx.toString().contains("sample-every 1"), "window mode samples every tick");
-        assertEquals(List.of("t 3", "t 4", "t 5"), tickLines(decode(frames, idx.toString())),
-                "only ticks inside [3,5] emit, one frame each");
+        // act
+        harness.run();
+
+        // assert
+        assertTrue(harness.idx().contains("sample-every 1"), "window mode samples every tick");
+        assertEquals(List.of("t 3", "t 4", "t 5"), harness.tickLines(), "only ticks inside [3,5] emit, one frame each");
     }
 
     @Test
     void noWindowEveryTickByDefault() throws Exception {
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, MapSampling.EVERY_TICK);
-        for (int i = 0; i < 10; i++) {
-            k.tick();
-            w.observe(k.snapshot());
-        }
-        w.close();
+        // arrange
+        FrameHarness harness = smallWorld().ticks(10).sampling(MapSampling.EVERY_TICK);
 
-        assertTrue(idx.toString().contains("sample-every 1"), "every-tick sampling");
-        assertEquals(10, tickLines(decode(frames, idx.toString())).size(),
-                "a frame for every one of the 10 ticks");
+        // act
+        harness.run();
+
+        // assert
+        assertTrue(harness.idx().contains("sample-every 1"), "every-tick sampling");
+        assertEquals(10, harness.tickLines().size(), "a frame for every one of the 10 ticks");
     }
 
     @Test
     void positiveTargetFramesDownsamples() throws Exception {
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, new MapSampling.Spread(5));
-        for (int i = 0; i < 10; i++) {
-            k.tick();
-            w.observe(k.snapshot());
-        }
-        w.close();
+        // arrange
+        FrameHarness harness = smallWorld().ticks(10).sampling(new MapSampling.Spread(5));
 
-        assertTrue(idx.toString().contains("sample-every 2"), "10 ticks / 5 frames = every 2");
-        assertEquals(List.of("t 2", "t 4", "t 6", "t 8", "t 10"),
-                tickLines(decode(frames, idx.toString())));
+        // act
+        harness.run();
+
+        // assert
+        assertTrue(harness.idx().contains("sample-every 2"), "10 ticks / 5 frames = every 2");
+        assertEquals(List.of("t 2", "t 4", "t 6", "t 8", "t 10"), harness.tickLines());
     }
 
     @Test
     void genomesGoToTheCatalogNotTheFrame() throws Exception {
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        StringWriter catalog = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, catalog, 4, 8, new MapSampling.Window(1, 5));
-        for (int i = 0; i < 6; i++) {
-            k.tick();
-            w.observe(k.snapshot());
-        }
-        w.close();
-        String framesText = decode(frames, idx.toString());
+        // arrange
+        FrameHarness harness = smallWorld().ticks(6).sampling(new MapSampling.Window(1, 5));
 
-        assertTrue(catalog.toString().lines().anyMatch(l -> l.startsWith("g ")),
+        // act
+        harness.run();
+
+        // assert
+        assertTrue(harness.catalog().lines().anyMatch(l -> l.startsWith("g ")),
                 "distinct genomes are written to the catalog as 'g <id> <count> <genes>'");
-        assertFalse(framesText.contains(" * ") || framesText.contains(" ^"),
-                "the frame no longer carries raw genome markers — only a genomeId");
-        assertTrue(framesText.lines().filter(l -> l.startsWith("u "))
+        assertFalse(harness.framesText().contains(" * ") || harness.framesText().contains(" ^"),
+                "the frame carries only a genomeId, never raw genome markers");
+        assertTrue(harness.framesText().lines().filter(l -> l.startsWith("u "))
                         .allMatch(l -> l.trim().split("\\s+").length == 4),
                 "u line carries exactly cell, slot, genomeId");
     }
 
     @Test
     void noMassOrActionOrNodeOutputsInFrame() throws Exception {
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(7L, 9, 12), Kernel.scatterFounders(0L, 9, 6), EngineConfig.defaults(0L, 6, 12), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 6, 8, new MapSampling.Window(1, 4));
-        for (int i = 0; i < 5; i++) {
-            k.tick();
-            w.observe(k.snapshot());
-        }
-        w.close();
-        String out = decode(frames, idx.toString());
+        // arrange
+        FrameHarness harness = FrameHarness.forWorld(6).founders(7L, 9, 12)
+                .ticks(5).sampling(new MapSampling.Window(1, 4));
 
-        assertFalse(Pattern.compile("\\.[0-9]").matcher(out).find(),
-                "no decimals: mass dropped, node outputs gone; cells and ids are integers");
-        assertTrue(out.lines().filter(l -> l.startsWith("u "))
+        // act
+        harness.run();
+
+        // assert
+        assertFalse(Pattern.compile("\\.[0-9]").matcher(harness.framesText()).find(),
+                "no decimals: cells and ids are integers");
+        assertTrue(harness.framesText().lines().filter(l -> l.startsWith("u "))
                         .noneMatch(l -> l.matches(".*[HRNSEWGy.].*")),
                 "no fired-action tag on the u line");
     }
 
     @Test
     void chunkIndexOffsetsPointAtChunkStarts() throws Exception {
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
-        MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()),
-                6, new MapSampling.Window(1, 4), EngineConfig.defaults(0L, 4, 8));
-        for (int i = 0; i < 5; i++) {
-            k.tick();
-            w.observe(k.snapshot());
-        }
-        w.close();
-        byte[] bytes = frames.toByteArray();
+        // arrange
+        FrameHarness harness = smallWorld().ticks(5).sampling(new MapSampling.Window(1, 4));
 
-        boolean sawChunk = false;
-        for (String row : idx.toString().lines().toList()) {
-            if (row.startsWith("format ") || row.startsWith("end")) {
-                continue;
-            }
-            sawChunk = true;
-            String[] f = row.split(" ");
-            int firstTick = Integer.parseInt(f[0]);
-            int off = Integer.parseInt(f[2]), len = Integer.parseInt(f[3]);
-            byte[] comp = new byte[len];
-            System.arraycopy(bytes, off, comp, 0, len);
-            String block = new String(Zstd.decompress(comp, (int) Zstd.getFrameContentSize(comp)),
-                    StandardCharsets.UTF_8);
-            assertTrue(block.startsWith("t " + firstTick + "\n"),
-                    "chunk at off " + off + " starts at frame t " + firstTick);
-            assertTrue(block.contains("\nr "), "the decoded chunk holds whole frames (t + r + units)");
+        // act
+        harness.run();
+
+        // assert
+        assertFalse(harness.chunks().isEmpty(), "at least one chunk was sealed");
+        for (FrameHarness.Chunk chunk : harness.chunks()) {
+            assertTrue(chunk.text().startsWith("t " + chunk.firstTick() + "\n"),
+                    "chunk at off " + chunk.offset() + " starts at frame t " + chunk.firstTick());
+            assertTrue(chunk.text().contains("\nr "), "the decoded chunk holds whole frames (t + r + units)");
         }
-        assertTrue(sawChunk, "at least one chunk was sealed");
-        assertTrue(idx.toString().lines().anyMatch(l -> l.startsWith("end ")), "idx has an end trailer");
+        assertTrue(harness.idx().lines().anyMatch(l -> l.startsWith("end ")), "idx has an end trailer");
     }
 
     @Test
     void resourceFieldIsRunLengthEncoded() throws Exception {
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, new MapSampling.Window(1, 1));
-        k.tick();
-        w.observe(k.snapshot());
-        w.close();
-        String out = decode(frames, idx.toString());
+        // arrange
+        FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1));
 
-        String rLine = out.lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
-        assertTrue(Pattern.compile("[0-9]x[0-9]+").matcher(rLine).find(),
+        // act
+        harness.run();
+
+        // assert
+        String resourceLine = harness.framesText().lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
+        assertTrue(Pattern.compile("[0-9]x[0-9]+").matcher(resourceLine).find(),
                 "resource field is DxN run-length tokens, not dense digits");
     }
 
@@ -203,21 +135,16 @@ class MapFrameWriterTest {
         // arrange
         ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
         ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        EngineConfig config = EngineConfig.defaults(0L, 4, 8).withChemicals(List.of(first, second));
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
-        ByteArrayOutputStream frames = new ByteArrayOutputStream();
-        StringWriter idx = new StringWriter();
-        MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()), 8, new MapSampling.Window(1, 1), config);
+        FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1))
+                .configure(config -> config.withChemicals(List.of(first, second)));
 
         // act
-        k.tick();
-        w.observe(k.snapshot());
-        w.close();
-        String rLine = decode(frames, idx.toString()).lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
+        harness.run();
 
         // assert
-        int cells = Pattern.compile("[0-9]x([0-9]+)").matcher(rLine).results()
+        String resourceLine = harness.framesText().lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
+        int cells = Pattern.compile("[0-9]x([0-9]+)").matcher(resourceLine).results()
                 .mapToInt(m -> Integer.parseInt(m.group(1))).sum();
-        assertEquals(16, cells);
+        assertEquals(WORLD * WORLD, cells);
     }
 }

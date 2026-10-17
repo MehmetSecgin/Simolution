@@ -107,7 +107,10 @@ class InflowSpecParserTest {
 
     @Test
     void badValueFailsBeforeALaterUnknownKey() {
-        // act + assert
-        assertThrows(NumberFormatException.class, () -> InflowSpecParser.parse("disk r=abc wat=1"));
+        // act
+        Exception thrown = assertThrows(Exception.class, () -> InflowSpecParser.parse("disk r=abc wat=1"));
+
+        // assert
+        assertInstanceOf(NumberFormatException.class, thrown);
     }
 }

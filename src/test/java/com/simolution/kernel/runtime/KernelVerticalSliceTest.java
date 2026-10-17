@@ -4,17 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.genome.GeneDecoder;
-import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.support.Genes;
+import com.simolution.support.Worlds;
 
 class KernelVerticalSliceTest {
 
-    private static final short W_CONST_TO_ADD = 2048;
-    private static final short W_ADD_TO_DELAY = 512;
-    private static final short W_DELAY_TO_ADD = 512;
-    private static final short W_ADD_TO_ACTION = 512;
+    private static final int W_CONST_TO_ADD = 2048;
+    private static final int W_ADD_TO_DELAY = 512;
+    private static final int W_DELAY_TO_ADD = 512;
+    private static final int W_ADD_TO_ACTION = 512;
 
     private static final int CONST_IDX = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.CONST;
     private static final int ADD_IDX = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
@@ -25,29 +24,17 @@ class KernelVerticalSliceTest {
     void matchesSpecReferenceModelForTenTicks() {
         // arrange
         int[] genome = {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw(W_CONST_TO_ADD)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                           .toInternal(NodeLayout.Internal.DELAY)
-                           .weightRaw(W_ADD_TO_DELAY)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw(W_DELAY_TO_ADD)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                           .toAction(NodeLayout.Action.Y)
-                           .weightRaw(W_ADD_TO_ACTION)
-                           .build()
+                Genes.sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.ADD, W_CONST_TO_ADD),
+                Genes.internalToInternal(NodeLayout.Internal.ADD, NodeLayout.Internal.DELAY, W_ADD_TO_DELAY),
+                Genes.internalToInternal(NodeLayout.Internal.DELAY, NodeLayout.Internal.ADD, W_DELAY_TO_ADD),
+                Genes.internalToAction(NodeLayout.Internal.ADD, NodeLayout.Action.Y, W_ADD_TO_ACTION)
         };
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        Kernel kernel = Worlds.kernel(1, genome);
 
-        double wConstToAdd = W_CONST_TO_ADD * GeneDecoder.WEIGHT_PER_RAW_UNIT;
-        double wAddToDelay = W_ADD_TO_DELAY * GeneDecoder.WEIGHT_PER_RAW_UNIT;
-        double wDelayToAdd = W_DELAY_TO_ADD * GeneDecoder.WEIGHT_PER_RAW_UNIT;
-        double wAddToAction = W_ADD_TO_ACTION * GeneDecoder.WEIGHT_PER_RAW_UNIT;
+        double wConstToAdd = Genes.weight(W_CONST_TO_ADD);
+        double wAddToDelay = Genes.weight(W_ADD_TO_DELAY);
+        double wDelayToAdd = Genes.weight(W_DELAY_TO_ADD);
+        double wAddToAction = Genes.weight(W_ADD_TO_ACTION);
 
         float constPrev = 0.0f;
         float addPrev = 0.0f;
@@ -86,14 +73,9 @@ class KernelVerticalSliceTest {
     @Test
     void isDeterministicAcrossRuns() {
         // arrange
-        int[] genome = {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.RAND)
-                           .toInternal(NodeLayout.Internal.CLAMP)
-                           .weightRaw((short) 16384)
-                           .build()
-        };
-        Kernel first = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
-        Kernel second = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        int[] genome = {Genes.sensorToInternal(NodeLayout.Sensor.RAND, NodeLayout.Internal.CLAMP, 16384)};
+        Kernel first = Worlds.kernel(1, genome);
+        Kernel second = Worlds.kernel(1, genome);
 
         // act + assert
         for (int tick = 0; tick < 50; tick++) {

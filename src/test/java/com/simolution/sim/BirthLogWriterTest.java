@@ -6,28 +6,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.StringWriter;
 import java.util.List;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.support.Worlds;
 
-/**
- * The births / lineage store (report-v13): one CSV row per derived birth, genome
- * ids shared with the catalog, lineage + generation kernel-exact.
- */
 class BirthLogWriterTest {
 
     @Test
+    @DisplayName("report-v13: one CSV row per birth, genome ids shared with the catalog, lineage and generation kernel-exact")
     void headerThenBirthRowsWithSharedCatalogIds() throws Exception {
+        // arrange
         StringWriter births = new StringWriter();
         StringWriter catalog = new StringWriter();
         GenomeCatalogWriter cat = new GenomeCatalogWriter(catalog);
-        int world = 8;
-        int[] founders = Kernel.scatterFounders(0L, 6, world);
-        Kernel k = new Kernel(GenomeFactory.random(3L, 6, 8), founders, EngineConfig.defaults(0L, world, 8), 1);
+        Kernel k = Worlds.randomKernel(3L, 6, 8, EngineConfig.defaults(0L, 8, 8));
         BirthLogWriter w = new BirthLogWriter(births, cat);
 
+        // act
         for (int i = 0; i < 40; i++) {
             k.tick();
             KernelSnapshot s = k.snapshot();
@@ -36,6 +35,7 @@ class BirthLogWriterTest {
         w.close();
         cat.close();
 
+        // assert
         List<String> lines = births.toString().lines().toList();
         assertEquals("tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated",
                 lines.get(0), "header columns");

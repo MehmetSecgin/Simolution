@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -18,7 +17,8 @@ import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.state.FieldSpec.Persist;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.support.CheckpointBytes;
+import com.simolution.support.Worlds;
 
 class CheckpointCodecTest {
 
@@ -28,17 +28,15 @@ class CheckpointCodecTest {
     private static final EngineConfig CONFIG = EngineConfig.defaults(7L, WORLD, GENES * 2);
 
     private static Kernel newKernel() {
-        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(CONFIG.seed(), FOUNDERS, WORLD), CONFIG, 1);
+        return Worlds.randomKernel(7L, FOUNDERS, GENES, CONFIG);
     }
 
     private static byte[] write(final Kernel kernel) throws IOException {
-        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        CheckpointCodec.write(kernel, bytes);
-        return bytes.toByteArray();
+        return CheckpointBytes.of(kernel);
     }
 
     private static Kernel read(final byte[] bytes) throws IOException {
-        return CheckpointCodec.read(new ByteArrayInputStream(bytes), 1);
+        return CheckpointBytes.restore(bytes, 1);
     }
 
     private static IllegalStateException refused(final byte[] bytes) {

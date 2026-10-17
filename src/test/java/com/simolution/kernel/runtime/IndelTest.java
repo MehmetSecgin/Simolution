@@ -4,18 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.config.InflowConfig;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.support.EnergyAudit;
+import com.simolution.support.Worlds;
 
-/**
- * Conformance for kernel v4 variable-length genomes (contract-v4 / ADR 0026):
- * indels move {@code geneCount} within the soft cap, an empty genome is inert,
- * the per-gene build cost keeps energy conserved, and the whole thing stays
- * deterministic (same seed → identical genomes).
- */
 class IndelTest {
 
     private static final EngineConfig DEFAULTS = EngineConfig.defaults(0L, 1, 1);
@@ -27,21 +22,17 @@ class IndelTest {
     private static final int MAX_GENES = 16;
     private static final int TICKS = 4000;
 
-    // A food-rich world (generous uniform inflow saturates the field against decay)
-    // so a large population sustains for thousands of births — enough for the
-    // post-tuning indel rates (ADR 0035, 1e-4/gene) to fire both operators. This
-    // tests the indel *mechanism*, not population survival under scarcity.
     private static Kernel evolvingKernel() {
-        return new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), Kernel.scatterFounders(0L, UNITS, WORLD),
-                EngineConfig.defaults(0L, WORLD, MAX_GENES)
-                        .withResourceInflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
+        return Worlds.randomKernel(SEED, UNITS, FOUNDER_GENES, Worlds.foodRich(WORLD, MAX_GENES));
     }
 
-    // contract-v4 §1: MAX_GENES is a hard soft-cap ceiling and 0 the floor —
-    // no operator can push a genome outside [0, maxGenes], ever.
     @Test
+    @DisplayName("contract-v4 §1: no operator pushes a genome outside [0, maxGenes]")
     void geneCountStaysWithinCapAndFloor() {
+        // arrange
         Kernel kernel = evolvingKernel();
+
+        // act + assert
         for (int t = 0; t < TICKS; t++) {
             kernel.tick();
             int[] geneCount = kernel.snapshot().geneCount;
@@ -53,81 +44,78 @@ class IndelTest {
         }
     }
 
-    // contract-v4 §2: duplication grows length, deletion shrinks it. Over a run
-    // with many births, both operators must visibly fire — some living lineage
-    // ends up longer than the founder and some shorter.
     @Test
+    @DisplayName("contract-v4 §2: duplication grows length and deletion shrinks it, both visible over many births")
     void duplicationGrowsAndDeletionShrinksLength() {
+        // arrange
         Kernel kernel = evolvingKernel();
         boolean sawGrowth = false;
         boolean sawShrink = false;
+
+        // act
         for (int t = 0; t < TICKS; t++) {
             kernel.tick();
-            KernelSnapshot s = kernel.snapshot();
-            for (int slot = 0; slot < s.geneCount.length; slot++) {
-                if (s.energy[slot] <= 0.0) {
+            KernelSnapshot snapshot = kernel.snapshot();
+            for (int slot = 0; slot < snapshot.geneCount.length; slot++) {
+                if (snapshot.energy[slot] <= 0.0) {
                     continue;
                 }
-                if (s.geneCount[slot] > FOUNDER_GENES) {
-                    sawGrowth = true;
-                }
-                if (s.geneCount[slot] < FOUNDER_GENES) {
-                    sawShrink = true;
-                }
+                sawGrowth |= snapshot.geneCount[slot] > FOUNDER_GENES;
+                sawShrink |= snapshot.geneCount[slot] < FOUNDER_GENES;
             }
         }
+
+        // assert
         assertTrue(sawGrowth, "tandem duplication never grew a living genome past " + FOUNDER_GENES);
         assertTrue(sawShrink, "deletion never shrank a living genome below " + FOUNDER_GENES);
     }
 
-    // contract-v4 §1: the floor is 0 genes — an empty genome is legal, inert
-    // (no connections, no harvest, no motility), and dies of basal cost.
     @Test
+    @DisplayName("contract-v4 §1: the floor is 0 genes, an empty genome is inert and dies of basal cost")
     void emptyGenomeIsInertAndMortal() {
-        Kernel kernel = new Kernel(new int[][] {{}}, new int[] {0}, EngineConfig.defaults(0L, 1, 8), 1);
+        // arrange
+        Kernel kernel = Worlds.kernel(EngineConfig.defaults(0L, 1, 8), new int[0]);
         double previous = DEFAULTS.founder().initialEnergy();
         boolean died = false;
+
+        // act + assert
         for (int t = 0; t < 200_000 && !died; t++) {
             kernel.tick();
             double now = kernel.snapshot().energy[0];
             assertTrue(now <= previous + 1.0e-12,
                     "an inert empty genome can never gain energy (no harvest) at tick " + (t + 1));
             previous = now;
-            if (now <= 0.0) {
-                died = true;
-            }
+            died = now <= 0.0;
         }
         assertTrue(died, "an empty genome must still die of basal cost");
     }
 
-    // contract-v4 §5 / §3: the per-gene build cost flows to the sink like the
-    // fixed BUILD_COST, so the closed-system audit stays exact even as genome
-    // length (and thus build cost) varies birth to birth.
     @Test
+    @DisplayName("contract-v4 §5: the per-gene build cost flows to the sink, so the audit stays exact")
     void energyConservedWithPerGeneBuildCost() {
+        // arrange
         Kernel kernel = evolvingKernel();
+
+        // act + assert
         for (int t = 0; t < TICKS; t++) {
             kernel.tick();
-            KernelSnapshot s = kernel.snapshot();
-            double held = 0.0;
-            for (double e : s.energy) {
-                held += e;
-            }
-            held += s.reservoir() + s.energySink + s.massTotal();
-            double credited = s.creditedInitialEnergy + s.initialResourceTotal + s.creditedInitialMass + s.cumulativeInflow;
-            assertEquals(credited, held, 1.0e-2,
-                    "initial + inflow must equal units + field + sink at tick " + s.tick);
+            EnergyAudit.assertConserved(kernel.snapshot(), 1.0e-2);
         }
     }
 
     @Test
     void sameSeedProducesIdenticalGenomes() {
+        // arrange
         Kernel a = evolvingKernel();
         Kernel b = evolvingKernel();
+
+        // act
         for (int t = 0; t < TICKS; t++) {
             a.tick();
             b.tick();
         }
+
+        // assert
         KernelSnapshot sa = a.snapshot();
         KernelSnapshot sb = b.snapshot();
         assertArrayEquals(sa.geneCount, sb.geneCount, "geneCount diverged for the same seed");

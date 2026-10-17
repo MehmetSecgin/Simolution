@@ -5,37 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.genome.GeneBuilder;
-import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.Kernel;
+import com.simolution.support.Genes;
+import com.simolution.support.Worlds;
 
 class DynamicsObserverTest {
 
-    private static final int[] FEEDBACK_GENOME = {
-            GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                       .toInternal(NodeLayout.Internal.ADD)
-                       .weightRaw((short) 2048)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                       .toInternal(NodeLayout.Internal.DELAY)
-                       .weightRaw((short) 512)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                       .toInternal(NodeLayout.Internal.ADD)
-                       .weightRaw((short) 512)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                       .toAction(NodeLayout.Action.Y)
-                       .weightRaw((short) 512)
-                       .build()
-    };
+    private static final int[] FEEDBACK_GENOME = Genes.FEEDBACK_LOOP;
 
     private static final int WORLD = 64;
 
     private static Kernel kernelOf(int[][] genomes) {
-        EngineConfig engine = EngineConfig.defaults(0L, WORLD, 32);
-        return new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), engine, 1);
+        return Worlds.kernel(WORLD, genomes);
     }
 
     private static DynamicsSummary runAndSummarize(int[][] genomes, int ticks) {

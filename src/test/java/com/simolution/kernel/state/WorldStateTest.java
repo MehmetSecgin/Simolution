@@ -105,7 +105,7 @@ class WorldStateTest {
         final FieldSpec misdeclared = new FieldSpec("cellThing", Dim.CELL, Persist.SAVED, OnBirth.RESET_ZERO,
                 OnDeath.KEEP, new int[4]);
 
-        // act and assert
+        // act + assert
         assertThrows(IllegalStateException.class, () -> WorldState.zeroStride(misdeclared));
     }
 }

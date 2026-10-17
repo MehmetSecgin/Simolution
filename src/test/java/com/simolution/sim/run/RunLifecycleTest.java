@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,8 +20,8 @@ import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.state.CheckpointCodec;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.support.CheckpointBytes;
+import com.simolution.support.Worlds;
 
 class RunLifecycleTest {
 
@@ -33,28 +32,22 @@ class RunLifecycleTest {
     private static final int EVERY = 50;
 
     private static Kernel newKernel(final EngineConfig config) {
-        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(config.seed(), FOUNDERS, WORLD), config, 1);
-    }
-
-    private static byte[] bytes(final Kernel kernel) throws IOException {
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        CheckpointCodec.write(kernel, out);
-        return out.toByteArray();
+        return Worlds.randomKernel(7L, FOUNDERS, GENES, config);
     }
 
     private static void assertSeekMatchesUninterrupted(final EngineConfig config, final Path dir) throws IOException {
         final Kernel recorded = newKernel(config);
         final RunDirectoryWriter run = RunDirectoryWriter.create(dir, recorded, EVERY);
         final List<byte[]> canonical = new ArrayList<>();
-        canonical.add(bytes(recorded));
+        canonical.add(CheckpointBytes.of(recorded));
         for (int t = 1; t <= TICKS; t++) {
             recorded.tick();
             run.checkpointIfDue(recorded);
-            canonical.add(bytes(recorded));
+            canonical.add(CheckpointBytes.of(recorded));
         }
 
         for (int t = 0; t <= TICKS; t++) {
-            assertArrayEquals(canonical.get(t), bytes(RunDirectoryReader.seek(dir, t, 1)), "state at tick " + t);
+            assertArrayEquals(canonical.get(t), CheckpointBytes.of(RunDirectoryReader.seek(dir, t, 1)), "state at tick " + t);
         }
     }
 

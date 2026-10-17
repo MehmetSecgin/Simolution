@@ -3,8 +3,6 @@ package com.simolution.kernel.state;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -15,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
+import com.simolution.support.CheckpointBytes;
 
 class WorldStateScalarsTest {
 
@@ -59,9 +58,7 @@ class WorldStateScalarsTest {
 
             // act
             poke(field, kernel.state());
-            final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            CheckpointCodec.write(kernel, bytes);
-            final Kernel restored = CheckpointCodec.read(new ByteArrayInputStream(bytes.toByteArray()), 1);
+            final Kernel restored = CheckpointBytes.restore(CheckpointBytes.of(kernel), 1);
 
             // assert
             assertNotEquals(before, kernel.stateDigest(), field.getName() + " is missing from StateDigest");

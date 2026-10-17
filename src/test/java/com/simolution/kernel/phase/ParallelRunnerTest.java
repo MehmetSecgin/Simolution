@@ -8,12 +8,13 @@ import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.support.Worlds;
 
 @Timeout(60)
 class ParallelRunnerTest {
@@ -101,21 +102,15 @@ class ParallelRunnerTest {
         assertThrows(IllegalStateException.class, () -> runner.runTick(List.of(new Recording(-1))));
     }
 
-    /**
-     * The first few thousand ticks can allocate a few hundred bytes while the JIT settles (also
-     * seen with one thread, before engine v6 B1), so the test looks for one fully clean
-     * 1000-tick window. Any per-tick allocation, such as a barrier node per crossing, puts at
-     * least 16 bytes into every window and fails it.
-     */
     @Test
+    @DisplayName("once the JIT settles, a full 1000-tick window allocates nothing on the caller and the workers")
     void steadyStateTickAllocatesNothingWithFourThreads() {
         // arrange
         final com.sun.management.ThreadMXBean bean =
                 (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
         final int world = 128;
         final int founders = 1200;
-        try (Kernel kernel = new Kernel(GenomeFactory.random(7L, founders, 32),
-                Kernel.scatterFounders(7L, founders, world), EngineConfig.defaults(7L, world, 64), 4)) {
+        try (Kernel kernel = Worlds.randomKernel(7L, founders, 32, EngineConfig.defaults(7L, world, 64), 4)) {
             kernel.step(500);
             final long[] ids = Thread.getAllStackTraces().keySet().stream()
                     .filter(t -> t == Thread.currentThread() || t.getName().startsWith("simolution-worker-"))

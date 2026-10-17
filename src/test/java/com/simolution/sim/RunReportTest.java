@@ -10,6 +10,7 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
+import com.simolution.support.Worlds;
 
 class RunReportTest {
 
@@ -17,8 +18,7 @@ class RunReportTest {
         int[][] genomes = GenomeFactory.random(config.engine().seed(), config.founderCount(), config.genomes().genesPerFounder());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.founderCount());
-        try (Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(),
-                config.engine(), 1)) {
+        try (Kernel kernel = Worlds.kernel(config.engine(), genomes)) {
             DynamicsObserver observer = new DynamicsObserver();
             for (int i = 0; i < config.ticks(); i++) {
                 kernel.tick();

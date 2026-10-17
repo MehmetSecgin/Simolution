@@ -5,73 +5,60 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.genome.GeneDecoder;
-import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.support.Genes;
+import com.simolution.support.Worlds;
 
 class MulNodeTest {
 
     private static final int MUL_IDX = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
 
-    private static double weight(short raw) {
-        return raw * GeneDecoder.WEIGHT_PER_RAW_UNIT;
+    private static final int ADD_IDX = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
+
+    private static int constToMul(int raw) {
+        return Genes.sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.MUL, raw);
     }
 
-    private static int constToMul(short raw) {
-        return GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                          .toInternal(NodeLayout.Internal.MUL)
-                          .weightRaw(raw)
-                          .build();
-    }
-
-    private static int junkToMul(short raw) {
-        return GeneBuilder.fromSensor(NodeLayout.Sensor.MEANINGFUL_COUNT)
-                          .toInternal(NodeLayout.Internal.MUL)
-                          .weightRaw(raw)
-                          .build();
+    private static int junkToMul(int raw) {
+        return Genes.sensorToInternal(NodeLayout.Sensor.MEANINGFUL_COUNT, NodeLayout.Internal.MUL, raw);
     }
 
     private static double mulOutputAfterTwoTicks(int... genome) {
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
-        kernel.tick();
-        kernel.tick();
+        Kernel kernel = Worlds.kernel(1, genome);
+        kernel.step(2);
         return kernel.snapshot().outputs[MUL_IDX];
     }
 
     @Test
     void twoInputsMultiply() {
         // arrange
-        short rawA = 8192;
-        short rawB = -4096;
+        int rawA = 8192;
+        int rawB = -4096;
 
         // act
         double output = mulOutputAfterTwoTicks(constToMul(rawA), constToMul(rawB));
 
         // assert
-        assertEquals(weight(rawA) * weight(rawB), output, 1.0e-6);
+        assertEquals(Genes.weight(rawA) * Genes.weight(rawB), output, 1.0e-6);
     }
 
     @Test
     void singleInputPassesThrough() {
         // arrange
-        short raw = 4096;
+        int raw = 4096;
 
         // act
         double output = mulOutputAfterTwoTicks(constToMul(raw));
 
         // assert
-        assertEquals(weight(raw), output, 1.0e-6);
+        assertEquals(Genes.weight(raw), output, 1.0e-6);
     }
 
     @Test
     void noInputOutputsZero() {
         // act
         double output = mulOutputAfterTwoTicks(
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw((short) 8192)
-                           .build());
+                Genes.sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.ADD, 8192));
 
         // assert
         assertEquals(0.0, output, 0.0);
@@ -80,41 +67,40 @@ class MulNodeTest {
     @Test
     void threeInputsUseTwoStrongestByMagnitude() {
         // arrange
-        short rawSmall = 1024;
-        short rawBig = -16384;
-        short rawMid = 8192;
+        int rawSmall = 1024;
+        int rawBig = -16384;
+        int rawMid = 8192;
 
         // act
         double output = mulOutputAfterTwoTicks(
                 constToMul(rawSmall), constToMul(rawBig), constToMul(rawMid));
 
         // assert
-        assertEquals(weight(rawBig) * weight(rawMid), output, 1.0e-6);
+        assertEquals(Genes.weight(rawBig) * Genes.weight(rawMid), output, 1.0e-6);
     }
 
     @Test
     void tiesResolveToEarlierConnection() {
         // arrange
-        short rawPositive = 8192;
-        short rawNegative = -8192;
+        int rawPositive = 8192;
+        int rawNegative = -8192;
 
         // act
         double output = mulOutputAfterTwoTicks(
                 constToMul(rawPositive), constToMul(rawNegative), constToMul(rawPositive));
 
         // assert
-        assertEquals(weight(rawPositive) * weight(rawNegative), output, 1.0e-6);
+        assertEquals(Genes.weight(rawPositive) * Genes.weight(rawNegative), output, 1.0e-6);
     }
 
     @Test
     void realPlusJunkInputCountsJunkInDegreeAndOutputsZero() {
         // arrange
-        int[] genome = {constToMul((short) 8192), junkToMul((short) 8192)};
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        int[] genome = {constToMul(8192), junkToMul(8192)};
+        Kernel kernel = Worlds.kernel(1, genome);
 
         // act
-        kernel.tick();
-        kernel.tick();
+        kernel.step(2);
 
         // assert
         assertEquals(2, kernel.snapshot().state.mulInDegree[0]);
@@ -125,12 +111,11 @@ class MulNodeTest {
     @Test
     void junkOnlyInputCountsInDegreeAndOutputsZero() {
         // arrange
-        int[] genome = {junkToMul((short) 8192)};
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        int[] genome = {junkToMul(8192)};
+        Kernel kernel = Worlds.kernel(1, genome);
 
         // act
-        kernel.tick();
-        kernel.tick();
+        kernel.step(2);
 
         // assert
         assertEquals(1, kernel.snapshot().state.mulInDegree[0]);
@@ -139,29 +124,16 @@ class MulNodeTest {
     }
 
     @Test
-    void specSliceFeedbackLoopStaysAlive() {
+    void feedbackThroughMulKeepsSignalAlive() {
         // arrange
-        short unit = 8192;
-        int[] specSliceGenome = {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw(unit)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                           .toInternal(NodeLayout.Internal.DELAY)
-                           .weightRaw(unit)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                           .toInternal(NodeLayout.Internal.MUL)
-                           .weightRaw(unit)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.MUL)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw(unit)
-                           .build()
+        int unit = 8192;
+        int[] feedbackThroughMul = {
+                Genes.sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.ADD, unit),
+                Genes.internalToInternal(NodeLayout.Internal.ADD, NodeLayout.Internal.DELAY, unit),
+                Genes.internalToInternal(NodeLayout.Internal.DELAY, NodeLayout.Internal.MUL, unit),
+                Genes.internalToInternal(NodeLayout.Internal.MUL, NodeLayout.Internal.ADD, unit)
         };
-        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
-        int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
+        Kernel kernel = Worlds.kernel(1, feedbackThroughMul);
 
         // act
         double previousAdd = 0.0;
@@ -170,17 +142,13 @@ class MulNodeTest {
         for (int i = 0; i < 20; i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
-            if (snapshot.outputs[MUL_IDX] != 0.0) {
-                mulEverNonZero = true;
-            }
-            if (snapshot.outputs[addIdx] > previousAdd) {
-                addGrew = true;
-            }
-            previousAdd = snapshot.outputs[addIdx];
+            mulEverNonZero |= snapshot.outputs[MUL_IDX] != 0.0;
+            addGrew |= snapshot.outputs[ADD_IDX] > previousAdd;
+            previousAdd = snapshot.outputs[ADD_IDX];
         }
 
         // assert
-        assertTrue(mulEverNonZero, "spec slice loop must carry signal through MUL");
+        assertTrue(mulEverNonZero, "the loop must carry signal through MUL");
         assertTrue(addGrew, "feedback through MUL must feed ADD");
     }
 }

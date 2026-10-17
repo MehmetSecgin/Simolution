@@ -5,44 +5,25 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.support.Genes;
+import com.simolution.support.Worlds;
 
 class MultiUnitKernelTest {
 
-    private static final int[] FEEDBACK_GENOME = {
-            GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                       .toInternal(NodeLayout.Internal.ADD)
-                       .weightRaw((short) 2048)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                       .toInternal(NodeLayout.Internal.DELAY)
-                       .weightRaw((short) 512)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                       .toInternal(NodeLayout.Internal.ADD)
-                       .weightRaw((short) 512)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                       .toAction(NodeLayout.Action.Y)
-                       .weightRaw((short) 512)
-                       .build()
-    };
+    private static final int[] FEEDBACK_GENOME = Genes.FEEDBACK_LOOP;
 
     private static final int[] EMPTY_GENOME = {};
 
     @Test
     void unitsDoNotLeakSignalsIntoEachOther() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2}, EngineConfig.defaults(0L, 2, 32), 1);
+        Kernel kernel = Worlds.kernel(2, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME);
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
 
         // act
-        for (int tick = 0; tick < 10; tick++) {
-            kernel.tick();
-        }
+        kernel.step(10);
         KernelSnapshot snapshot = kernel.snapshot();
 
         // assert
@@ -58,8 +39,8 @@ class MultiUnitKernelTest {
     @Test
     void unitZeroIsInvariantUnderPopulationSize() {
         // arrange
-        Kernel alone = new Kernel(new int[][] {FEEDBACK_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
-        Kernel crowded = new Kernel(new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2, 3, 4}, EngineConfig.defaults(0L, 3, 32), 1);
+        Kernel alone = Worlds.kernel(1, FEEDBACK_GENOME);
+        Kernel crowded = Worlds.kernel(3, FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME);
 
         // act + assert
         for (int tick = 0; tick < 20; tick++) {
@@ -76,7 +57,7 @@ class MultiUnitKernelTest {
     @Test
     void unitsReceiveDistinctRandStreams() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, EMPTY_GENOME}, new int[] {0, 1}, EngineConfig.defaults(0L, 2, 32), 1);
+        Kernel kernel = Worlds.kernel(2, EMPTY_GENOME, EMPTY_GENOME);
         int randIdx = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
 
         // act

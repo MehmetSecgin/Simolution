@@ -3,8 +3,6 @@ package com.simolution.kernel.phase;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -13,8 +11,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.state.CheckpointCodec;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.support.CheckpointBytes;
+import com.simolution.support.Worlds;
 
 class DeterminismMatrixTest {
 
@@ -23,8 +21,7 @@ class DeterminismMatrixTest {
     private static final int[] THREAD_COUNTS = {1, 2, 4, 8};
 
     private static Kernel kernel(final EngineConfig config, final int founders, final int threads) {
-        return new Kernel(GenomeFactory.random(SEED, founders, GENES),
-                Kernel.scatterFounders(config.seed(), founders, config.world().worldWidth()), config, threads);
+        return Worlds.randomKernel(SEED, founders, GENES, config, threads);
     }
 
     private static EngineConfig config(final int world) {
@@ -76,15 +73,15 @@ class DeterminismMatrixTest {
             k.step(400);
             uninterrupted = k.stateDigest();
         }
-        final ByteArrayOutputStream checkpoint = new ByteArrayOutputStream();
+        final byte[] checkpoint;
         try (Kernel first = kernel(config, founders, 2)) {
             first.step(150);
-            CheckpointCodec.write(first, checkpoint);
+            checkpoint = CheckpointBytes.of(first);
         }
 
         // act
         final long resumed;
-        try (Kernel second = CheckpointCodec.read(new ByteArrayInputStream(checkpoint.toByteArray()), 4)) {
+        try (Kernel second = CheckpointBytes.restore(checkpoint, 4)) {
             second.step(250);
             resumed = second.stateDigest();
         }
@@ -95,7 +92,7 @@ class DeterminismMatrixTest {
 
     @ParameterizedTest(name = "W={0}, founders={1}, inflow={2}")
     @CsvSource({"1, 1, true", "3, 9, true", "128, 2000, false"})
-    void tinyWorlds(final int world, final int founders, final boolean fed) {
+    void parallelMatchesSerialInDegenerateWorlds(final int world, final int founders, final boolean fed) {
         // arrange
         final EngineConfig base = config(world);
         final EngineConfig config = fed ? base : base.withResourceInflow(InflowConfig.uniform(0.0));

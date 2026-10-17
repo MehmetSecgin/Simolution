@@ -3,70 +3,67 @@ package com.simolution.kernel.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.sim.GenomeFactory;
+import com.simolution.support.EnergyAudit;
+import com.simolution.support.Genes;
+import com.simolution.support.Ticks;
+import com.simolution.support.Worlds;
 
 class EnergyTest {
 
     private static final EngineConfig DEFAULTS = EngineConfig.defaults(0L, 1, 1);
 
     private static final int[] BUSY_GENOME = {
-            GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                       .toInternal(NodeLayout.Internal.ADD)
-                       .weightRaw((short) 4096)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                       .toInternal(NodeLayout.Internal.DELAY)
-                       .weightRaw((short) 4096)
-                       .build(),
-            GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                       .toInternal(NodeLayout.Internal.ADD)
-                       .weightRaw((short) 4096)
-                       .build()
+            Genes.sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.ADD, 4096),
+            Genes.internalToInternal(NodeLayout.Internal.ADD, NodeLayout.Internal.DELAY, 4096),
+            Genes.internalToInternal(NodeLayout.Internal.DELAY, NodeLayout.Internal.ADD, 4096)
     };
 
-    private static double totalEnergy(KernelSnapshot snapshot) {
-        double total = 0.0;
-        for (double e : snapshot.energy) {
-            total += e;
-        }
-        return total;
-    }
+    private static final int[] DELAY_BOMB = {
+            Genes.sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.DELAY, 8192),
+            Genes.internalToInternal(NodeLayout.Internal.DELAY, NodeLayout.Internal.DELAY, 16383),
+            Genes.internalToAction(NodeLayout.Internal.DELAY, NodeLayout.Action.HARVEST, 16383)
+    };
+
+    private static final int DELAY_BOMB_TRANSPORTERS = 1;
+    private static final int POPULATION = 50;
+    private static final int POPULATION_WORLD_WIDTH = 71;
+    private static final double AUDIT_TOLERANCE = 1.0e-2;
+    private static final int TICKS_TO_OUTLAST_STARVATION = 5000;
+    private static final int TICKS_TO_OUTLAST_IDLE_DRAIN = 100_000;
 
     @Test
+    @DisplayName("contract-v5 §6: initial energy + initial resource + initial mass + inflow == units + total field + mass + sink")
     void openSystemConservesEnergyExactly() {
         // arrange
-        int[][] genomes = com.simolution.sim.GenomeFactory.random(11L, 50, 32);
-        int worldWidth = 71;
-        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), EngineConfig.defaults(0L, worldWidth, 32), 1);
-        double credited = DEFAULTS.founder().initialEnergy() * 50
-                + DEFAULTS.chemicals().get(0).initial() * worldWidth * worldWidth
-                + DEFAULTS.founder().initialMass() * 50;
+        int[][] genomes = GenomeFactory.random(11L, POPULATION, 32);
+        Kernel kernel = Worlds.kernel(POPULATION_WORLD_WIDTH, genomes);
+        double initialCredit = DEFAULTS.founder().initialEnergy() * POPULATION
+                + DEFAULTS.chemicals().get(0).initial() * POPULATION_WORLD_WIDTH * POPULATION_WORLD_WIDTH
+                + DEFAULTS.founder().initialMass() * POPULATION;
 
-        // act + assert: contract v5 §6 — initial energy + initial resource +
-        // initial mass + inflow == units + total field + mass + sink
+        // act + assert
         for (int i = 0; i < 500; i++) {
             kernel.tick();
-            KernelSnapshot snapshot = kernel.snapshot();
-            double held = totalEnergy(snapshot) + snapshot.reservoir() + snapshot.massTotal() + snapshot.energySink;
-            assertEquals(credited + snapshot.cumulativeInflow, held, 1.0e-2,
-                    "units + reservoir + mass + sink must equal initial + inflow at tick " + snapshot.tick);
+            EnergyAudit.assertConserved(kernel.snapshot(), initialCredit, AUDIT_TOLERANCE);
         }
     }
 
     @Test
     void totalEnergyMonotonicallyDecreases() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
 
         // act + assert
         double previous = DEFAULTS.founder().initialEnergy();
         for (int i = 0; i < 100; i++) {
             kernel.tick();
-            double now = totalEnergy(kernel.snapshot());
+            double now = EnergyAudit.totalEnergy(kernel.snapshot());
             assertTrue(now <= previous, "energy must not increase at tick " + (i + 1));
             previous = now;
         }
@@ -74,134 +71,112 @@ class EnergyTest {
 
     @Test
     void unitDiesAndStaysDeadAndInert() {
-        // arrange: no harvest -> basal + activity + maintenance with no intake
-        // guarantees death; generous bound to outlast it
-        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
-        int ticksToOutlast = 5000;
+        // arrange
+        Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
 
         // act
-        float[] frozenOutputs = null;
-        boolean everDied = false;
-        for (int i = 0; i < ticksToOutlast; i++) {
-            kernel.tick();
-            KernelSnapshot snapshot = kernel.snapshot();
-            if (snapshot.energy[0] <= 0.0) {
-                if (!everDied) {
-                    everDied = true;
-                    frozenOutputs = snapshot.outputs.clone();
-                } else {
-                    // assert: corpse never changes
-                    assertEquals(0.0, snapshot.energy[0], 0.0);
-                    for (int n = 0; n < NodeLayout.TOTAL; n++) {
-                        assertEquals(frozenOutputs[n], snapshot.outputs[n], 0.0,
-                                "dead unit node " + n + " must stay frozen");
-                    }
-                }
-            }
-        }
+        int ticksToDeath = Ticks.until(kernel, TICKS_TO_OUTLAST_STARVATION, () -> kernel.snapshot().energy[0] <= 0.0);
+        float[] frozenOutputs = kernel.snapshot().outputs.clone();
 
         // assert
-        assertTrue(everDied, "busy unit must die within its energy budget");
+        assertTrue(ticksToDeath > 0, "busy unit must die within its energy budget");
+        for (int i = ticksToDeath; i < TICKS_TO_OUTLAST_STARVATION; i++) {
+            kernel.tick();
+            KernelSnapshot snapshot = kernel.snapshot();
+            assertEquals(0.0, snapshot.energy[0], 0.0);
+            for (int n = 0; n < NodeLayout.TOTAL; n++) {
+                assertEquals(frozenOutputs[n], snapshot.outputs[n], 0.0,
+                        "dead unit node " + n + " must stay frozen");
+            }
+        }
     }
 
     @Test
-    void idleUnitPaysBasalAndMaintenanceThenDies() {
-        // arrange: zero connections -> no activity, but basal + storage
-        // maintenance still apply (v1 §6/§6a) -> not immortal
-        Kernel kernel = new Kernel(new int[][] {{}}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+    @DisplayName("contract-v1 §6: basal cost and mass maintenance apply even with zero connections")
+    void idleUnitPaysBasalAndMaintenance() {
+        // arrange
+        Kernel kernel = Worlds.kernel(1, new int[0]);
 
         // act
         kernel.tick();
-        double afterOne = kernel.snapshot().energy[0];
 
-        // assert: one tick = basal floor + proportional maintenance
+        // assert
         double expected = DEFAULTS.founder().initialEnergy()
                 - DEFAULTS.metabolism().basalCost()
                 - DEFAULTS.founder().initialMass() * DEFAULTS.metabolism().maintenancePerMass();
-        assertEquals(expected, afterOne, 1.0e-9, "basal + mass maintenance");
-
-        // the fixed basal floor (unlike a purely proportional leak) drives energy
-        // across zero: even a connectionless idle unit eventually dies
-        boolean died = false;
-        for (int i = 0; i < 100_000 && !died; i++) {
-            kernel.tick();
-            if (kernel.snapshot().energy[0] <= 0.0) {
-                died = true;
-            }
-        }
-        assertTrue(died, "no costless persistence: an idle unit must eventually die");
+        assertEquals(expected, kernel.snapshot().energy[0], 1.0e-9, "basal + mass maintenance");
     }
 
     @Test
-    void intakeSaturatesAndDivergentHarvesterImplodes() {
-        // arrange: a DELAY self-loop (gain ~2) feeding HARVEST — the runaway
-        // "eat everything" strategy. Saturating uptake must cap its per-tick
-        // intake at INTAKE_MAX, and storage leak must stop it hoarding.
-        int[] delayBomb = {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(NodeLayout.Internal.DELAY).weightRaw((short) 8192).build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                           .toInternal(NodeLayout.Internal.DELAY).weightRaw((short) 16383).build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                           .toAction(NodeLayout.Action.HARVEST).weightRaw((short) 16383).build()
-        };
-        Kernel kernel = new Kernel(new int[][] {delayBomb}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+    @DisplayName("the fixed basal floor drives even a connectionless unit across zero")
+    void idleUnitEventuallyDies() {
+        // arrange
+        Kernel kernel = Worlds.kernel(1, new int[0]);
 
         // act
-        double prevEnergy = DEFAULTS.founder().initialEnergy();
-        double maxGain = 0.0;
-        boolean died = false;
-        for (int i = 0; i < 4000; i++) {
-            kernel.tick();
-            double e = kernel.snapshot().energy[0];
-            maxGain = Math.max(maxGain, e - prevEnergy);
-            if (e <= 0.0) {
-                died = true;
-            }
-            prevEnergy = e;
-        }
+        int ticksToDeath = Ticks.until(kernel, TICKS_TO_OUTLAST_IDLE_DRAIN, () -> kernel.snapshot().energy[0] <= 0.0);
 
-        // assert: one transporter (DELAY->HARVEST), and the unit never grows (no
-        // GROW wiring) so its mass stays INITIAL_MASS and the emergent ceiling is
-        // CAPACITY_PER_CONNECTION * 1 * INITIAL_MASS^alpha
-        double capacity = DEFAULTS.harvest().capacityPerConnection() * 1
-                * Math.pow(DEFAULTS.founder().initialMass(), DEFAULTS.harvest().massExponent());
-        assertTrue(maxGain <= capacity + 1.0e-9,
-                "per-tick intake must not exceed the unit's emergent ceiling " + capacity
-                        + ", got " + maxGain);
-        // v5 retired the proportional-to-energy storage leak; the diverger still
-        // implodes by an honest route — its DELAY self-loop overflows to a
-        // non-finite signal, harvest then reads garbage and stops, and basal +
-        // mass maintenance + aging starve it.
-        assertTrue(died, "the diverger implodes: its signal overflows, intake stops, maintenance kills it");
+        // assert
+        assertTrue(ticksToDeath > 0, "no costless persistence: an idle unit must eventually die");
     }
 
     @Test
+    @DisplayName("saturating uptake caps per-tick intake at capacityPerConnection * transporters * mass^alpha")
+    void intakeNeverExceedsTheTransporterCeiling() {
+        // arrange
+        Kernel kernel = Worlds.kernel(1, DELAY_BOMB);
+        double ceiling = DEFAULTS.harvest().capacityPerConnection() * DELAY_BOMB_TRANSPORTERS
+                * Math.pow(DEFAULTS.founder().initialMass(), DEFAULTS.harvest().massExponent());
+
+        // act
+        double previousEnergy = DEFAULTS.founder().initialEnergy();
+        double maxGain = 0.0;
+        for (int i = 0; i < 4000; i++) {
+            kernel.tick();
+            double energy = kernel.snapshot().energy[0];
+            maxGain = Math.max(maxGain, energy - previousEnergy);
+            previousEnergy = energy;
+        }
+
+        // assert
+        assertTrue(maxGain <= ceiling + 1.0e-9,
+                "per-tick intake must not exceed the unit's emergent ceiling " + ceiling + ", got " + maxGain);
+    }
+
+    @Test
+    @DisplayName("the diverging harvester overflows to a non-finite signal, intake stops, maintenance kills it")
+    void divergentHarvesterEventuallyDies() {
+        // arrange
+        Kernel kernel = Worlds.kernel(1, DELAY_BOMB);
+
+        // act
+        int ticksToDeath = Ticks.until(kernel, 4000, () -> kernel.snapshot().energy[0] <= 0.0);
+
+        // assert
+        assertTrue(ticksToDeath > 0, "the diverger implodes: its signal overflows, intake stops, maintenance kills it");
+    }
+
+    @Test
+    @DisplayName("contract-v7.1: energy never negative, sink never exceeds what entered the open system")
     void deductionClampsToAvailableNeverOverdraws() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
 
-        // act + assert: energy never goes negative, sink never exceeds what has
-        // entered the open system (initial energy+mass+resource + admitted inflow;
-        // resource decay routes unconsumed inflow to the sink, contract v7.1)
+        // act + assert
         for (int i = 0; i < 5000; i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
-            double credited = snapshot.creditedInitialEnergy + snapshot.creditedInitialMass
-                    + snapshot.initialResourceTotal + snapshot.cumulativeInflow;
             assertTrue(snapshot.energy[0] >= 0.0, "energy must never be negative");
-            assertTrue(snapshot.energySink <= credited + 1.0e-9,
+            assertTrue(snapshot.energySink <= EnergyAudit.credited(snapshot) + 1.0e-9,
                     "sink must never exceed what entered the system");
         }
     }
 
     @Test
     void deadUnitsDoNotAffectLivingUnitTrajectory() {
-        // arrange: same unit alone vs beside a unit that dies early
-        int[][] solo = {BUSY_GENOME};
-        int[][] withDying = {BUSY_GENOME, BUSY_GENOME};
-        Kernel alone = new Kernel(solo, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
-        Kernel paired = new Kernel(withDying, new int[] {0, 1}, EngineConfig.defaults(0L, 2, 32), 1);
+        // arrange
+        Kernel alone = Worlds.kernel(1, BUSY_GENOME);
+        Kernel paired = Worlds.kernel(2, BUSY_GENOME, BUSY_GENOME);
 
         // act + assert
         for (int i = 0; i < 200; i++) {

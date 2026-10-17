@@ -6,9 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,15 +22,9 @@ import org.junit.jupiter.api.Test;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.support.EnergyAudit;
+import com.simolution.support.Worlds;
 
-/**
- * Conformance for contract-v7 programmable inflow field: uniform is unchanged, the
- * cyclic factory still reproduces the v6 central pulsing disk, sources compose via
- * MAX/ADD over a baseline, value noise is deterministic and threshold-controlled,
- * the static bake is faithful, and the closed-system audit still holds (only
- * inflow's distribution changes).
- */
 class InflowConfigTest {
 
     @Test
@@ -45,12 +41,10 @@ class InflowConfigTest {
         CompiledInflowField c = InflowConfig.cyclic(period, radius, peak).compile(w);
         int centre = (w / 2) * w + (w / 2);
 
-        // triangle: trough at tick 0, peak at period/2, back to trough at period
         assertEquals(0.0, c.cap(centre, 0), 1.0e-9, "centre at trough");
         assertEquals(peak, c.cap(centre, period / 2), 1.0e-9, "centre at peak");
         assertEquals(peak / 2.0, c.cap(centre, period / 4), 1.0e-9, "centre mid-rise");
 
-        // periphery is barren at every phase
         assertEquals(0.0, c.cap(0, period / 2), 0.0, "corner barren");
         assertEquals(0.0, c.cap(w * w - 1, period / 2), 0.0, "far corner barren");
     }
@@ -80,7 +74,6 @@ class InflowConfigTest {
     @Test
     void combineMaxVsAddOverlappingSources() {
         int w = 20;
-        // two overlapping full-grid rects (whole world), peaks 3 and 4
         InflowSource a = new InflowSource.Rect(0, 0, 1, 1, 3.0, 0, 0, 0, 0);
         InflowSource b = new InflowSource.Rect(0, 0, 1, 1, 4.0, 0, 0, 0, 0);
         assertEquals(4.0, InflowConfig.field(0, InflowConfig.Combine.MAX, a, b).compile(w).cap(0, 0), 1e-9);
@@ -99,7 +92,6 @@ class InflowConfigTest {
     @Test
     void driftMovesTheDiskCentreOverTime() {
         int w = 100;
-        // disk starts at (10,50), drifts +1 cell/tick in x; r small
         InflowSource drift = new InflowSource.Disk(
                 0.1, 0.5, 2, 5.0, 0, 0, InflowSource.Motion.DRIFT, 1.0, 0.0, 0);
         CompiledInflowField f = InflowConfig.field(0, InflowConfig.Combine.MAX, drift).compile(w);
@@ -112,31 +104,23 @@ class InflowConfigTest {
     @Test
     void verticalBandSweepsHorizontallyAndWraps() {
         int w = 100;
-        // full-height band, 10 cells wide at the left edge, drifting +1 cell/tick in x
         InflowSource band = new InflowSource.Rect(0.0, 0.0, 0.1, 1.0, 7.0, 0, 0, 1.0, 0.0);
         CompiledInflowField f = InflowConfig.field(0, InflowConfig.Combine.MAX, band).compile(w);
-        // full height: lit at any row in the band's x-range
         assertTrue(f.cap(0, 0) > 0.0 && f.cap(50 * w + 0, 0) > 0.0, "full-height band at tick 0, x=0");
         assertEquals(0.0, f.cap(50, 0), 1e-9, "x=50 not yet reached at tick 0");
-        // by tick 50 the band has moved to x≈50
         assertTrue(f.cap(50 * w + 50, 50) > 0.0, "band reached x=50 at tick 50");
         assertEquals(0.0, f.cap(50 * w + 0, 50), 1e-9, "band left x=0 by tick 50");
-        // wraps: after one full lap (tick 100 on W=100) it is back at the left edge
         assertTrue(f.cap(50 * w + 0, 100) > 0.0, "band wrapped back to x=0 at tick 100");
     }
 
     @Test
     void ringWaveExpandsOutwardFromCentre() {
         int w = 120;
-        // crest at radius (speed*tick + k*wavelength); expands +1 cell/tick
         InflowSource.Ring ring = new InflowSource.Ring(0.5, 0.5, 40.0, 1.0, 10.0, 4.0);
         int cx = 60, cy = 60;
-        // at tick 0 the crest sits at the centre (d=0); a ring 20 cells out is in a trough
         assertTrue(ring.capAt(cx, cy, 0, w) > 0.0, "crest at centre at tick 0");
         assertEquals(0.0, ring.capAt(cx + 20, cy, 0, w), 1e-9, "trough 20 cells out at tick 0");
-        // by tick 20 the crest has expanded to radius ~20 → now lit there, centre in trough
         assertTrue(ring.capAt(cx + 20, cy, 20, w) > 0.0, "crest reached r=20 at tick 20");
-        // isotropic: same response along any axis at equal radius
         assertEquals(ring.capAt(cx + 20, cy, 20, w), ring.capAt(cx, cy + 20, 20, w), 1e-9, "radially symmetric");
     }
 
@@ -172,19 +156,19 @@ class InflowConfigTest {
     @Test
     void cyclicRunConservesEnergy() {
         int w = 60, founders = 100;
-        Kernel k = new Kernel(GenomeFactory.random(3L, founders, 8), Kernel.scatterFounders(0L, founders, w),
-                EngineConfig.defaults(0L, w, 16).withResourceInflow(InflowConfig.cyclic(400, 10, 8.0)), 1);
+        Kernel k = Worlds.randomKernel(3L, founders, 8,
+                EngineConfig.defaults(0L, w, 16).withResourceInflow(InflowConfig.cyclic(400, 10, 8.0)));
         assertAuditHolds(k);
     }
 
     @Test
     void noiseFieldRunConservesEnergy() {
         int w = 60, founders = 100;
-        Kernel k = new Kernel(GenomeFactory.random(3L, founders, 8), Kernel.scatterFounders(0L, founders, w),
+        Kernel k = Worlds.randomKernel(3L, founders, 8,
                 EngineConfig.defaults(0L, w, 16).withResourceInflow(InflowConfig.field(0.0, InflowConfig.Combine.MAX,
                         new InflowSource.Noise(11L, 0.06, 0.5, 3.0, 8.0, 5000),
                         new InflowSource.Disk(0.7, 0.3, 6, 5.0, 1000, 0,
-                                InflowSource.Motion.DRIFT, 0.01, 0.0, 0))), 1);
+                                InflowSource.Motion.DRIFT, 0.01, 0.0, 0))));
         assertAuditHolds(k);
     }
 
@@ -192,7 +176,7 @@ class InflowConfigTest {
     void capValuesAreBitIdenticalToBefore() throws IOException {
         // arrange
         int w = 40;
-        List<String> expected = Files.readAllLines(Path.of("src/test/resources/inflow-caps-pre-readability.txt"));
+        List<String> expected = readResourceLines("/inflow-caps-pre-readability.txt");
         List<String> actual = new ArrayList<>();
         Random random = new Random(5);
         int[][] triples = new int[64][];
@@ -229,6 +213,12 @@ class InflowConfigTest {
         assertFalse(json.contains("orbitRadiusFraction") || json.contains("driftX") || json.contains("driftY"));
     }
 
+    private static List<String> readResourceLines(String name) throws IOException {
+        try (InputStream in = InflowConfigTest.class.getResourceAsStream(name)) {
+            return new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).lines().toList();
+        }
+    }
+
     private static Map<String, InflowSource> capCaseSources() {
         int[] cells = new int[229];
         for (int i = 0; i < cells.length; i++) {
@@ -251,14 +241,7 @@ class InflowConfigTest {
         for (int t = 0; t < 1500; t++) {
             k.tick();
             KernelSnapshot s = k.snapshot();
-            double held = 0.0;
-            for (double e : s.energy) {
-                held += e;
-            }
-            held += s.reservoir() + s.massTotal() + s.energySink;
-            double credited = s.creditedInitialEnergy + s.initialResourceTotal
-                    + s.creditedInitialMass + s.cumulativeInflow;
-            assertEquals(credited, held, 1.0e-2, "audit at tick " + s.tick);
+            EnergyAudit.assertConserved(s, 1.0e-2);
             maxInflowStep = Math.max(maxInflowStep, s.cumulativeInflow - prevInflow);
             prevInflow = s.cumulativeInflow;
         }
