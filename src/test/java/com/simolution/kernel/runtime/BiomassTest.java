@@ -27,9 +27,11 @@ class BiomassTest {
         int worldWidth = 50;
         Kernel kernel = Worlds.randomKernel(13L, 200, 8, EngineConfig.defaults(0L, worldWidth, 16));
 
-        // act + assert
         for (int t = 0; t < 2000; t++) {
+            // act
             kernel.tick();
+
+            // assert
             EnergyAudit.assertConserved(kernel.snapshot(), 1.0e-2);
         }
     }
@@ -86,9 +88,11 @@ class BiomassTest {
         Kernel kernel = growerKernel();
         double previousMass = DEFAULTS.founder().initialMass();
 
-        // act + assert
         for (int t = 0; t < 6; t++) {
+            // act
             kernel.tick();
+
+            // assert
             KernelSnapshot snapshot = kernel.snapshot();
             double expected = Math.min(1.0, previousMass / DEFAULTS.sensing().selfMassScale());
             assertEquals(expected, snapshot.outputs[SELF_MASS_IDX], 1.0e-6,

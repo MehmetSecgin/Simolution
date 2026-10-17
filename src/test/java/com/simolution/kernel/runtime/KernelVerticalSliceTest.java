@@ -77,10 +77,12 @@ class KernelVerticalSliceTest {
         Kernel first = Worlds.kernel(1, genome);
         Kernel second = Worlds.kernel(1, genome);
 
-        // act + assert
         for (int tick = 0; tick < 50; tick++) {
+            // act
             first.tick();
             second.tick();
+
+            // assert
             float[] firstOutputs = first.snapshot().outputs;
             float[] secondOutputs = second.snapshot().outputs;
             for (int node = 0; node < firstOutputs.length; node++) {

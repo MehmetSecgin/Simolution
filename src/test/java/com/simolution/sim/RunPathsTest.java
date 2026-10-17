@@ -13,9 +13,13 @@ class RunPathsTest {
         // arrange
         RunPaths paths = new RunPaths(Path.of("runs/a.txt"));
 
-        // act + assert
-        assertEquals(Path.of("runs/a.catalog.gz"), paths.catalog());
-        assertEquals(Path.of("runs/a.obs"), paths.obsDir());
+        // act
+        Path catalog = paths.catalog();
+        Path obsDir = paths.obsDir();
+
+        // assert
+        assertEquals(Path.of("runs/a.catalog.gz"), catalog);
+        assertEquals(Path.of("runs/a.obs"), obsDir);
     }
 
     @Test
@@ -23,7 +27,10 @@ class RunPathsTest {
         // arrange
         RunPaths paths = new RunPaths(Path.of("a"));
 
-        // act + assert
-        assertEquals(Path.of("a.births.csv.gz"), paths.births());
+        // act
+        Path births = paths.births();
+
+        // assert
+        assertEquals(Path.of("a.births.csv.gz"), births);
     }
 }

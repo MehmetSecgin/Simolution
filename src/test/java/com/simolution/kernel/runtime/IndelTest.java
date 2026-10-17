@@ -32,9 +32,11 @@ class IndelTest {
         // arrange
         Kernel kernel = evolvingKernel();
 
-        // act + assert
         for (int t = 0; t < TICKS; t++) {
+            // act
             kernel.tick();
+
+            // assert
             int[] geneCount = kernel.snapshot().geneCount;
             for (int slot = 0; slot < geneCount.length; slot++) {
                 assertTrue(geneCount[slot] >= 0 && geneCount[slot] <= MAX_GENES,
@@ -78,9 +80,11 @@ class IndelTest {
         double previous = DEFAULTS.founder().initialEnergy();
         boolean died = false;
 
-        // act + assert
         for (int t = 0; t < 200_000 && !died; t++) {
+            // act
             kernel.tick();
+
+            // assert
             double now = kernel.snapshot().energy[0];
             assertTrue(now <= previous + 1.0e-12,
                     "an inert empty genome can never gain energy (no harvest) at tick " + (t + 1));
@@ -96,9 +100,11 @@ class IndelTest {
         // arrange
         Kernel kernel = evolvingKernel();
 
-        // act + assert
         for (int t = 0; t < TICKS; t++) {
+            // act
             kernel.tick();
+
+            // assert
             EnergyAudit.assertConserved(kernel.snapshot(), 1.0e-2);
         }
     }

@@ -95,7 +95,7 @@ class ChemicalPhaseTest {
         final ChemicalSpec selfTarget = new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 0);
         final ChemicalSpec outOfRange = new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 1);
 
-        // act + assert
+        // assert
         assertThrows(IllegalArgumentException.class, () -> emptyKernel(List.of(selfTarget)));
         assertThrows(IllegalArgumentException.class, () -> emptyKernel(List.of(outOfRange)));
     }

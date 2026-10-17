@@ -47,9 +47,11 @@ class EnergyTest {
                 + DEFAULTS.chemicals().get(0).initial() * POPULATION_WORLD_WIDTH * POPULATION_WORLD_WIDTH
                 + DEFAULTS.founder().initialMass() * POPULATION;
 
-        // act + assert
         for (int i = 0; i < 500; i++) {
+            // act
             kernel.tick();
+
+            // assert
             EnergyAudit.assertConserved(kernel.snapshot(), initialCredit, AUDIT_TOLERANCE);
         }
     }
@@ -58,11 +60,13 @@ class EnergyTest {
     void totalEnergyMonotonicallyDecreases() {
         // arrange
         Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
-
-        // act + assert
         double previous = DEFAULTS.founder().initialEnergy();
+
         for (int i = 0; i < 100; i++) {
+            // act
             kernel.tick();
+
+            // assert
             double now = EnergyAudit.totalEnergy(kernel.snapshot());
             assertTrue(now <= previous, "energy must not increase at tick " + (i + 1));
             previous = now;
@@ -162,9 +166,11 @@ class EnergyTest {
         // arrange
         Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
 
-        // act + assert
         for (int i = 0; i < 5000; i++) {
+            // act
             kernel.tick();
+
+            // assert
             KernelSnapshot snapshot = kernel.snapshot();
             assertTrue(snapshot.energy[0] >= 0.0, "energy must never be negative");
             assertTrue(snapshot.energySink <= EnergyAudit.credited(snapshot) + 1.0e-9,
@@ -178,10 +184,12 @@ class EnergyTest {
         Kernel alone = Worlds.kernel(1, BUSY_GENOME);
         Kernel paired = Worlds.kernel(2, BUSY_GENOME, BUSY_GENOME);
 
-        // act + assert
         for (int i = 0; i < 200; i++) {
+            // act
             alone.tick();
             paired.tick();
+
+            // assert
             float[] aloneOut = alone.snapshot().outputs;
             float[] pairedOut = paired.snapshot().outputs;
             for (int n = 0; n < NodeLayout.TOTAL; n++) {

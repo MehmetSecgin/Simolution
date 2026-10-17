@@ -117,11 +117,13 @@ class ReproductionClaimTest {
         final int world = 40;
         final int founders = 400;
         final Kernel kernel = Worlds.randomKernel(11L, founders, 16, Worlds.foodRich(world, 32));
-
-        // act + assert
         long listed = 0;
+
         for (int t = 0; t < 500; t++) {
+            // act
             kernel.tick();
+
+            // assert
             final WorldState s = kernel.state();
             for (int i = 0; i < s.birthCount; i++) {
                 final int parent = s.birthParent[i];

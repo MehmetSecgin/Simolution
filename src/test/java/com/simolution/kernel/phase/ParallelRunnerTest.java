@@ -98,7 +98,7 @@ class ParallelRunnerTest {
         final ParallelRunner runner = new ParallelRunner(2);
         runner.close();
 
-        // act + assert
+        // assert
         assertThrows(IllegalStateException.class, () -> runner.runTick(List.of(new Recording(-1))));
     }
 

@@ -11,7 +11,7 @@ class GenomeFactoryTest {
 
     @Test
     void sameSeedProducesIdenticalGenomes() {
-        // arrange + act
+        // act
         int[][] first = GenomeFactory.random(42L, 10, 16);
         int[][] second = GenomeFactory.random(42L, 10, 16);
 
@@ -21,7 +21,7 @@ class GenomeFactoryTest {
 
     @Test
     void differentSeedsProduceDifferentGenomes() {
-        // arrange + act
+        // act
         int[][] first = GenomeFactory.random(1L, 4, 8);
         int[][] second = GenomeFactory.random(2L, 4, 8);
 
@@ -31,7 +31,7 @@ class GenomeFactoryTest {
 
     @Test
     void unitGenomesAreInvariantUnderPopulationSize() {
-        // arrange + act
+        // act
         int[][] small = GenomeFactory.random(7L, 2, 8);
         int[][] large = GenomeFactory.random(7L, 100, 8);
 

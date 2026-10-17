@@ -57,9 +57,12 @@ class DeterminismMatrixTest {
         final EngineConfig config = config(world);
         final long[] expected = perTickDigests(config, founders, 400, 1);
 
-        // act + assert
         for (final int threads : THREAD_COUNTS) {
-            assertArrayEquals(expected, perTickDigests(config, founders, 400, threads), "threads " + threads);
+            // act
+            final long[] actual = perTickDigests(config, founders, 400, threads);
+
+            // assert
+            assertArrayEquals(expected, actual, "threads " + threads);
         }
     }
 
