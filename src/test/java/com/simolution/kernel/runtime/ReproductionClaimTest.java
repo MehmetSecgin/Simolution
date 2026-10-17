@@ -52,8 +52,7 @@ class ReproductionClaimTest {
 
     @Test
     void contestedChildCellGoesToLowestParent() {
-        // arrange: on a 5x5 torus, parents at cells 6 and 8 share cell 7 as their lowest
-        // free Moore neighbour once inert blockers fill cells 0..5
+        // arrange
         final int[][] genomes = {{reproduce(8192)}, {reproduce(8192)}, {}, {}, {}, {}, {}, {}};
         final int[] cells = {6, 8, 0, 1, 2, 3, 4, 5};
         final Kernel kernel = new Kernel(genomes, cells, EngineConfig.v5Defaults(0L, 5, 8), 1);
@@ -76,8 +75,7 @@ class ReproductionClaimTest {
 
     @Test
     void unaffordableBuildBurnsNoSlot() {
-        // arrange: energy 1000 clears the base build cost (500) but not 500 + 1000 per gene;
-        // the reference kernel has a base cost no parent can clear, so it never attempts a birth
+        // arrange
         final int[][] genomes = {{reproduce(8192)}};
         final int[] cells = {4};
         final Kernel attempting = new Kernel(genomes, cells, config(3, 8, 500.0, 1000.0, 0.0, 0.0), 1);
@@ -100,8 +98,7 @@ class ReproductionClaimTest {
 
     @Test
     void childGenomeIndependentOfSlot() {
-        // arrange: the same parent (slot 0, cell 0) on a 31x31 torus, with inert fillers that
-        // leave the first free slot at 5 in one world and at 900 in the other
+        // arrange
         final int world = 31;
         final int[] parentGenome = new int[8];
         for (int g = 0; g < parentGenome.length; g++) {

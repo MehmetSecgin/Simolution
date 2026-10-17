@@ -130,7 +130,7 @@ class MovementTest {
         assertEquals(2, kernel.snapshot().position[0], "slot 0 stepped out");
         assertEquals(0, kernel.snapshot().position[1], "slot 1 cannot enter a cell vacated this tick");
 
-        // next tick the cell is free at phase start
+        // act
         kernel.tick();
         assertEquals(1, kernel.snapshot().position[1], "slot 1 enters on the following tick");
     }
