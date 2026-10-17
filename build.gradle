@@ -36,3 +36,9 @@ tasks.register('bench', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     jvmArgs '-Xmx4g'
 }
+
+if (project.hasProperty('noDebug')) {
+    tasks.withType(JavaCompile).configureEach {
+        options.debug = false
+    }
+}
