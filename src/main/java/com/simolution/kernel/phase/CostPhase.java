@@ -39,7 +39,7 @@ import com.simolution.kernel.state.WorldState;
  * its own slot's death fields and its own cell's occupancy. Charges and death mass go to the
  * chunk's {@code sinkPartial}, merged into {@code energySink} in {@link #finish()}.
  */
-public final class CostPhase implements Phase {
+public class CostPhase implements Phase {
 
     private final WorldState state;
     private final double basalCost;

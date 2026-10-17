@@ -6,7 +6,7 @@ import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.state.WorldState;
 
 /** Phase 1: zeroes the per-tick accumulators and MUL top-two scratch of each slot. */
-public final class ClearPhase implements Phase {
+public class ClearPhase implements Phase {
 
     private final WorldState state;
 

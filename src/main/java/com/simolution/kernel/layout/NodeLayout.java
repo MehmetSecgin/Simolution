@@ -28,6 +28,7 @@ public final class NodeLayout {
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
 
+        private Sensor() {}
     }
 
     public static final class Internal {
@@ -46,6 +47,7 @@ public final class NodeLayout {
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
 
+        private Internal() {}
     }
 
     public static final class Action {
@@ -67,6 +69,7 @@ public final class NodeLayout {
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
 
+        private Action() {}
     }
 
     public static final int SENSOR_OFFSET = 0;

@@ -20,9 +20,11 @@ import com.simolution.sim.StructuralStats;
 import com.simolution.sim.TickObserver;
 import com.simolution.sim.TimeSeriesSampler;
 
-public class Main {
+public final class Main {
 
     private static final int MAX_TRACED_UNITS = 8;
+
+    private Main() {}
 
     static void main(final String[] args) throws IOException {
         if (ReplayCommand.requested(args)) {

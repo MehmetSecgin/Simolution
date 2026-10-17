@@ -9,7 +9,7 @@ import com.simolution.kernel.state.WorldState;
  * population literally costs less to simulate. Counts non-zero propagations per unit; that
  * count is the activity the cost phase charges for (contract v0 §6, fork 1a).
  */
-public final class PropagatePhase implements Phase {
+public class PropagatePhase implements Phase {
 
     private final WorldState state;
 

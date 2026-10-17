@@ -36,7 +36,7 @@ import com.simolution.kernel.state.WorldState;
  * <p>
  * Shape is {@link Shape#CLAIM}.
  */
-public final class MovementPhase implements Phase {
+public class MovementPhase implements Phase {
 
     private final WorldState state;
     private final double moveCostBase;

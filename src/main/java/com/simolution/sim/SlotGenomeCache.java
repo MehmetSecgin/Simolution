@@ -5,7 +5,7 @@ import java.util.Arrays;
 
 import com.simolution.kernel.runtime.KernelSnapshot;
 
-final class SlotGenomeCache {
+class SlotGenomeCache {
 
     private final int maxGenes;
     private final GenomeCatalogWriter catalog;

@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import com.github.luben.zstd.Zstd;
 
 /** Groups frame text into zstd chunks of {@link #CHUNK_FRAMES} frames and indexes them; format in docs/specs/report-v14.md. */
-final class ChunkedFrameStream implements Closeable {
+class ChunkedFrameStream implements Closeable {
 
     static final int CHUNK_FRAMES = 256;
 

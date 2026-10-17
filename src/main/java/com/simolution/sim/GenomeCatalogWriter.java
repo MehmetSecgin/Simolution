@@ -6,7 +6,7 @@ import java.io.Writer;
 import java.util.HashMap;
 
 /** Writes each distinct genome once and hands out its id; format in docs/specs/report-v14.md. */
-public final class GenomeCatalogWriter implements Closeable {
+public class GenomeCatalogWriter implements Closeable {
 
     private final Writer out;
     private final StringBuilder key = new StringBuilder(256);

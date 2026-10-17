@@ -1,6 +1,6 @@
 package com.simolution.kernel.layout;
 
-public final class CompiledConnection {
+public class CompiledConnection {
 
     public final int sourceAbsoluteIndex;
     public final int destinationAbsoluteIndex;

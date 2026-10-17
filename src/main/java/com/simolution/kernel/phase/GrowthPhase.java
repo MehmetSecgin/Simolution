@@ -22,7 +22,7 @@ import com.simolution.kernel.state.WorldState;
  * death) its own slot's death fields and its own cell's occupancy. The lossy remainder and
  * death mass go to the chunk's {@code sinkPartial}, merged in {@link #finish()}.
  */
-public final class GrowthPhase implements Phase {
+public class GrowthPhase implements Phase {
 
     private final WorldState state;
     private final double growMax;

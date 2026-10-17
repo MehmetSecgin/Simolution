@@ -8,7 +8,7 @@ import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.kernel.state.WorldState;
 
 /** Streams one CSV row per birth, with genome ids from the shared catalog; format in docs/specs/report-v13.md. */
-public final class BirthLogWriter implements TickObserver, Closeable {
+public class BirthLogWriter implements TickObserver, Closeable {
 
     private final Writer out;
     private final GenomeCatalogWriter catalog;

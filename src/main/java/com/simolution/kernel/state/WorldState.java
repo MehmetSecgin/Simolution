@@ -24,7 +24,7 @@ import com.simolution.kernel.state.FieldSpec.Persist;
  * ({@code energy 0}), no lineage ({@code -1}), no position ({@code -1}) and an empty
  * cell occupancy ({@code -1}).
  */
-public final class WorldState {
+public class WorldState {
 
     public final int worldWidth;
     public final int maxGenes;

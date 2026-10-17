@@ -48,7 +48,7 @@ import java.util.concurrent.locks.LockSupport;
  * cannot keep the JVM alive; {@link #close()} releases them with {@code closing} set and
  * joins them, after which split phases are refused.
  */
-public final class ParallelRunner implements PhaseRunner, AutoCloseable {
+public class ParallelRunner implements PhaseRunner, AutoCloseable {
 
     private static final int SPINS = 1 << 12;
     private static final int RUN = -1;

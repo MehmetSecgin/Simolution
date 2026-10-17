@@ -19,7 +19,7 @@ import com.simolution.kernel.state.WorldState;
  * place. Decay to the sink goes to the chunk's {@code sinkPartial}, merged in
  * {@link #finish()}.
  */
-public final class DecayPhase implements Phase {
+public class DecayPhase implements Phase {
 
     private final WorldState state;
     private final double[] rate;

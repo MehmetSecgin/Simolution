@@ -9,7 +9,7 @@ import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.kernel.state.WorldState;
 
 /** Streams birth, death and extinction events to events.jsonl; format in docs/specs/report-v8.md. */
-public final class EventLogWriter implements TickObserver, Closeable {
+public class EventLogWriter implements TickObserver, Closeable {
 
     private final Writer out;
     private final int slotCount;

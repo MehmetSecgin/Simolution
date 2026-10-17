@@ -3,7 +3,7 @@ package com.simolution.kernel.logging;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
-public final class ConsoleTableLogger {
+public class ConsoleTableLogger {
 
     private boolean headerPrinted = false;
 

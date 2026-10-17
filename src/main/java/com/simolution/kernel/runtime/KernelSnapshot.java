@@ -8,7 +8,7 @@ import com.simolution.kernel.state.WorldState;
  * so read them before the kernel ticks again. The two totals are computed on demand, since most
  * ticks no reader asks for them.
  */
-public final class KernelSnapshot {
+public class KernelSnapshot {
     public final WorldState state;
     public final int tick;
     public final float[] outputs;

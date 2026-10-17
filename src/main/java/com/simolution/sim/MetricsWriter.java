@@ -8,7 +8,7 @@ import java.util.Arrays;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 /** Streams one row of run aggregates per tick to metrics.csv; format in docs/specs/report-v8.md. */
-public final class MetricsWriter implements TickObserver, Closeable {
+public class MetricsWriter implements TickObserver, Closeable {
 
     private final Writer out;
     private final int founderCount;

@@ -2,7 +2,7 @@ package com.simolution.sim;
 
 import com.simolution.kernel.runtime.KernelSnapshot;
 
-public final class DynamicsObserver implements TickObserver {
+public class DynamicsObserver implements TickObserver {
 
     private long ticksWithAnyActivity;
     private long propagationsTotal;

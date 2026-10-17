@@ -3,7 +3,7 @@ package com.simolution.sim;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 /** Keeps at most {@code BUCKETS} evenly spaced rows, so the footprint is constant in ticks. */
-public final class TimeSeriesSampler implements TickObserver {
+public class TimeSeriesSampler implements TickObserver {
 
     public static final int BUCKETS = 1000;
     public static final String HEADER = "tick,population,births,max_generation,unit_energy,reservoir";

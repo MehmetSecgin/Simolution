@@ -18,7 +18,7 @@ import com.simolution.kernel.state.WorldState;
  * chemical 0, and no other unit reads that cell in this phase. Nothing is added to a shared
  * total here, so no partials are needed.
  */
-public final class IntakePhase implements Phase {
+public class IntakePhase implements Phase {
 
     private final WorldState state;
     private final double harvestCapacityPerConnection;

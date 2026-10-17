@@ -70,7 +70,7 @@ import com.simolution.kernel.state.WorldState;
  * <p>
  * Shape is {@link Shape#CLAIM}.
  */
-public final class ReproductionPhase implements Phase {
+public class ReproductionPhase implements Phase {
 
     private final WorldState state;
     private final int maxGenes;

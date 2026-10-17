@@ -28,7 +28,7 @@ import com.simolution.kernel.state.WorldState;
  * {@link #stateDigest}, {@link #snapshot} and {@link #close} must all come from one thread at a
  * time. A concurrent call corrupts the state or hangs the runner's barrier.
  */
-public final class Kernel implements AutoCloseable {
+public class Kernel implements AutoCloseable {
 
     private final EngineConfig config;
     private final WorldState state;

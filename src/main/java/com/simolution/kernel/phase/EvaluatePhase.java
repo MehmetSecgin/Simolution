@@ -14,7 +14,7 @@ import com.simolution.kernel.state.WorldState;
  * local taps (the declared chemical of the unit's own cell, its own energy and mass); a dead unit
  * computes nothing and is frozen at its last living configuration.
  */
-public final class EvaluatePhase implements Phase {
+public class EvaluatePhase implements Phase {
 
     private static final NodeSpec.Role[] SENSOR_ROLES = sensorRoles();
 

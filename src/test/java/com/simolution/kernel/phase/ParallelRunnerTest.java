@@ -21,7 +21,7 @@ class ParallelRunnerTest {
 
     private static final int EXTENT = 5 * Chunks.SIZE + 7;
 
-    private static final class Recording implements Phase {
+    private static class Recording implements Phase {
         final AtomicIntegerArray runs = new AtomicIntegerArray(Chunks.count(EXTENT));
         final int[] from = new int[Chunks.count(EXTENT)];
         final int[] to = new int[Chunks.count(EXTENT)];

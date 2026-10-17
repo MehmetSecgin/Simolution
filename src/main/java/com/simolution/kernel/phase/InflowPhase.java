@@ -18,7 +18,7 @@ import com.simolution.kernel.state.WorldState;
  * after every unit's harvest (the phase boundary orders the two). Admissions go to the
  * chunk's {@code inflowPartial}, merged into {@code cumulativeInflow} in {@link #finish()}.
  */
-public final class InflowPhase implements Phase {
+public class InflowPhase implements Phase {
 
     private final WorldState state;
     private final CompiledInflowField[] inflow;

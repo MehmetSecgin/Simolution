@@ -3,7 +3,7 @@ package com.simolution.kernel.phase;
 import com.simolution.kernel.state.WorldState;
 
 /** Phase 4: flips the double-buffered node outputs so this tick's results become the previous buffer. */
-public final class SwapPhase implements Phase {
+public class SwapPhase implements Phase {
 
     private final WorldState state;
 

@@ -1,6 +1,6 @@
 package com.simolution.sim;
 
-final class ResourceLevels {
+class ResourceLevels {
 
     private static final int TOP_LEVEL = 9;
 

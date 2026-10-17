@@ -9,7 +9,7 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 /** Writes the spatial map frames of a run into a chunked zstd stream; format in docs/specs/report-v14.md. */
-public final class MapFrameWriter implements TickObserver, Closeable {
+public class MapFrameWriter implements TickObserver, Closeable {
 
     private final ChunkedFrameStream stream;
     private final FrameSampler sampler;

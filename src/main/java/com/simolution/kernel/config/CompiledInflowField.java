@@ -2,7 +2,7 @@ package com.simolution.kernel.config;
 
 import java.util.List;
 
-public final class CompiledInflowField {
+public class CompiledInflowField {
 
     private final double baseline;
     private final double[] baked;

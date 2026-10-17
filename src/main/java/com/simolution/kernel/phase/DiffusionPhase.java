@@ -13,7 +13,7 @@ import com.simolution.kernel.state.WorldState;
  * is never clamped, so it creates and destroys nothing; only inflow (phase 5) is capped.
  * One O(cells × chemicals) pass per tick, no allocation.
  */
-public final class DiffusionPhase implements Phase {
+public class DiffusionPhase implements Phase {
 
     private final WorldState state;
     private final double[] rate;

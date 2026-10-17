@@ -26,7 +26,7 @@ import com.simolution.kernel.state.FieldSpec.Persist;
  * allocates nothing in the fold itself (only {@link WorldState#fields()} builds its small
  * descriptor list). Not thread safe: one instance serves one kernel, one call at a time.
  */
-public final class StateDigest implements Phase {
+public class StateDigest implements Phase {
 
     private static final long OFFSET = 0xcbf29ce484222325L;
 

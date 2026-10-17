@@ -1,6 +1,6 @@
 package com.simolution.sim;
 
-final class ArgCursor {
+class ArgCursor {
 
     private final String[] args;
     private int position;
