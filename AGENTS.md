@@ -47,9 +47,6 @@ Next: sensors that read beyond the own cell, several resources with separate har
 #   (node names, offsets, junk ranges, gene bit layout: the viewers read it),
 #   <base>.catalog.gz and <base>.births.csv.gz. Map frames are opt-in (below).
 
-# visualize a run as a self-contained HTML dashboard (stdlib python, no deps)
-python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
-
 # bake the spatial map (report-v14) into a SELF-CONTAINED rich viewer: the same
 # genome panel + circuit inspector + colour by genome as the live view, frames + catalog
 # inlined, opens anywhere (even file://). The run writes chunked-zstd <base>.frames.zst

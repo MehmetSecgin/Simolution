@@ -1,7 +1,8 @@
 package com.simolution.kernel.runtime;
 
 /**
- * Stateless counter-based randomness for the RAND sensor.
+ * Stateless counter-based randomness for every keyed stream (RAND sensor, birth mutation,
+ * founder placement).
  * <p>
  * Instead of a mutable RNG stream, each value is a pure hash of
  * {@code (seed, unitIndex, tick)}. Consequences (see ADR 0003):
@@ -55,9 +56,9 @@ public final class Noise {
      * decisions, keyed by the birth event {@code (seed, parentSlot, birthTick)}
      * and a per-stream {@code index} (contract v2 §9; parent-keyed since engine v6
      * design §5.6, so the child genome is known before its slot is). Domain-separated from
-     * {@link #sample} — which hashes (unit, tick) for the RAND sensor — by
-     * folding in the index as a third dimension, so a child's mutation stream
-     * never collides with any unit's sensor noise. Same key → same flips,
+     * {@link #sample} — which hashes (unit, tick) for the RAND sensor — by its own stream tag
+     * ({@link #STREAM_MUTATION}), so a child's mutation stream never collides with any
+     * unit's sensor noise. Same key → same flips,
      * always, so a run's entire genealogy is reproducible.
      */
     public static double mutationUniform(long seed, int parentSlot, int birthTick, int index) {

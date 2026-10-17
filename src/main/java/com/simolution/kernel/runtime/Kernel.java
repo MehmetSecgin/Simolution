@@ -24,6 +24,11 @@ import com.simolution.kernel.phase.SwapPhase;
 import com.simolution.kernel.state.StateDigest;
 import com.simolution.kernel.state.WorldState;
 
+/**
+ * The kernel and its {@link ParallelRunner} are single-caller: {@link #tick}, {@link #step},
+ * {@link #stateDigest}, {@link #snapshot} and {@link #close} must all come from one thread at a
+ * time. A concurrent call corrupts the state or hangs the runner's barrier.
+ */
 public final class Kernel implements AutoCloseable {
 
     private final EngineConfig config;
@@ -137,9 +142,10 @@ public final class Kernel implements AutoCloseable {
 
     /**
      * The tick as an ordered list of declared phases, built once at construction
-     * (contract v0 §8, the locked order of the 11-phase pipeline): clear, propagate,
-     * evaluate, swap, intake, cost, growth, reproduction, movement, diffusion, decay.
-     * Intake is two entries, intake (per unit) then inflow (per cell), so each has one shape.
+     * (contract v0 §8, the locked pipeline order, twelve entries): clear, propagate,
+     * evaluate, swap, intake, inflow, cost, growth, reproduction, movement, diffusion, decay.
+     * Intake is two entries, intake (per unit) then inflow (per cell), so each entry has
+     * one {@link com.simolution.kernel.phase.Shape}.
      */
     public List<Phase> phases() {
         return phases;

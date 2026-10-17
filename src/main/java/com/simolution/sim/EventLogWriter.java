@@ -27,7 +27,7 @@ import com.simolution.kernel.state.WorldState;
  *       reissued). Emitted once, with the lineage's peak membership and deepest
  *       generation.</li>
  * </ul>
- * Founders are recorded in the manifest, not as events; there is no abiogenesis in
+ * Founders are recorded in the checkpoints and {@code run.json}, not as events; there is no abiogenesis in
  * the current kernel.
  * <p>
  * All buffers are sized once in the constructor; {@link #observe} allocates only
