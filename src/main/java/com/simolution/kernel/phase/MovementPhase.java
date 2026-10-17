@@ -5,23 +5,30 @@ import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.state.WorldState;
 
 /**
- * Phase 9: motility (contract v3 §9, ADR 0020; mass-scaled cost contract v5 §3). Each living
- * unit reads its four MOVE effectors (from outputsPrev, the swapped current tick) and takes
- * at most one Moore step: {@code dx} from {@code MOVE_E − MOVE_W}, {@code dy} from
- * {@code MOVE_N − MOVE_S} (N = −y, up), each thresholded by {@code MOVE_DEADZONE} so a quiet
- * circuit stays put. Diagonals are emergent (both axes firing). A step is taken only into a
- * free cell ({@code cellOccupant < 0}); a blocked or zero step does nothing and costs
- * nothing. An actual step charges {@code MOVE_COST_BASE + MOVE_COST_PER_MASS · mass} to the
- * sink (and damage, motility is dissipation): a heavier body is sluggish, paying more per
- * step. The afford check ({@code energy > moveCost}) is applied only once a step is actually
- * about to happen and means a step never kills, so no cell is freed here.
+ * Phase 9: motility as a claim (contract v3 §9, ADR 0020; mass-scaled cost contract v5 §3;
+ * engine v6 design §5.6). Each living unit reads its four MOVE effectors (from outputsPrev,
+ * the swapped current tick) and proposes at most one Moore step: {@code dx} from
+ * {@code MOVE_E − MOVE_W}, {@code dy} from {@code MOVE_N − MOVE_S} (N = −y, up), each
+ * thresholded by {@code MOVE_DEADZONE} so a quiet circuit stays put. Diagonals are emergent
+ * (both axes firing).
  * <p>
- * Units are scanned in ascending slot order with occupancy updated immediately, so two units
- * targeting one free cell resolve by lowest slot, and a cell vacated this tick can be entered
- * this tick, all deterministic. The slot never changes, so the connection store is untouched
- * and nothing is allocated.
+ * {@link #run} (parallel, per unit) reads only phase-start state and writes only
+ * {@code moveIntent[own slot]}: the target cell, or {@code -1} when the unit is dead, its
+ * drive is inside the deadzone, the target is occupied at phase start, or
+ * {@code energy ≤ MOVE_COST_BASE + MOVE_COST_PER_MASS · mass} (a step never kills, so no cell
+ * is freed here). {@link #finish} (serial) resolves the claims in ascending slot order: the
+ * first intent on a target cell wins ({@code cellWinner}), winners move and pay the cost to
+ * the sink (and damage, motility is dissipation), losers stay and pay nothing. A cell vacated
+ * this tick was occupied at phase start, so it is never a valid target and there are no
+ * same-tick chains. The slot never changes, so the connection store is untouched and nothing
+ * is allocated.
  * <p>
- * Shape is {@link Shape#SERIAL}: the in-order occupancy updates are the conflict resolution.
+ * {@code finish} resets exactly the {@code cellWinner} entries it set, so the resolve costs
+ * O(slots) for the scan and no O(cells) clear; {@code cellWinner} is {@code -1} between phases.
+ * Charges are summed in ascending slot order into {@code sinkPartial[0]} and merged, so the
+ * total does not depend on the thread count.
+ * <p>
+ * Shape is {@link Shape#CLAIM}.
  */
 public final class MovementPhase implements Phase {
 
@@ -44,7 +51,7 @@ public final class MovementPhase implements Phase {
 
     @Override
     public Shape shape() {
-        return Shape.SERIAL;
+        return Shape.CLAIM;
     }
 
     @Override
@@ -56,14 +63,15 @@ public final class MovementPhase implements Phase {
     public void run(final int from, final int to, final int chunk) {
         final double[] energy = state.energy;
         final double[] mass = state.mass;
-        final double[] damage = state.damage;
         final int[] position = state.position;
         final int[] cellOccupant = state.cellOccupant;
+        final int[] moveIntent = state.moveIntent;
         final float[] outputsPrev = state.outputsPrev;
 
         final int w = state.worldWidth;
         final double theta = moveDeadzone;
         for (int unit = from; unit < to; unit++) {
+            moveIntent[unit] = -1;
             if (energy[unit] <= 0.0) {
                 continue;
             }
@@ -94,17 +102,46 @@ public final class MovementPhase implements Phase {
             if (cellOccupant[target] >= 0) {
                 continue;
             }
-            final double moveCost = moveCostBase
-                    + moveCostPerMass * mass[unit];
-            if (energy[unit] <= moveCost) {
+            if (energy[unit] <= moveCostBase + moveCostPerMass * mass[unit]) {
                 continue;
             }
-            cellOccupant[cell] = -1;
+            moveIntent[unit] = target;
+        }
+    }
+
+    @Override
+    public void finish() {
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final double[] damage = state.damage;
+        final int[] position = state.position;
+        final int[] cellOccupant = state.cellOccupant;
+        final int[] moveIntent = state.moveIntent;
+        final int[] cellWinner = state.cellWinner;
+        final int slots = state.unitCount;
+
+        for (int unit = 0; unit < slots; unit++) {
+            final int target = moveIntent[unit];
+            if (target >= 0 && cellWinner[target] < 0) {
+                cellWinner[target] = unit;
+            }
+        }
+        double sink = 0.0;
+        for (int unit = 0; unit < slots; unit++) {
+            final int target = moveIntent[unit];
+            if (target < 0 || cellWinner[target] != unit) {
+                continue;
+            }
+            final double moveCost = moveCostBase + moveCostPerMass * mass[unit];
+            cellOccupant[position[unit]] = -1;
             position[unit] = target;
             cellOccupant[target] = unit;
             energy[unit] -= moveCost;
-            state.energySink += moveCost;
             damage[unit] += moveCost;
+            sink += moveCost;
+            cellWinner[target] = -1;
         }
+        state.sinkPartial[0] += sink;
+        state.mergePartials();
     }
 }
