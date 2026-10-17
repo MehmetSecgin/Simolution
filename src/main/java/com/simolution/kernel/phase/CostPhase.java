@@ -49,10 +49,10 @@ public final class CostPhase implements Phase {
 
     public CostPhase(final WorldState state, final EngineConfig config) {
         this.state = state;
-        this.basalCost = config.basalCost();
-        this.costPerPropagation = config.costPerPropagation();
-        this.maintPerMass = config.maintPerMass();
-        this.agingCost = config.agingCost();
+        this.basalCost = config.metabolism().basalCost();
+        this.costPerPropagation = config.metabolism().costPerPropagation();
+        this.maintPerMass = config.metabolism().maintenancePerMass();
+        this.agingCost = config.metabolism().agingCost();
     }
 
     @Override

@@ -55,7 +55,7 @@ public final class LatestFrame {
     private int next;
 
     public LatestFrame(final EngineConfig config) {
-        final int cells = config.worldWidth() * config.worldWidth();
+        final int cells = config.world().worldWidth() * config.world().worldWidth();
         this.buffers = new Frame[] {
             new Frame(cells, config.chemicals().size()), new Frame(cells, config.chemicals().size())};
     }

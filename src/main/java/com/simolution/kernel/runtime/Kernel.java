@@ -66,8 +66,8 @@ public final class Kernel implements AutoCloseable {
     public Kernel(final int[][] initialGenomes, final int[] founderCells, final EngineConfig config,
             final int threads) {
         this.config = config;
-        final int worldWidth = config.worldWidth();
-        final int maxGenes = config.maxGenes();
+        final int worldWidth = config.world().worldWidth();
+        final int maxGenes = config.world().maxGenes();
         final int maxUnits = worldWidth * worldWidth;
         final int seededCount = initialGenomes.length;
         if (seededCount > maxUnits) {
@@ -83,8 +83,8 @@ public final class Kernel implements AutoCloseable {
         this.unitCount = maxUnits;
 
         this.state = new WorldState(config);
-        state.creditedInitialEnergy = config.initialEnergy() * seededCount;
-        state.creditedInitialMass = config.initialMass() * seededCount;
+        state.creditedInitialEnergy = config.founder().initialEnergy() * seededCount;
+        state.creditedInitialMass = config.founder().initialMass() * seededCount;
 
         final int[] genes = state.genes;
         final int[] geneCount = state.geneCount;
@@ -104,8 +104,8 @@ public final class Kernel implements AutoCloseable {
                 }
                 System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
                 geneCount[unit] = genome.length;
-                energy[unit] = config.initialEnergy();
-                mass[unit] = config.initialMass();
+                energy[unit] = config.founder().initialEnergy();
+                mass[unit] = config.founder().initialMass();
                 lineageId[unit] = unit;
                 final int cell = founderCells[unit];
                 if (cell < 0 || cell >= maxUnits) {

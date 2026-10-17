@@ -25,7 +25,7 @@ class CheckpointCodecTest {
     private static final int WORLD = 32;
     private static final int FOUNDERS = 60;
     private static final int GENES = 16;
-    private static final EngineConfig CONFIG = EngineConfig.v5Defaults(7L, WORLD, GENES * 2);
+    private static final EngineConfig CONFIG = EngineConfig.defaults(7L, WORLD, GENES * 2);
 
     private static Kernel newKernel() {
         return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(CONFIG.seed(), FOUNDERS, WORLD), CONFIG, 1);
@@ -169,7 +169,7 @@ class CheckpointCodecTest {
         final Kernel branched = CheckpointCodec.readBranch(new ByteArrayInputStream(bytes), withBasalCost(0.6), 1);
         final Kernel unbranched = read(bytes);
 
-        assertEquals(0.6, branched.config().basalCost());
+        assertEquals(0.6, branched.config().metabolism().basalCost());
         assertSavedStateEquals(original, unbranched);
         branched.step(100);
         unbranched.step(100);
@@ -178,14 +178,7 @@ class CheckpointCodecTest {
     }
 
     private static EngineConfig withBasalCost(final double basalCost) {
-        final EngineConfig base = CONFIG;
-        return new EngineConfig(base.seed(), base.worldWidth(), base.maxGenes(), base.chemicals(),
-                base.initialEnergy(), basalCost, base.costPerPropagation(), base.harvestCapacityPerConnection(),
-                base.harvestHalfSaturation(), base.harvestMassExponent(), base.moveCostBase(),
-                base.moveCostPerMass(), base.moveDeadzone(), base.selfEnergyScale(), base.selfMassScale(),
-                base.initialMass(), base.maintPerMass(), base.growMax(), base.growHalfSaturation(),
-                base.growYield(), base.buildCost(), base.buildCostPerGene(), base.mutationRateWeight(),
-                base.mutationRateStruct(), base.indelRateDup(), base.indelRateDel(), base.agingCost());
+        return CONFIG.withMetabolism(CONFIG.metabolism().withBasalCost(basalCost));
     }
 
     private static int indexOf(final byte[] haystack, final byte[] needle) {

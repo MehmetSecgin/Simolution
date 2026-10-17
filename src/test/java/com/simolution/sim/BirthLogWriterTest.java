@@ -25,7 +25,7 @@ class BirthLogWriterTest {
         GenomeCatalogWriter cat = new GenomeCatalogWriter(catalog);
         int world = 8;
         int[] founders = Kernel.scatterFounders(0L, 6, world);
-        Kernel k = new Kernel(GenomeFactory.random(3L, 6, 8), founders, EngineConfig.v5Defaults(0L, world, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(3L, 6, 8), founders, EngineConfig.defaults(0L, world, 8), 1);
         BirthLogWriter w = new BirthLogWriter(births, cat);
 
         for (int i = 0; i < 40; i++) {

@@ -79,7 +79,7 @@ public final class EventLogWriter implements TickObserver, Closeable {
         // generation 0, born at tick 0. This is the "previous" state the first
         // observed tick (tick 1) is differenced against.
         for (int slot = 0; slot < founderCount; slot++) {
-            prevEnergy[slot] = config.initialEnergy();
+            prevEnergy[slot] = config.founder().initialEnergy();
             prevLineage[slot] = slot;
             prevGeneration[slot] = 0;
             final int cell = founderCells[slot];

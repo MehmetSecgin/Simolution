@@ -60,20 +60,20 @@ class RunLifecycleTest {
 
     @Test
     void seekMatchesUninterruptedAtEveryTick(@TempDir final Path dir) throws IOException {
-        assertSeekMatchesUninterrupted(EngineConfig.v5Defaults(7L, WORLD, GENES * 2), dir);
+        assertSeekMatchesUninterrupted(EngineConfig.defaults(7L, WORLD, GENES * 2), dir);
     }
 
     @Test
     void cyclicInflowRunCanBeSought(@TempDir final Path dir) throws IOException {
-        final EngineConfig cyclic = EngineConfig.v5Defaults(7L, WORLD, GENES * 2)
-                .withChemical0Inflow(InflowConfig.cyclic(200, 10, 10));
+        final EngineConfig cyclic = EngineConfig.defaults(7L, WORLD, GENES * 2)
+                .withResourceInflow(InflowConfig.cyclic(200, 10, 10));
 
         assertSeekMatchesUninterrupted(cyclic, dir);
     }
 
     @Test
     void checkpointsLandEveryNTicksAndRunJsonNamesTheRun(@TempDir final Path dir) throws IOException {
-        final Kernel kernel = newKernel(EngineConfig.v5Defaults(7L, WORLD, GENES * 2));
+        final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
         final RunDirectory run = RunDirectory.create(dir, kernel, EVERY);
         for (int t = 1; t <= 120; t++) {
             kernel.tick();
@@ -93,7 +93,7 @@ class RunLifecycleTest {
 
     @Test
     void branchRecordsItsParent(@TempDir final Path parentDir, @TempDir final Path branchDir) throws IOException {
-        final Kernel kernel = newKernel(EngineConfig.v5Defaults(7L, WORLD, GENES * 2));
+        final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
         final RunDirectory parent = RunDirectory.create(parentDir, kernel, EVERY);
         for (int t = 1; t <= 100; t++) {
             kernel.tick();
@@ -113,7 +113,7 @@ class RunLifecycleTest {
 
     @Test
     void latestFrameKeepsTheMostRecentPublish() {
-        final Kernel kernel = newKernel(EngineConfig.v5Defaults(7L, WORLD, GENES * 2));
+        final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
         final LatestFrame frames = new LatestFrame(kernel.config());
         assertEquals(null, frames.latest());
 

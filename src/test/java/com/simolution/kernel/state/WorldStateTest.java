@@ -21,7 +21,7 @@ import com.simolution.kernel.state.FieldSpec.Persist;
 class WorldStateTest {
 
     private static WorldState newState() {
-        return new WorldState(EngineConfig.v5Defaults(1L, 4, 3));
+        return new WorldState(EngineConfig.defaults(1L, 4, 3));
     }
 
     @Test

@@ -42,7 +42,7 @@ class KernelVerticalSliceTest {
                            .weightRaw(W_ADD_TO_ACTION)
                            .build()
         };
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
 
         double wConstToAdd = W_CONST_TO_ADD * GeneDecoder.WEIGHT_MULTIPLIER;
         double wAddToDelay = W_ADD_TO_DELAY * GeneDecoder.WEIGHT_MULTIPLIER;
@@ -92,8 +92,8 @@ class KernelVerticalSliceTest {
                            .weightRaw((short) 16384)
                            .build()
         };
-        Kernel first = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
-        Kernel second = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
+        Kernel first = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        Kernel second = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
 
         // act + assert
         for (int tick = 0; tick < 50; tick++) {

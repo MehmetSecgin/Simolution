@@ -45,9 +45,9 @@ public final class MovementPhase implements Phase {
 
     public MovementPhase(final WorldState state, final EngineConfig config) {
         this.state = state;
-        this.moveCostBase = config.moveCostBase();
-        this.moveCostPerMass = config.moveCostPerMass();
-        this.moveDeadzone = config.moveDeadzone();
+        this.moveCostBase = config.motility().fixedCost();
+        this.moveCostPerMass = config.motility().costPerMass();
+        this.moveDeadzone = config.motility().deadzone();
     }
 
     @Override

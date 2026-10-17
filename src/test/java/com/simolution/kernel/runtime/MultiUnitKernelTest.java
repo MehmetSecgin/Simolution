@@ -35,7 +35,7 @@ class MultiUnitKernelTest {
     @Test
     void unitsDoNotLeakSignalsIntoEachOther() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2}, EngineConfig.v5Defaults(0L, 2, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2}, EngineConfig.defaults(0L, 2, 32), 1);
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
 
@@ -58,8 +58,8 @@ class MultiUnitKernelTest {
     @Test
     void unitZeroIsInvariantUnderPopulationSize() {
         // arrange
-        Kernel alone = new Kernel(new int[][] {FEEDBACK_GENOME}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
-        Kernel crowded = new Kernel(new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2, 3, 4}, EngineConfig.v5Defaults(0L, 3, 32), 1);
+        Kernel alone = new Kernel(new int[][] {FEEDBACK_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        Kernel crowded = new Kernel(new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2, 3, 4}, EngineConfig.defaults(0L, 3, 32), 1);
 
         // act + assert
         for (int tick = 0; tick < 20; tick++) {
@@ -76,7 +76,7 @@ class MultiUnitKernelTest {
     @Test
     void unitsReceiveDistinctRandStreams() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, EMPTY_GENOME}, new int[] {0, 1}, EngineConfig.v5Defaults(0L, 2, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, EMPTY_GENOME}, new int[] {0, 1}, EngineConfig.defaults(0L, 2, 32), 1);
         int randIdx = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
 
         // act

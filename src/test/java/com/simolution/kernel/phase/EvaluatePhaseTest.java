@@ -26,7 +26,7 @@ class EvaluatePhaseTest {
     @Test
     void chemicalSensorTapsItsDeclaredChemical() {
         // arrange
-        final EngineConfig config = EngineConfig.v5Defaults(0L, WORLD_WIDTH, 4)
+        final EngineConfig config = EngineConfig.defaults(0L, WORLD_WIDTH, 4)
                 .withChemicals(List.of(chemical("first", 100.0), chemical("second", 40.0)));
         final List<NodeSpec> sensors = List.of(
                 NodeSpec.sensor("CONST", NodeSpec.Role.CONST),
@@ -44,7 +44,7 @@ class EvaluatePhaseTest {
     @Test
     void chemicalSensorOutsideTheConfigTableIsRejectedByName() {
         // arrange
-        final EngineConfig config = EngineConfig.v5Defaults(0L, WORLD_WIDTH, 4);
+        final EngineConfig config = EngineConfig.defaults(0L, WORLD_WIDTH, 4);
         final List<NodeSpec> sensors = List.of(NodeSpec.chemicalSensor("SECOND_HERE", 1));
 
         // act

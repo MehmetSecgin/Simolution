@@ -115,7 +115,7 @@ class ParallelRunnerTest {
         final int world = 128;
         final int founders = 1200;
         try (Kernel kernel = new Kernel(GenomeFactory.random(7L, founders, 32),
-                Kernel.scatterFounders(7L, founders, world), EngineConfig.v5Defaults(7L, world, 64), 4)) {
+                Kernel.scatterFounders(7L, founders, world), EngineConfig.defaults(7L, world, 64), 4)) {
             kernel.step(500);
             final long[] ids = Thread.getAllStackTraces().keySet().stream()
                     .filter(t -> t == Thread.currentThread() || t.getName().startsWith("simolution-worker-"))

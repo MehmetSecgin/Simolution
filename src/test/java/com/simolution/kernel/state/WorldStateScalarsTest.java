@@ -21,7 +21,7 @@ class WorldStateScalarsTest {
     private static final Set<String> SCRATCH_SCALARS = Set.of("birthCount");
 
     private static Kernel newKernel() {
-        return new Kernel(new int[0][], new int[0], EngineConfig.v5Defaults(3L, 4, 4), 1);
+        return new Kernel(new int[0][], new int[0], EngineConfig.defaults(3L, 4, 4), 1);
     }
 
     private static List<Field> scalarFields() {

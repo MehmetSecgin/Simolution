@@ -43,7 +43,7 @@ public final class Bench {
 
     static RunConfig config(final int world, final int founders, final int ticks, final int threads) {
         return new RunConfig(founders, ticks, new GenomeSource.Random(GENES_PER_FOUNDER), false, null,
-                MapSampling.OFF, Observation.OFF, EngineConfig.v5Defaults(SEED, world, MAX_GENES), threads, false);
+                MapSampling.OFF, Observation.OFF, EngineConfig.defaults(SEED, world, MAX_GENES), threads, false);
     }
 
     private static void row(final String name, final RunConfig config) throws IOException {

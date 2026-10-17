@@ -23,8 +23,8 @@ class SeedTest {
 
     private static Kernel kernel(final long seed, final int[] founderCells) {
         return new Kernel(GenomeFactory.random(11L, FOUNDERS, GENES), founderCells,
-                EngineConfig.v5Defaults(seed, WORLD, GENES * 2)
-                        .withChemical0Inflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
+                EngineConfig.defaults(seed, WORLD, GENES * 2)
+                        .withResourceInflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
     }
 
     @Test

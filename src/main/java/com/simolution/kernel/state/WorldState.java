@@ -88,8 +88,8 @@ public final class WorldState {
     private final List<FieldSpec> zeroOnDeath;
 
     public WorldState(final EngineConfig config) {
-        this.worldWidth = config.worldWidth();
-        this.maxGenes = config.maxGenes();
+        this.worldWidth = config.world().worldWidth();
+        this.maxGenes = config.world().maxGenes();
         this.unitCount = worldWidth * worldWidth;
         this.chemCount = config.chemicals().size();
         final int slots = unitCount;

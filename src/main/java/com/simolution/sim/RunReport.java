@@ -26,12 +26,12 @@ public final class RunReport {
         out.append("kernel: ").append(EngineVersion.ID).append('\n');
         out.append("seed: ").append(engine.seed()).append('\n');
         out.append("units: ").append(units).append('\n');
-        out.append("world-width: ").append(engine.worldWidth()).append('\n');
-        out.append("grid-cells: ").append(engine.worldWidth() * engine.worldWidth()).append('\n');
+        out.append("world-width: ").append(engine.world().worldWidth()).append('\n');
+        out.append("grid-cells: ").append(engine.world().worldWidth() * engine.world().worldWidth()).append('\n');
         out.append("ticks: ").append(config.ticks()).append('\n');
         out.append("genome-source: ").append(genomeSourceName(config.genomes())).append('\n');
         out.append("genes-per-unit: ").append(config.genomes().genesPerFounder()).append('\n');
-        out.append("max-genes: ").append(engine.maxGenes()).append('\n');
+        out.append("max-genes: ").append(engine.world().maxGenes()).append('\n');
 
         out.append("\n## structure\n");
         out.append("connections-compiled: ").append(structure.connectionsCompiled()).append('\n');

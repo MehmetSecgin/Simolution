@@ -19,7 +19,7 @@ class SnapshotDumpTest {
         // arrange
         ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
         ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        EngineConfig config = EngineConfig.v5Defaults(0L, 4, 8).withChemicals(List.of(first, second));
+        EngineConfig config = EngineConfig.defaults(0L, 4, 8).withChemicals(List.of(first, second));
         Kernel kernel = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
         kernel.tick();
 

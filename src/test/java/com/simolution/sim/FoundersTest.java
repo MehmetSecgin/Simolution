@@ -16,7 +16,7 @@ class FoundersTest {
         Founders founders = Founders.create(config);
 
         // assert
-        assertEquals(24, founders.engine().maxGenes());
+        assertEquals(24, founders.engine().world().maxGenes());
     }
 
     @Test

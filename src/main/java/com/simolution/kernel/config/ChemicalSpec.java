@@ -13,4 +13,6 @@ public record ChemicalSpec(
         double diffusionRate,
         double decayRate,
         int decayTarget) {
+
+    public static final int SINK = -1;
 }

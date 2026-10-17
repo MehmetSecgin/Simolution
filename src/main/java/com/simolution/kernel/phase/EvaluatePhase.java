@@ -30,8 +30,8 @@ public final class EvaluatePhase implements Phase {
         final SensorTaps taps = bindSensors(NodeCatalog.V5.nodes(NodeSpec.Kind.SENSOR), config);
         this.sensorCellOffset = taps.cellOffset();
         this.sensorCapacity = taps.capacity();
-        this.selfEnergyScale = config.selfEnergyScale();
-        this.selfMassScale = config.selfMassScale();
+        this.selfEnergyScale = config.sensing().selfEnergyScale();
+        this.selfMassScale = config.sensing().selfMassScale();
         this.seed = config.seed();
     }
 
@@ -72,7 +72,7 @@ public final class EvaluatePhase implements Phase {
     }
 
     static SensorTaps bindSensors(final List<NodeSpec> sensors, final EngineConfig config) {
-        final int cells = config.worldWidth() * config.worldWidth();
+        final int cells = config.world().worldWidth() * config.world().worldWidth();
         final int[] cellOffset = new int[sensors.size()];
         final double[] capacity = new double[sensors.size()];
         for (int s = 0; s < sensors.size(); s++) {

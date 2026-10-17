@@ -12,7 +12,7 @@ import com.simolution.kernel.layout.NodeLayout;
 
 class MovementTest {
 
-    private static final EngineConfig DEFAULTS = EngineConfig.v5Defaults(0L, 1, 1);
+    private static final EngineConfig DEFAULTS = EngineConfig.defaults(0L, 1, 1);
 
     // CONST(=1.0) -> MOVE_E with a weight whose product clears MOVE_DEADZONE
     private static int driveEast(short weightRaw) {
@@ -41,9 +41,9 @@ class MovementTest {
     @Test
     void motileUnitStepsEastEachTickAndConservesEnergy() {
         // arrange: one mover on a 4x4 torus, founder at cell 0
-        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 4, 32), 1);
-        double credited = DEFAULTS.initialEnergy() + DEFAULTS.chemicals().get(0).initial() * 16
-                + DEFAULTS.initialMass();
+        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}}, new int[] {0}, EngineConfig.defaults(0L, 4, 32), 1);
+        double credited = DEFAULTS.founder().initialEnergy() + DEFAULTS.chemicals().get(0).initial() * 16
+                + DEFAULTS.founder().initialMass();
 
         // act + assert
         // tick 1: CONST only just became 1.0 this tick, so MOVE_E read (outputsPrev)
@@ -67,9 +67,9 @@ class MovementTest {
     void weakDriveInsideDeadzoneDoesNotMove() {
         // arrange: CONST*weight stays below MOVE_DEADZONE, so no step
         short weak = 512; // 512 * 4/32767 ~ 0.0625 < MOVE_DEADZONE 0.1
-        assertTrue(weak * GeneDecoder.WEIGHT_MULTIPLIER < DEFAULTS.moveDeadzone(),
+        assertTrue(weak * GeneDecoder.WEIGHT_MULTIPLIER < DEFAULTS.motility().deadzone(),
                 "test precondition: drive must be inside the deadzone");
-        Kernel kernel = new Kernel(new int[][] {{driveEast(weak)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 4, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {{driveEast(weak)}}, new int[] {0}, EngineConfig.defaults(0L, 4, 32), 1);
 
         // act
         for (int i = 0; i < 10; i++) {
@@ -84,7 +84,7 @@ class MovementTest {
     void stepIntoAnOccupiedCellIsBlocked() {
         // arrange: mover at cell 0 wants to step east into cell 1, held by an
         // inert (empty-genome) unit that never moves
-        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {}}, new int[] {0, 1}, EngineConfig.v5Defaults(0L, 4, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {}}, new int[] {0, 1}, EngineConfig.defaults(0L, 4, 32), 1);
 
         // act: a few ticks while the blocker is still alive
         for (int i = 0; i < 4; i++) {
@@ -104,10 +104,10 @@ class MovementTest {
                 .toAction(NodeLayout.Action.MOVE_W)
                 .weightRaw((short) 8192)
                 .build();
-        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {driveWest}}, new int[] {0, 2}, EngineConfig.v5Defaults(0L, 4, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {driveWest}}, new int[] {0, 2}, EngineConfig.defaults(0L, 4, 32), 1);
         kernel.tick();
         KernelSnapshot before = kernel.snapshot();
-        double moveCost = DEFAULTS.moveCostBase() + DEFAULTS.moveCostPerMass() * before.mass[0];
+        double moveCost = DEFAULTS.motility().fixedCost() + DEFAULTS.motility().costPerMass() * before.mass[0];
 
         // act: the tick in which both drives are live
         kernel.tick();
@@ -122,7 +122,7 @@ class MovementTest {
     @Test
     void vacatedCellCannotBeEnteredSameTick() {
         // arrange: slot 0 at cell 1 steps east out of cell 1; slot 1 at cell 0 targets cell 1
-        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {driveEast((short) 8192)}}, new int[] {1, 0}, EngineConfig.v5Defaults(0L, 4, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {driveEast((short) 8192)}}, new int[] {1, 0}, EngineConfig.defaults(0L, 4, 32), 1);
         kernel.tick();
 
         // act + assert: first live tick, the vacated cell is still closed to slot 1

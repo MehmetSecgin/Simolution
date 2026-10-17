@@ -24,11 +24,11 @@ class DeterminismMatrixTest {
 
     private static Kernel kernel(final EngineConfig config, final int founders, final int threads) {
         return new Kernel(GenomeFactory.random(SEED, founders, GENES),
-                Kernel.scatterFounders(config.seed(), founders, config.worldWidth()), config, threads);
+                Kernel.scatterFounders(config.seed(), founders, config.world().worldWidth()), config, threads);
     }
 
     private static EngineConfig config(final int world) {
-        return EngineConfig.v5Defaults(SEED, world, GENES * 2);
+        return EngineConfig.defaults(SEED, world, GENES * 2);
     }
 
     private static long[] perTickDigests(final EngineConfig config, final int founders, final int ticks,
@@ -98,7 +98,7 @@ class DeterminismMatrixTest {
     void tinyWorlds(final int world, final int founders, final boolean fed) {
         // arrange
         final EngineConfig base = config(world);
-        final EngineConfig config = fed ? base : base.withChemical0Inflow(InflowConfig.uniform(0.0));
+        final EngineConfig config = fed ? base : base.withResourceInflow(InflowConfig.uniform(0.0));
 
         // act
         final long[] serial = perTickDigests(config, founders, 2000, 1);

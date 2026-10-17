@@ -13,8 +13,8 @@ class EngineConfigTest {
 
     @Test
     void roundTripsThroughJson() {
-        EngineConfig defaults = EngineConfig.v5Defaults(42L, 100, 64);
-        EngineConfig fielded = defaults.withChemical0Inflow(InflowConfig.field(0.2, InflowConfig.Combine.ADD,
+        EngineConfig defaults = EngineConfig.defaults(42L, 100, 64);
+        EngineConfig fielded = defaults.withResourceInflow(InflowConfig.field(0.2, InflowConfig.Combine.ADD,
                 new InflowSource.Noise(11L, 0.06, 0.5, 3.0, 8.0, 5000),
                 new InflowSource.Disk(0.7, 0.3, 6, 5.0, 1000, 0, InflowSource.Motion.ORBIT, 0.1, 0.0, 4000),
                 new InflowSource.Points(new int[] {1, 5, 9}, 4.0, 0, 0)));
@@ -25,7 +25,7 @@ class EngineConfigTest {
 
     @Test
     void rejectsUnknownKey() {
-        String json = ConfigJson.write(EngineConfig.v5Defaults(1L, 10, 8)).replace("\"basalCost\"", "\"basalCostt\"");
+        String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replace("\"basalCost\"", "\"basalCostt\"");
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
 
@@ -34,7 +34,7 @@ class EngineConfigTest {
 
     @Test
     void rejectsMissingKey() {
-        String json = ConfigJson.write(EngineConfig.v5Defaults(1L, 10, 8)).replaceAll("\\s*\"growYield\"[^\\n]*\\n", "\n");
+        String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replaceAll("\\s*\"growYield\"[^\\n]*\\n", "\n");
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
 
@@ -43,21 +43,15 @@ class EngineConfigTest {
 
     @Test
     void branchCompatibility() {
-        EngineConfig base = EngineConfig.v5Defaults(1L, 100, 64);
+        EngineConfig base = EngineConfig.defaults(1L, 100, 64);
 
-        assertFalse(base.branchCompatible(EngineConfig.v5Defaults(1L, 120, 64)));
-        assertTrue(base.branchCompatible(EngineConfig.v5Defaults(1L, 100, 64).withSeed(9L)));
-        assertTrue(base.branchCompatible(new EngineConfig(1L, 100, 64, base.chemicals(), base.initialEnergy(),
-                0.9, base.costPerPropagation(), base.harvestCapacityPerConnection(), base.harvestHalfSaturation(),
-                base.harvestMassExponent(), base.moveCostBase(), base.moveCostPerMass(), base.moveDeadzone(),
-                base.selfEnergyScale(), base.selfMassScale(), base.initialMass(), base.maintPerMass(),
-                base.growMax(), base.growHalfSaturation(), base.growYield(), base.buildCost(),
-                base.buildCostPerGene(), base.mutationRateWeight(), base.mutationRateStruct(),
-                base.indelRateDup(), base.indelRateDel(), base.agingCost())));
+        assertFalse(base.branchCompatible(EngineConfig.defaults(1L, 120, 64)));
+        assertTrue(base.branchCompatible(EngineConfig.defaults(1L, 100, 64).withSeed(9L)));
+        assertTrue(base.branchCompatible(base.withMetabolism(base.metabolism().withBasalCost(0.9))));
     }
 
     private static void assertRejected(final String field, final String value, final String messagePart) {
-        final String json = ConfigJson.write(EngineConfig.v5Defaults(1L, 10, 8))
+        final String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8))
                 .replaceAll("\"" + field + "\"\\s*:\\s*[^,\\n]*", "\"" + field + "\" : " + value);
 
         final IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
@@ -101,7 +95,7 @@ class EngineConfigTest {
 
     @Test
     void rejectsGeneArrayThatOverflowsAnInt() {
-        final EngineConfig config = EngineConfig.v5Defaults(1L, 10, 8);
+        final EngineConfig config = EngineConfig.defaults(1L, 10, 8);
 
         final IllegalArgumentException e =
                 assertThrows(IllegalArgumentException.class, () -> config.withWorldWidth(50_000).withMaxGenes(1000));
@@ -111,7 +105,7 @@ class EngineConfigTest {
 
     @Test
     void rejectsBadChemicalTable() {
-        final EngineConfig config = EngineConfig.v5Defaults(1L, 10, 8);
+        final EngineConfig config = EngineConfig.defaults(1L, 10, 8);
         final ChemicalSpec first = config.chemicals().get(0);
         final ChemicalSpec selfDecay = new ChemicalSpec("a", first.inflow(), 1.0, 0.0, 0.1, 0.1, 0);
         final ChemicalSpec outOfRange = new ChemicalSpec("a", first.inflow(), 1.0, 0.0, 0.1, 0.1, 3);
@@ -125,6 +119,6 @@ class EngineConfigTest {
 
     @Test
     void acceptsTheDemoShape() {
-        EngineConfig.v5Defaults(0L, 1, 0);
+        EngineConfig.defaults(0L, 1, 0);
     }
 }

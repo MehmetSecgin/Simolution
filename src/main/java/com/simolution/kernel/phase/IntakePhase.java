@@ -28,9 +28,9 @@ public final class IntakePhase implements Phase {
 
     public IntakePhase(final WorldState state, final EngineConfig config) {
         this.state = state;
-        this.harvestCapacityPerConnection = config.harvestCapacityPerConnection();
-        this.harvestHalfSaturation = config.harvestHalfSaturation();
-        this.harvestMassExponent = config.harvestMassExponent();
+        this.harvestCapacityPerConnection = config.harvest().capacityPerConnection();
+        this.harvestHalfSaturation = config.harvest().halfSaturation();
+        this.harvestMassExponent = config.harvest().massExponent();
         this.sqrtHarvest = harvestMassExponent == 0.5;
     }
 

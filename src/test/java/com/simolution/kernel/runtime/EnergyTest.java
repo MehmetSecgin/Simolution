@@ -11,7 +11,7 @@ import com.simolution.kernel.layout.NodeLayout;
 
 class EnergyTest {
 
-    private static final EngineConfig DEFAULTS = EngineConfig.v5Defaults(0L, 1, 1);
+    private static final EngineConfig DEFAULTS = EngineConfig.defaults(0L, 1, 1);
 
     private static final int[] BUSY_GENOME = {
             GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
@@ -41,10 +41,10 @@ class EnergyTest {
         // arrange
         int[][] genomes = com.simolution.sim.GenomeFactory.random(11L, 50, 32);
         int worldWidth = 71;
-        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), EngineConfig.v5Defaults(0L, worldWidth, 32), 1);
-        double credited = DEFAULTS.initialEnergy() * 50
+        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), EngineConfig.defaults(0L, worldWidth, 32), 1);
+        double credited = DEFAULTS.founder().initialEnergy() * 50
                 + DEFAULTS.chemicals().get(0).initial() * worldWidth * worldWidth
-                + DEFAULTS.initialMass() * 50;
+                + DEFAULTS.founder().initialMass() * 50;
 
         // act + assert: contract v5 §6 — initial energy + initial resource +
         // initial mass + inflow == units + total field + mass + sink
@@ -60,10 +60,10 @@ class EnergyTest {
     @Test
     void totalEnergyMonotonicallyDecreases() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
 
         // act + assert
-        double previous = DEFAULTS.initialEnergy();
+        double previous = DEFAULTS.founder().initialEnergy();
         for (int i = 0; i < 100; i++) {
             kernel.tick();
             double now = totalEnergy(kernel.snapshot());
@@ -76,7 +76,7 @@ class EnergyTest {
     void unitDiesAndStaysDeadAndInert() {
         // arrange: no harvest -> basal + activity + maintenance with no intake
         // guarantees death; generous bound to outlast it
-        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
         int ticksToOutlast = 5000;
 
         // act
@@ -108,16 +108,16 @@ class EnergyTest {
     void idleUnitPaysBasalAndMaintenanceThenDies() {
         // arrange: zero connections -> no activity, but basal + storage
         // maintenance still apply (v1 §6/§6a) -> not immortal
-        Kernel kernel = new Kernel(new int[][] {{}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {{}}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
 
         // act
         kernel.tick();
         double afterOne = kernel.snapshot().energy[0];
 
         // assert: one tick = basal floor + proportional maintenance
-        double expected = DEFAULTS.initialEnergy()
-                - DEFAULTS.basalCost()
-                - DEFAULTS.initialMass() * DEFAULTS.maintPerMass();
+        double expected = DEFAULTS.founder().initialEnergy()
+                - DEFAULTS.metabolism().basalCost()
+                - DEFAULTS.founder().initialMass() * DEFAULTS.metabolism().maintenancePerMass();
         assertEquals(expected, afterOne, 1.0e-9, "basal + mass maintenance");
 
         // the fixed basal floor (unlike a purely proportional leak) drives energy
@@ -145,10 +145,10 @@ class EnergyTest {
                 GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
                            .toAction(NodeLayout.Action.HARVEST).weightRaw((short) 16383).build()
         };
-        Kernel kernel = new Kernel(new int[][] {delayBomb}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {delayBomb}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
 
         // act
-        double prevEnergy = DEFAULTS.initialEnergy();
+        double prevEnergy = DEFAULTS.founder().initialEnergy();
         double maxGain = 0.0;
         boolean died = false;
         for (int i = 0; i < 4000; i++) {
@@ -164,8 +164,8 @@ class EnergyTest {
         // assert: one transporter (DELAY->HARVEST), and the unit never grows (no
         // GROW wiring) so its mass stays INITIAL_MASS and the emergent ceiling is
         // CAPACITY_PER_CONNECTION * 1 * INITIAL_MASS^alpha
-        double capacity = DEFAULTS.harvestCapacityPerConnection() * 1
-                * Math.pow(DEFAULTS.initialMass(), DEFAULTS.harvestMassExponent());
+        double capacity = DEFAULTS.harvest().capacityPerConnection() * 1
+                * Math.pow(DEFAULTS.founder().initialMass(), DEFAULTS.harvest().massExponent());
         assertTrue(maxGain <= capacity + 1.0e-9,
                 "per-tick intake must not exceed the unit's emergent ceiling " + capacity
                         + ", got " + maxGain);
@@ -179,7 +179,7 @@ class EnergyTest {
     @Test
     void deductionClampsToAvailableNeverOverdraws() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
+        Kernel kernel = new Kernel(new int[][] {BUSY_GENOME}, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
 
         // act + assert: energy never goes negative, sink never exceeds what has
         // entered the open system (initial energy+mass+resource + admitted inflow;
@@ -200,8 +200,8 @@ class EnergyTest {
         // arrange: same unit alone vs beside a unit that dies early
         int[][] solo = {BUSY_GENOME};
         int[][] withDying = {BUSY_GENOME, BUSY_GENOME};
-        Kernel alone = new Kernel(solo, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
-        Kernel paired = new Kernel(withDying, new int[] {0, 1}, EngineConfig.v5Defaults(0L, 2, 32), 1);
+        Kernel alone = new Kernel(solo, new int[] {0}, EngineConfig.defaults(0L, 1, 32), 1);
+        Kernel paired = new Kernel(withDying, new int[] {0, 1}, EngineConfig.defaults(0L, 2, 32), 1);
 
         // act + assert
         for (int i = 0; i < 200; i++) {

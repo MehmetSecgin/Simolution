@@ -18,7 +18,7 @@ class StateDigestTest {
     private static final int GENES = 16;
 
     private static Kernel kernel(final int threads) {
-        final EngineConfig config = EngineConfig.v5Defaults(SEED, WORLD, GENES * 2);
+        final EngineConfig config = EngineConfig.defaults(SEED, WORLD, GENES * 2);
         return new Kernel(GenomeFactory.random(SEED, FOUNDERS, GENES),
                 Kernel.scatterFounders(SEED, FOUNDERS, WORLD), config, threads);
     }
@@ -90,7 +90,7 @@ class StateDigestTest {
     @Test
     void digestFollowsTheSeed() {
         // arrange
-        final EngineConfig other = EngineConfig.v5Defaults(SEED + 1, WORLD, GENES * 2);
+        final EngineConfig other = EngineConfig.defaults(SEED + 1, WORLD, GENES * 2);
 
         // act
         final long first = finalDigest(1);

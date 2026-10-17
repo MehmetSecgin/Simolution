@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
+import com.simolution.kernel.config.Mutation;
+import com.simolution.kernel.config.Reproduction;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.state.WorldState;
@@ -23,7 +25,7 @@ import com.simolution.sim.GenomeFactory;
  */
 class ReproductionClaimTest {
 
-    private static final EngineConfig DEFAULTS = EngineConfig.v5Defaults(0L, 1, 1);
+    private static final EngineConfig DEFAULTS = EngineConfig.defaults(0L, 1, 1);
 
     private static int reproduce(final int weightRaw) {
         return GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
@@ -34,13 +36,9 @@ class ReproductionClaimTest {
 
     private static EngineConfig config(final int world, final int maxGenes, final double buildCost,
             final double buildCostPerGene, final double mutationRate, final double indelRate) {
-        final EngineConfig d = EngineConfig.v5Defaults(0L, world, maxGenes);
-        return new EngineConfig(d.seed(), d.worldWidth(), d.maxGenes(), d.chemicals(), d.initialEnergy(),
-                d.basalCost(), d.costPerPropagation(), d.harvestCapacityPerConnection(),
-                d.harvestHalfSaturation(), d.harvestMassExponent(), d.moveCostBase(), d.moveCostPerMass(),
-                d.moveDeadzone(), d.selfEnergyScale(), d.selfMassScale(), d.initialMass(), d.maintPerMass(),
-                d.growMax(), d.growHalfSaturation(), d.growYield(), buildCost, buildCostPerGene,
-                mutationRate, mutationRate, indelRate, indelRate, d.agingCost());
+        return EngineConfig.defaults(0L, world, maxGenes)
+                .withReproduction(new Reproduction(buildCost, buildCostPerGene))
+                .withMutation(new Mutation(mutationRate, mutationRate, indelRate, indelRate));
     }
 
     private static void tickUntilFirstBirth(final Kernel kernel) {
@@ -55,7 +53,7 @@ class ReproductionClaimTest {
         // arrange
         final int[][] genomes = {{reproduce(8192)}, {reproduce(8192)}, {}, {}, {}, {}, {}, {}};
         final int[] cells = {6, 8, 0, 1, 2, 3, 4, 5};
-        final Kernel kernel = new Kernel(genomes, cells, EngineConfig.v5Defaults(0L, 5, 8), 1);
+        final Kernel kernel = new Kernel(genomes, cells, EngineConfig.defaults(0L, 5, 8), 1);
 
         // act
         tickUntilFirstBirth(kernel);
@@ -155,7 +153,7 @@ class ReproductionClaimTest {
         final int founders = 400;
         final Kernel kernel = new Kernel(GenomeFactory.random(11L, founders, 16),
                 Kernel.scatterFounders(0L, founders, world),
-                EngineConfig.v5Defaults(0L, world, 32).withChemical0Inflow(
+                EngineConfig.defaults(0L, world, 32).withResourceInflow(
                         InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
 
         // act + assert

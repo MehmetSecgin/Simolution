@@ -58,14 +58,14 @@ class MapFrameWriterTest {
                                          StringWriter catalog, int world, int ticks,
                                          MapSampling sampling) throws Exception {
         return new MapFrameWriter(frames, idx, new GenomeCatalogWriter(catalog),
-                ticks, sampling, EngineConfig.v5Defaults(0L, world, 8));
+                ticks, sampling, EngineConfig.defaults(0L, world, 8));
     }
 
     @Test
     void windowModeEmitsEveryTickOnlyInsideTheWindow() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, new MapSampling.Window(3, 5));
         for (int i = 0; i < 8; i++) {
             k.tick();
@@ -82,7 +82,7 @@ class MapFrameWriterTest {
     void noWindowEveryTickByDefault() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, MapSampling.EVERY_TICK);
         for (int i = 0; i < 10; i++) {
             k.tick();
@@ -99,7 +99,7 @@ class MapFrameWriterTest {
     void positiveTargetFramesDownsamples() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, new MapSampling.Spread(5));
         for (int i = 0; i < 10; i++) {
             k.tick();
@@ -117,7 +117,7 @@ class MapFrameWriterTest {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
         StringWriter catalog = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, catalog, 4, 8, new MapSampling.Window(1, 5));
         for (int i = 0; i < 6; i++) {
             k.tick();
@@ -140,7 +140,7 @@ class MapFrameWriterTest {
     void noMassOrActionOrNodeOutputsInFrame() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(7L, 9, 12), Kernel.scatterFounders(0L, 9, 6), EngineConfig.v5Defaults(0L, 6, 12), 1);
+        Kernel k = new Kernel(GenomeFactory.random(7L, 9, 12), Kernel.scatterFounders(0L, 9, 6), EngineConfig.defaults(0L, 6, 12), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 6, 8, new MapSampling.Window(1, 4));
         for (int i = 0; i < 5; i++) {
             k.tick();
@@ -161,9 +161,9 @@ class MapFrameWriterTest {
     void chunkIndexOffsetsPointAtChunkStarts() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
         MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()),
-                6, new MapSampling.Window(1, 4), EngineConfig.v5Defaults(0L, 4, 8));
+                6, new MapSampling.Window(1, 4), EngineConfig.defaults(0L, 4, 8));
         for (int i = 0; i < 5; i++) {
             k.tick();
             w.observe(k.snapshot());
@@ -198,7 +198,7 @@ class MapFrameWriterTest {
     void resourceFieldIsRunLengthEncoded() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, new MapSampling.Window(1, 1));
         k.tick();
         w.observe(k.snapshot());
@@ -215,7 +215,7 @@ class MapFrameWriterTest {
         // arrange
         ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
         ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        EngineConfig config = EngineConfig.v5Defaults(0L, 4, 8).withChemicals(List.of(first, second));
+        EngineConfig config = EngineConfig.defaults(0L, 4, 8).withChemicals(List.of(first, second));
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();

@@ -50,7 +50,7 @@ public record RunConfig(
 
     private static RunConfig demo(final RunOptions options) {
         final EngineConfig engine = options.configPath == null
-                ? EngineConfig.v5Defaults(requireNonNullElse(options.seed, DEFAULT_SEED), DEMO_WORLD_WIDTH, DEMO_MAX_GENES)
+                ? EngineConfig.defaults(requireNonNullElse(options.seed, DEFAULT_SEED), DEMO_WORLD_WIDTH, DEMO_MAX_GENES)
                 : applyOverrides(loadConfig(options.configPath), options.seed, null, null);
         return new RunConfig(DEMO_FOUNDERS, requireNonNullElse(options.ticks, DEMO_TICKS), new GenomeSource.Demo(),
                 true, options.reportPath, options.mapFramesSampling(), observation(options), engine,
@@ -61,7 +61,7 @@ public record RunConfig(
         final int founders = requireNonNullElse(options.founders, DEFAULT_FOUNDERS);
         final int genes = requireNonNullElse(options.genes, DEFAULT_GENES);
         final EngineConfig engine = populationEngine(options, founders, genes);
-        requireFoundersFit(engine.worldWidth(), founders);
+        requireFoundersFit(engine.world().worldWidth(), founders);
         return new RunConfig(founders, requireNonNullElse(options.ticks, DEFAULT_TICKS),
                 new GenomeSource.Random(genes), options.trace, options.reportPath, options.mapSampling(),
                 observation(options), withInflow(engine, options), options.threadCount(), options.digestEveryTick);
@@ -73,7 +73,7 @@ public record RunConfig(
         }
         final int world = options.world == null ? squareSideFor(founders * CELLS_PER_FOUNDER) : options.world;
         final int maxGenes = options.maxGenes == null ? defaultMaxGenes(genes) : options.maxGenes;
-        return EngineConfig.v5Defaults(requireNonNullElse(options.seed, DEFAULT_SEED), world, maxGenes);
+        return EngineConfig.defaults(requireNonNullElse(options.seed, DEFAULT_SEED), world, maxGenes);
     }
 
     private static void requireFoundersFit(final int worldWidth, final int founders) {
@@ -87,13 +87,13 @@ public record RunConfig(
 
     private static EngineConfig withInflow(final EngineConfig engine, final RunOptions options) {
         if (options.inflowSpec != null) {
-            return engine.withChemical0Inflow(InflowSpecParser.parse(options.inflowSpec));
+            return engine.withResourceInflow(InflowSpecParser.parse(options.inflowSpec));
         }
         if (!options.resourceCycle) {
             return engine;
         }
-        final int radius = options.cycleRadius == null ? defaultCycleRadius(engine.worldWidth()) : options.cycleRadius;
-        return engine.withChemical0Inflow(InflowConfig.cyclic(
+        final int radius = options.cycleRadius == null ? defaultCycleRadius(engine.world().worldWidth()) : options.cycleRadius;
+        return engine.withResourceInflow(InflowConfig.cyclic(
                 requireNonNullElse(options.cyclePeriod, DEFAULT_CYCLE_PERIOD),
                 radius,
                 requireNonNullElse(options.cyclePeak, DEFAULT_CYCLE_PEAK)));

@@ -31,9 +31,9 @@ public final class GrowthPhase implements Phase {
 
     public GrowthPhase(final WorldState state, final EngineConfig config) {
         this.state = state;
-        this.growMax = config.growMax();
-        this.growHalfSaturation = config.growHalfSaturation();
-        this.growYield = config.growYield();
+        this.growMax = config.growth().max();
+        this.growHalfSaturation = config.growth().halfSaturation();
+        this.growYield = config.growth().yield();
     }
 
     @Override

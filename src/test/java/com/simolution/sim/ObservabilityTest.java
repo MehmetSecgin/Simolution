@@ -38,7 +38,7 @@ class ObservabilityTest {
         return Kernel.scatterFounders(SEED, UNITS, WORLD);
     }
 
-    private static final EngineConfig ENGINE = EngineConfig.v5Defaults(0L, WORLD, MAX_GENES);
+    private static final EngineConfig ENGINE = EngineConfig.defaults(0L, WORLD, MAX_GENES);
 
     private static Kernel freshKernel() {
         return new Kernel(genomes(), founderCells(), ENGINE, 1);

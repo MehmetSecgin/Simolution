@@ -23,7 +23,7 @@ class ChemicalPhaseTest {
     private static final double DECAY = 0.02;
 
     private static Kernel emptyKernel(final List<ChemicalSpec> chemicals) {
-        final EngineConfig config = EngineConfig.v5Defaults(0L, WORLD_WIDTH, 4).withChemicals(chemicals);
+        final EngineConfig config = EngineConfig.defaults(0L, WORLD_WIDTH, 4).withChemicals(chemicals);
         return new Kernel(new int[0][], new int[0], config, 1);
     }
 
@@ -74,7 +74,7 @@ class ChemicalPhaseTest {
     @Test
     void kernelDeclaresThePhasesInOrderWithTheirShapes() {
         // arrange
-        final Kernel kernel = emptyKernel(EngineConfig.v5Defaults(0L, WORLD_WIDTH, 4).chemicals());
+        final Kernel kernel = emptyKernel(EngineConfig.defaults(0L, WORLD_WIDTH, 4).chemicals());
 
         // act
         final List<Phase> phases = kernel.phases();

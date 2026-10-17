@@ -34,7 +34,7 @@ class DynamicsObserverTest {
     private static final int WORLD = 64;
 
     private static Kernel kernelOf(int[][] genomes) {
-        EngineConfig engine = EngineConfig.v5Defaults(0L, WORLD, 32);
+        EngineConfig engine = EngineConfig.defaults(0L, WORLD, 32);
         return new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), engine, 1);
     }
 

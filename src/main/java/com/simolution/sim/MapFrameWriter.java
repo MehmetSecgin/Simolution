@@ -88,7 +88,7 @@ public final class MapFrameWriter implements TickObserver, Closeable {
     public MapFrameWriter(final OutputStream out, final Writer idx, final GenomeCatalogWriter catalog,
                           final int totalTicks, final MapSampling sampling, final EngineConfig config)
             throws IOException {
-        final int worldWidth = config.worldWidth();
+        final int worldWidth = config.world().worldWidth();
         this.out = out;
         this.cellCapacity = config.chemicals().get(0).capacity();
         this.cellCount = worldWidth * worldWidth;

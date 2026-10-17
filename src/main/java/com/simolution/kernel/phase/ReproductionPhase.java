@@ -89,12 +89,12 @@ public final class ReproductionPhase implements Phase {
         this.maxGenes = state.maxGenes;
         this.worldWidth = state.worldWidth;
         this.unitCount = state.unitCount;
-        this.buildCostBase = config.buildCost();
-        this.buildCostPerGene = config.buildCostPerGene();
-        this.logKeepWeight = StrictMath.log(1 - config.mutationRateWeight());
-        this.logKeepStruct = StrictMath.log(1 - config.mutationRateStruct());
-        this.indelRateDup = config.indelRateDup();
-        this.indelRateDel = config.indelRateDel();
+        this.buildCostBase = config.reproduction().buildCost();
+        this.buildCostPerGene = config.reproduction().buildCostPerGene();
+        this.logKeepWeight = StrictMath.log(1 - config.mutation().weightRate());
+        this.logKeepStruct = StrictMath.log(1 - config.mutation().structRate());
+        this.indelRateDup = config.mutation().duplicationRate();
+        this.indelRateDel = config.mutation().deletionRate();
         this.seed = config.seed();
     }
 

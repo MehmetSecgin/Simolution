@@ -1,5 +1,7 @@
 package com.simolution.kernel.config;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -10,12 +12,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 
-/**
- * Strict JSON form of an {@link EngineConfig}. Unknown keys and missing keys are
- * both errors (unknown keys are reported first, so a misspelt key is named), so a typo never silently falls back to a default. Output uses a
- * fixed {@code \n} line separator and record-component order, so
- * {@link #write} is byte-stable and safe to hash.
- */
 public final class ConfigJson {
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
@@ -43,12 +39,42 @@ public final class ConfigJson {
     private static final DefaultPrettyPrinter PRINTER =
             new DefaultPrettyPrinter().withObjectIndenter(new DefaultIndenter("  ", "\n"));
 
+    private record FlatEngineConfig(
+            long seed,
+            int worldWidth,
+            int maxGenes,
+            List<ChemicalSpec> chemicals,
+            double initialEnergy,
+            double basalCost,
+            double costPerPropagation,
+            double harvestCapacityPerConnection,
+            double harvestHalfSaturation,
+            double harvestMassExponent,
+            double moveCostBase,
+            double moveCostPerMass,
+            double moveDeadzone,
+            double selfEnergyScale,
+            double selfMassScale,
+            double initialMass,
+            double maintPerMass,
+            double growMax,
+            double growHalfSaturation,
+            double growYield,
+            double buildCost,
+            double buildCostPerGene,
+            double mutationRateWeight,
+            double mutationRateStruct,
+            double indelRateDup,
+            double indelRateDel,
+            double agingCost) {
+    }
+
     private ConfigJson() {
     }
 
     public static String write(final EngineConfig config) {
         try {
-            return MAPPER.writer(PRINTER).writeValueAsString(config) + "\n";
+            return MAPPER.writer(PRINTER).writeValueAsString(flatten(config)) + "\n";
         } catch (final JsonProcessingException e) {
             throw new IllegalArgumentException("cannot serialize config: " + e.getOriginalMessage(), e);
         }
@@ -56,13 +82,80 @@ public final class ConfigJson {
 
     public static EngineConfig read(final String json) {
         try {
-            MAPPER.readValue(json, EngineConfig.class);
-            return STRICT_MAPPER.readValue(json, EngineConfig.class);
+            rejectUnknownKeys(json);
+            return readStrict(json);
         } catch (final ValueInstantiationException e) {
             final Throwable cause = e.getCause() instanceof IllegalArgumentException ? e.getCause() : e;
             throw new IllegalArgumentException("invalid config: " + (cause == e ? e.getOriginalMessage() : cause.getMessage()), e);
         } catch (final JsonProcessingException e) {
             throw new IllegalArgumentException("invalid config: " + e.getOriginalMessage(), e);
+        } catch (final IllegalArgumentException e) {
+            throw new IllegalArgumentException("invalid config: " + e.getMessage(), e);
         }
+    }
+
+    private static void rejectUnknownKeys(final String json) throws JsonProcessingException {
+        MAPPER.readValue(json, FlatEngineConfig.class);
+    }
+
+    private static EngineConfig readStrict(final String json) throws JsonProcessingException {
+        return inflate(STRICT_MAPPER.readValue(json, FlatEngineConfig.class));
+    }
+
+    private static FlatEngineConfig flatten(final EngineConfig config) {
+        final World world = config.world();
+        final Founder founder = config.founder();
+        final Metabolism metabolism = config.metabolism();
+        final Harvest harvest = config.harvest();
+        final Motility motility = config.motility();
+        final Growth growth = config.growth();
+        final Sensing sensing = config.sensing();
+        final Reproduction reproduction = config.reproduction();
+        final Mutation mutation = config.mutation();
+        return new FlatEngineConfig(
+                config.seed(),
+                world.worldWidth(),
+                world.maxGenes(),
+                config.chemicals(),
+                founder.initialEnergy(),
+                metabolism.basalCost(),
+                metabolism.costPerPropagation(),
+                harvest.capacityPerConnection(),
+                harvest.halfSaturation(),
+                harvest.massExponent(),
+                motility.fixedCost(),
+                motility.costPerMass(),
+                motility.deadzone(),
+                sensing.selfEnergyScale(),
+                sensing.selfMassScale(),
+                founder.initialMass(),
+                metabolism.maintenancePerMass(),
+                growth.max(),
+                growth.halfSaturation(),
+                growth.yield(),
+                reproduction.buildCost(),
+                reproduction.buildCostPerGene(),
+                mutation.weightRate(),
+                mutation.structRate(),
+                mutation.duplicationRate(),
+                mutation.deletionRate(),
+                metabolism.agingCost());
+    }
+
+    private static EngineConfig inflate(final FlatEngineConfig flat) {
+        return new EngineConfig(
+                flat.seed(),
+                new World(flat.worldWidth(), flat.maxGenes()),
+                flat.chemicals(),
+                new Founder(flat.initialEnergy(), flat.initialMass()),
+                new Metabolism(flat.basalCost(), flat.costPerPropagation(), flat.maintPerMass(), flat.agingCost()),
+                new Harvest(flat.harvestCapacityPerConnection(), flat.harvestHalfSaturation(),
+                        flat.harvestMassExponent()),
+                new Motility(flat.moveCostBase(), flat.moveCostPerMass(), flat.moveDeadzone()),
+                new Growth(flat.growMax(), flat.growHalfSaturation(), flat.growYield()),
+                new Sensing(flat.selfEnergyScale(), flat.selfMassScale()),
+                new Reproduction(flat.buildCost(), flat.buildCostPerGene()),
+                new Mutation(flat.mutationRateWeight(), flat.mutationRateStruct(), flat.indelRateDup(),
+                        flat.indelRateDel()));
     }
 }
