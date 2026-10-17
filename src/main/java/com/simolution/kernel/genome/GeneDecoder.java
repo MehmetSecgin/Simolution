@@ -2,80 +2,47 @@ package com.simolution.kernel.genome;
 
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
-import com.simolution.kernel.layout.NodeType;
 
+/**
+ * Gene layout {@code [SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]}.
+ * Ids wrap modulo the block's type count, so every int decodes.
+ */
 public final class GeneDecoder {
 
-    private static final double MAX_WEIGHT = 4.0;
+    public static final double MAX_WEIGHT = 4.0;
     public static final double WEIGHT_MULTIPLIER = MAX_WEIGHT / Short.MAX_VALUE;
 
     private GeneDecoder() {}
 
-    public static CompiledConnection decode(int rawGene, int unitNodeOffset) {
+    public static CompiledConnection decode(final int rawGene, final int unitNodeOffset) {
+        return new CompiledConnection(
+                unitNodeOffset + sourceLocal(rawGene),
+                unitNodeOffset + destinationLocal(rawGene),
+                weight(rawGene));
+    }
 
-        // --- 1. Extract fields ---
-        int sourceTypeBit = (rawGene >>> 31) & 0b1;
-        int sourceId = (rawGene >>> 24) & 0x7F;
-
-        int destinationTypeBit = (rawGene >>> 23) & 0b1;
-        int destinationId = (rawGene >>> 16) & 0x7F;
-
-        short weightRaw = (short) (rawGene & 0xFFFF);
-
-        // --- 2. Resolve types ---
-        NodeType sourceType = (sourceTypeBit == 0)
-                ? NodeType.SENSOR
-                : NodeType.INTERNAL;
-
-        NodeType destinationType = (destinationTypeBit == 0)
-                ? NodeType.INTERNAL
-                : NodeType.ACTION;
-
-        // --- 3. Validate structure ---
-        if (!isValid(sourceType, destinationType)) {
-            return null;
+    public static int sourceLocal(final int rawGene) {
+        final int sourceId = (rawGene >>> 24) & 0x7F;
+        if ((rawGene >>> 31) == 0) {
+            return NodeLayout.SENSOR_OFFSET
+                    + (sourceId % NodeLayout.Sensor.TYPE_COUNT) * NodeLayout.Sensor.INSTANCES_PER_TYPE;
         }
-
-        // --- 4. Resolve local indices ---
-        int sourceLocalIndex = resolveLocalIndex(sourceType, sourceId);
-        int destinationLocalIndex = resolveLocalIndex(destinationType, destinationId);
-
-        // --- 5. Apply unit offset (absolute indices) ---
-        int sourceAbsoluteIndex = unitNodeOffset + sourceLocalIndex;
-        int destinationAbsoluteIndex = unitNodeOffset + destinationLocalIndex;
-
-        // --- 6. Scale weight ---
-        double weight = weightRaw * WEIGHT_MULTIPLIER;
-
-        return new CompiledConnection(sourceAbsoluteIndex, destinationAbsoluteIndex, weight);
+        return NodeLayout.INTERNAL_OFFSET
+                + (sourceId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
     }
 
-    private static boolean isValid(NodeType sourceType, NodeType destinationType) {
-        if (sourceType == NodeType.ACTION) return false;
-        if (destinationType == NodeType.SENSOR) return false;
-        return true;
+    public static int destinationLocal(final int rawGene) {
+        final int destinationId = (rawGene >>> 16) & 0x7F;
+        if (((rawGene >>> 23) & 0b1) == 0) {
+            return NodeLayout.INTERNAL_OFFSET
+                    + (destinationId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
+        }
+        return NodeLayout.ACTION_OFFSET
+                + (destinationId % NodeLayout.Action.TYPE_COUNT) * NodeLayout.Action.INSTANCES_PER_TYPE;
     }
 
-    private static int resolveLocalIndex(NodeType type, int rawId) {
-        return switch (type) {
-            case SENSOR -> {
-                int typeIndex = rawId % NodeLayout.Sensor.TYPE_COUNT;
-                yield NodeLayout.SENSOR_OFFSET
-                      + typeIndex * NodeLayout.Sensor.INSTANCES_PER_TYPE;
-            }
-
-            case INTERNAL -> {
-                int typeIndex = rawId % NodeLayout.Internal.TYPE_COUNT;
-                yield NodeLayout.INTERNAL_OFFSET
-                      + typeIndex * NodeLayout.Internal.INSTANCES_PER_TYPE;
-            }
-
-            case ACTION -> {
-                int typeIndex = rawId % NodeLayout.Action.TYPE_COUNT;
-                yield NodeLayout.ACTION_OFFSET
-                      + typeIndex * NodeLayout.Action.INSTANCES_PER_TYPE;
-            }
-        };
+    public static double weight(final int rawGene) {
+        return (short) (rawGene & 0xFFFF) * WEIGHT_MULTIPLIER;
     }
 
 }

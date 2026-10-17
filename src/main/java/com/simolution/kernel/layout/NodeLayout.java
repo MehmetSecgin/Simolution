@@ -1,23 +1,35 @@
 package com.simolution.kernel.layout;
 
+import com.simolution.kernel.genome.GeneDecoder;
+import com.simolution.kernel.layout.NodeSpec.Kind;
+
+/**
+ * Flat per-unit index space {@code [sensors | internals | actions]}, derived from
+ * {@link NodeCatalog#V5} at class init. Every value is computed from the catalog,
+ * so none is a compile-time constant: do not use them as {@code case} labels.
+ * The nested classes read only the catalog (never this class's statics) so class
+ * initialisation has no cycle.
+ */
 public final class NodeLayout {
 
-    public static final int SENSOR_JUNK_COUNT = 2;
-    public static final int INTERNAL_JUNK_COUNT = 3;
-    public static final int ACTION_JUNK_COUNT = 1;
+    private static final NodeCatalog CATALOG = NodeCatalog.V5;
+
+    public static final int SENSOR_JUNK_COUNT = CATALOG.junk(Kind.SENSOR);
+    public static final int INTERNAL_JUNK_COUNT = CATALOG.junk(Kind.INTERNAL);
+    public static final int ACTION_JUNK_COUNT = CATALOG.junk(Kind.ACTION);
 
     public static final class Sensor {
 
-        public static final int CONST = 0;
-        public static final int RAND = 1;
-        public static final int LOCAL_RESOURCE = 2;
-        public static final int SELF_ENERGY = 3;
-        public static final int SELF_MASS = 4;
+        public static final int CONST = NodeCatalog.V5.indexOf(Kind.SENSOR, "CONST");
+        public static final int RAND = NodeCatalog.V5.indexOf(Kind.SENSOR, "RAND");
+        public static final int LOCAL_RESOURCE = NodeCatalog.V5.indexOf(Kind.SENSOR, "LOCAL_RESOURCE");
+        public static final int SELF_ENERGY = NodeCatalog.V5.indexOf(Kind.SENSOR, "SELF_ENERGY");
+        public static final int SELF_MASS = NodeCatalog.V5.indexOf(Kind.SENSOR, "SELF_MASS");
 
-        public static final int MEANINGFUL_COUNT = 5;
+        public static final int MEANINGFUL_COUNT = NodeCatalog.V5.nodes(Kind.SENSOR).size();
 
         public static final int TYPE_COUNT =
-                MEANINGFUL_COUNT + SENSOR_JUNK_COUNT;
+                MEANINGFUL_COUNT + NodeCatalog.V5.junk(Kind.SENSOR);
 
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
@@ -26,16 +38,16 @@ public final class NodeLayout {
 
     public static final class Internal {
 
-        public static final int ADD = 0;
-        public static final int MUL = 1;
-        public static final int CLAMP = 2;
-        public static final int DELAY = 3;
-        public static final int THRESH = 4;
+        public static final int ADD = NodeCatalog.V5.indexOf(Kind.INTERNAL, "ADD");
+        public static final int MUL = NodeCatalog.V5.indexOf(Kind.INTERNAL, "MUL");
+        public static final int CLAMP = NodeCatalog.V5.indexOf(Kind.INTERNAL, "CLAMP");
+        public static final int DELAY = NodeCatalog.V5.indexOf(Kind.INTERNAL, "DELAY");
+        public static final int THRESH = NodeCatalog.V5.indexOf(Kind.INTERNAL, "THRESH");
 
-        public static final int MEANINGFUL_COUNT = 5;
+        public static final int MEANINGFUL_COUNT = NodeCatalog.V5.nodes(Kind.INTERNAL).size();
 
         public static final int TYPE_COUNT =
-                MEANINGFUL_COUNT + INTERNAL_JUNK_COUNT;
+                MEANINGFUL_COUNT + NodeCatalog.V5.junk(Kind.INTERNAL);
 
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
@@ -44,19 +56,19 @@ public final class NodeLayout {
 
     public static final class Action {
 
-        public static final int Y = 0;
-        public static final int HARVEST = 1;
-        public static final int REPRODUCE = 2;
-        public static final int MOVE_N = 3;
-        public static final int MOVE_S = 4;
-        public static final int MOVE_E = 5;
-        public static final int MOVE_W = 6;
-        public static final int GROW = 7;
+        public static final int Y = NodeCatalog.V5.indexOf(Kind.ACTION, "ACTION_Y");
+        public static final int HARVEST = NodeCatalog.V5.indexOf(Kind.ACTION, "HARVEST");
+        public static final int REPRODUCE = NodeCatalog.V5.indexOf(Kind.ACTION, "REPRODUCE");
+        public static final int MOVE_N = NodeCatalog.V5.indexOf(Kind.ACTION, "MOVE_N");
+        public static final int MOVE_S = NodeCatalog.V5.indexOf(Kind.ACTION, "MOVE_S");
+        public static final int MOVE_E = NodeCatalog.V5.indexOf(Kind.ACTION, "MOVE_E");
+        public static final int MOVE_W = NodeCatalog.V5.indexOf(Kind.ACTION, "MOVE_W");
+        public static final int GROW = NodeCatalog.V5.indexOf(Kind.ACTION, "GROW");
 
-        public static final int MEANINGFUL_COUNT = 8;
+        public static final int MEANINGFUL_COUNT = NodeCatalog.V5.nodes(Kind.ACTION).size();
 
         public static final int TYPE_COUNT =
-                MEANINGFUL_COUNT + ACTION_JUNK_COUNT;
+                MEANINGFUL_COUNT + NodeCatalog.V5.junk(Kind.ACTION);
 
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
@@ -70,61 +82,86 @@ public final class NodeLayout {
     public static final int TOTAL =
             Sensor.COUNT + Internal.COUNT + Action.COUNT;
 
+    private static final NodeSpec[] SPECS = buildSpecs();
+
+    private static NodeSpec[] buildSpecs() {
+        final NodeSpec[] specs = new NodeSpec[TOTAL];
+        fill(specs, Kind.SENSOR, SENSOR_OFFSET);
+        fill(specs, Kind.INTERNAL, INTERNAL_OFFSET);
+        fill(specs, Kind.ACTION, ACTION_OFFSET);
+        return specs;
+    }
+
+    private static void fill(final NodeSpec[] specs, final Kind kind, final int offset) {
+        int i = offset;
+        for (final NodeSpec spec : CATALOG.nodes(kind)) {
+            specs[i++] = spec;
+        }
+    }
+
+    /** The node's spec, or {@code null} for junk padding. */
+    public static NodeSpec spec(final int localIndex) {
+        return SPECS[localIndex];
+    }
+
     /**
-     * True if the unit-local index refers to a meaningful node — one the
+     * True if the unit-local index refers to a meaningful node, one the
      * kernel actually evaluates. Junk nodes pad each block's tail; their
      * outputs stay 0 forever, so signals into them vanish (junk sinks)
      * and signals from them are always zero.
      */
     public static boolean isMeaningful(final int localIndex) {
-        if (localIndex < INTERNAL_OFFSET) {
-            return localIndex - SENSOR_OFFSET < Sensor.MEANINGFUL_COUNT;
-        }
-        if (localIndex < ACTION_OFFSET) {
-            return localIndex - INTERNAL_OFFSET < Internal.MEANINGFUL_COUNT;
-        }
-        return localIndex - ACTION_OFFSET < Action.MEANINGFUL_COUNT;
+        return SPECS[localIndex] != null;
     }
 
     /**
-     * Human name for a unit-local node index. Meaningful nodes get their role
-     * name (CONST, ADD, DELAY, ...); junk padding gets JUNK-S/I/A + offset.
+     * Human name for a unit-local node index. Meaningful nodes get their catalog
+     * name (CONST, ADD, DELAY, ...); junk padding gets JUNK-S/I/A + block offset.
      */
     public static String localName(final int localIndex) {
+        final NodeSpec spec = SPECS[localIndex];
+        if (spec != null) {
+            return spec.name();
+        }
         if (localIndex < INTERNAL_OFFSET) {
-            final int s = localIndex - SENSOR_OFFSET;
-            return switch (s) {
-                case Sensor.CONST -> "CONST";
-                case Sensor.RAND -> "RAND";
-                case Sensor.LOCAL_RESOURCE -> "LOCAL_RESOURCE";
-                case Sensor.SELF_ENERGY -> "SELF_ENERGY";
-                case Sensor.SELF_MASS -> "SELF_MASS";
-                default -> "JUNK-S" + s;
-            };
+            return "JUNK-S" + (localIndex - SENSOR_OFFSET);
         }
         if (localIndex < ACTION_OFFSET) {
-            final int n = localIndex - INTERNAL_OFFSET;
-            return switch (n) {
-                case Internal.ADD -> "ADD";
-                case Internal.MUL -> "MUL";
-                case Internal.CLAMP -> "CLAMP";
-                case Internal.DELAY -> "DELAY";
-                case Internal.THRESH -> "THRESH";
-                default -> "JUNK-I" + n;
-            };
+            return "JUNK-I" + (localIndex - INTERNAL_OFFSET);
         }
-        final int a = localIndex - ACTION_OFFSET;
-        return switch (a) {
-            case Action.Y -> "ACTION_Y";
-            case Action.HARVEST -> "HARVEST";
-            case Action.REPRODUCE -> "REPRODUCE";
-            case Action.MOVE_N -> "MOVE_N";
-            case Action.MOVE_S -> "MOVE_S";
-            case Action.MOVE_E -> "MOVE_E";
-            case Action.MOVE_W -> "MOVE_W";
-            case Action.GROW -> "GROW";
-            default -> "JUNK-A" + a;
-        };
+        return "JUNK-A" + (localIndex - ACTION_OFFSET);
+    }
+
+    /**
+     * The layout as JSON for the viewers: node names by local index, block
+     * offsets, type counts (meaningful + junk, the modulus genes wrap by),
+     * junk ranges as {@code [first, endExclusive)} local indices, and the gene
+     * bit layout. Written as {@code <base>.layout.json} beside every {@code --out} run.
+     */
+    public static String toJson() {
+        final StringBuilder sb = new StringBuilder(1024);
+        sb.append("{\"total\":").append(TOTAL);
+        sb.append(",\"names\":[");
+        for (int i = 0; i < TOTAL; i++) {
+            sb.append(i == 0 ? "" : ",").append('"').append(localName(i)).append('"');
+        }
+        sb.append("],\"offsets\":{\"sensor\":").append(SENSOR_OFFSET)
+          .append(",\"internal\":").append(INTERNAL_OFFSET)
+          .append(",\"action\":").append(ACTION_OFFSET);
+        sb.append("},\"typeCounts\":{\"sensor\":").append(Sensor.TYPE_COUNT)
+          .append(",\"internal\":").append(Internal.TYPE_COUNT)
+          .append(",\"action\":").append(Action.TYPE_COUNT);
+        sb.append("},\"junk\":{\"sensor\":[").append(SENSOR_OFFSET + Sensor.MEANINGFUL_COUNT).append(',').append(INTERNAL_OFFSET)
+          .append("],\"internal\":[").append(INTERNAL_OFFSET + Internal.MEANINGFUL_COUNT).append(',').append(ACTION_OFFSET)
+          .append("],\"action\":[").append(ACTION_OFFSET + Action.MEANINGFUL_COUNT).append(',').append(TOTAL);
+        sb.append("]},\"gene\":{\"bits\":32,\"srcType\":{\"shift\":31,\"width\":1}")
+          .append(",\"srcId\":{\"shift\":24,\"width\":7}")
+          .append(",\"dstType\":{\"shift\":23,\"width\":1}")
+          .append(",\"dstId\":{\"shift\":16,\"width\":7}")
+          .append(",\"weight\":{\"shift\":0,\"width\":16,\"signed\":true,\"scale\":")
+          .append(GeneDecoder.WEIGHT_MULTIPLIER).append(",\"max\":").append(GeneDecoder.MAX_WEIGHT)
+          .append("}}}");
+        return sb.toString();
     }
 
     private NodeLayout() {}

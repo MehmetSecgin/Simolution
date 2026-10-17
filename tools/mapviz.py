@@ -9,7 +9,7 @@ anywhere (even file://) with no server and no zstd decoder in the browser (the
 frames are pre-decoded here).
 
 Usage:  python3 tools/mapviz.py runs/foo.frames.zst   ->  runs/foo.map.html
-        (reads runs/foo.frames.idx + runs/foo.catalog.gz alongside)
+        (reads runs/foo.frames.idx + runs/foo.catalog.gz + runs/foo.layout.json alongside)
 
 Needs the `zstd` CLI on PATH (the run was produced with zstd-jni; this is the
 offline-bake convenience path). For an ONGOING run, don't bake — serve the run dir
@@ -90,11 +90,14 @@ def main():
         base = base.removesuffix(suffix)
     idx_path = path.with_name(base + ".frames.idx")
     cat_path = path.with_name(base + ".catalog.gz")
+    layout_path = path.with_name(base + ".layout.json")
+    if not layout_path.exists():
+        raise SystemExit("no layout file: " + str(layout_path))
 
     world, every = read_header(idx_path)
     frames = parse_frames(path)
     catalog = parse_catalog(cat_path)
-    data = {"world": world, "sampleEvery": every,
+    data = {"world": world, "sampleEvery": every, "layout": json.loads(layout_path.read_text()),
             "catalog": {str(k): v for k, v in catalog.items()}, "frames": frames}
 
     embed = "<script>window.SIMOLUTION_EMBED=" + json.dumps(data, separators=(",", ":")) + ";</script>\n"

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.runtime.Noise;
 
 class GeneDecoderTest {
 
@@ -73,6 +74,22 @@ class GeneDecoderTest {
             // assert
             assertEquals(true, connection != null, "gene " + Integer.toHexString(gene) + " must decode");
             assertEquals(true, Math.abs(connection.weight) <= 4.0, "weight bounded for gene " + Integer.toHexString(gene));
+        }
+    }
+
+    @Test
+    void primitiveAccessorsMatchDecode() {
+        for (int i = 0; i < 10_000; i++) {
+            // arrange
+            int gene = (int) Noise.mix(i * Noise.GOLDEN_GAMMA);
+
+            // act
+            CompiledConnection connection = GeneDecoder.decode(gene, 0);
+
+            // assert
+            assertEquals(connection.sourceAbsoluteIndex, GeneDecoder.sourceLocal(gene));
+            assertEquals(connection.destinationAbsoluteIndex, GeneDecoder.destinationLocal(gene));
+            assertEquals(connection.weight, GeneDecoder.weight(gene), 0.0);
         }
     }
 }

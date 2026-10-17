@@ -8,10 +8,13 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.layout.NodeSpec;
 
 public final class Kernel {
 
     private static final long LEGACY_RNG_SEED = 0L;
+
+    private static final NodeSpec.Role[] SENSOR_ROLES = sensorRoles();
 
     private float[] outputsPrev;
     private float[] outputsNext;
@@ -292,7 +295,7 @@ public final class Kernel {
         int harvest = 0;
         for (int g = 0; g < count; g++) {
             final CompiledConnection c = GeneDecoder.decode(genes[base + g], unitOffset);
-            if (c == null || isMulDestination(c)) {
+            if (isMulDestination(c)) {
                 continue;
             }
             connections[cursor++] = c;
@@ -307,7 +310,7 @@ public final class Kernel {
         int mulDegree = 0;
         for (int g = 0; g < count; g++) {
             final CompiledConnection c = GeneDecoder.decode(genes[base + g], unitOffset);
-            if (c == null || !isMulDestination(c)) {
+            if (!isMulDestination(c)) {
                 continue;
             }
             connections[cursor++] = c;
@@ -416,6 +419,14 @@ public final class Kernel {
         }
     }
 
+    private static NodeSpec.Role[] sensorRoles() {
+        final NodeSpec.Role[] roles = new NodeSpec.Role[NodeLayout.Sensor.MEANINGFUL_COUNT];
+        for (int s = 0; s < roles.length; s++) {
+            roles[s] = NodeLayout.spec(NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE).role();
+        }
+        return roles;
+    }
+
     private void evaluateNodes() {
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
@@ -440,19 +451,18 @@ public final class Kernel {
     private void evaluateUnit(final int unit) {
         final int base = unit * NodeLayout.TOTAL;
 
-        final int constIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.CONST * NodeLayout.Sensor.INSTANCES_PER_TYPE);
-        final int randIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.RAND * NodeLayout.Sensor.INSTANCES_PER_TYPE);
-
-        final int localResourceIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.LOCAL_RESOURCE * NodeLayout.Sensor.INSTANCES_PER_TYPE);
-        final int selfEnergyIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_ENERGY * NodeLayout.Sensor.INSTANCES_PER_TYPE);
-        final int selfMassIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_MASS * NodeLayout.Sensor.INSTANCES_PER_TYPE);
-
-        outputsNext[constIdx] = 1.0f;
-        outputsNext[randIdx] = (float) Noise.sample(LEGACY_RNG_SEED, unit, tick);
-        // a unit senses only the cell it currently occupies (contract v3 §3)
-        outputsNext[localResourceIdx] = (float) Math.min(1.0, resourceField[position[unit]] / cellCapacity);
-        outputsNext[selfEnergyIdx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);
-        outputsNext[selfMassIdx] = (float) Math.min(1.0, mass[unit] / selfMassScale);
+        for (int s = 0; s < NodeLayout.Sensor.MEANINGFUL_COUNT; s++) {
+            final int idx = base + NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE;
+            switch (SENSOR_ROLES[s]) {
+                case CONST -> outputsNext[idx] = 1.0f;
+                case RAND -> outputsNext[idx] = (float) Noise.sample(LEGACY_RNG_SEED, unit, tick);
+                // a unit senses only the cell it currently occupies (contract v3 §3)
+                case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, resourceField[position[unit]] / cellCapacity);
+                case SELF_ENERGY -> outputsNext[idx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);
+                case SELF_MASS -> outputsNext[idx] = (float) Math.min(1.0, mass[unit] / selfMassScale);
+                default -> throw new IllegalStateException("not a sensor role: " + SENSOR_ROLES[s]);
+            }
+        }
 
         final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[addIdx] = accumulators[addIdx];
@@ -479,26 +489,10 @@ public final class Kernel {
         final int threshIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.THRESH * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[threshIdx] = accumulators[threshIdx] > 0.0f ? 1.0f : -1.0f;
 
-        final int actionIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.Y * NodeLayout.Action.INSTANCES_PER_TYPE);
-        outputsNext[actionIdx] = accumulators[actionIdx];
-
-        final int harvestIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
-        outputsNext[harvestIdx] = accumulators[harvestIdx];
-
-        final int reproduceIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.REPRODUCE * NodeLayout.Action.INSTANCES_PER_TYPE);
-        outputsNext[reproduceIdx] = accumulators[reproduceIdx];
-
-        final int moveNIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.MOVE_N * NodeLayout.Action.INSTANCES_PER_TYPE);
-        final int moveSIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.MOVE_S * NodeLayout.Action.INSTANCES_PER_TYPE);
-        final int moveEIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.MOVE_E * NodeLayout.Action.INSTANCES_PER_TYPE);
-        final int moveWIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.MOVE_W * NodeLayout.Action.INSTANCES_PER_TYPE);
-        outputsNext[moveNIdx] = accumulators[moveNIdx];
-        outputsNext[moveSIdx] = accumulators[moveSIdx];
-        outputsNext[moveEIdx] = accumulators[moveEIdx];
-        outputsNext[moveWIdx] = accumulators[moveWIdx];
-
-        final int growIdx = base + NodeLayout.ACTION_OFFSET + (NodeLayout.Action.GROW * NodeLayout.Action.INSTANCES_PER_TYPE);
-        outputsNext[growIdx] = accumulators[growIdx];
+        for (int a = 0; a < NodeLayout.Action.MEANINGFUL_COUNT; a++) {
+            final int idx = base + NodeLayout.ACTION_OFFSET + a * NodeLayout.Action.INSTANCES_PER_TYPE;
+            outputsNext[idx] = accumulators[idx];
+        }
     }
 
     private void swapBuffers() {

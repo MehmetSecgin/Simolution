@@ -77,6 +77,7 @@ public class Main {
             if (out.getParent() != null) {
                 Files.createDirectories(out.getParent());
             }
+            Files.writeString(sibling(out, ".layout.json"), NodeLayout.toJson());
             catalogWriter = new GenomeCatalogWriter(
                     new java.io.OutputStreamWriter(
                             new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".catalog.gz"))),

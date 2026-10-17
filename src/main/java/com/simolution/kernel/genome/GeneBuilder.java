@@ -1,6 +1,6 @@
 package com.simolution.kernel.genome;
 
-import com.simolution.kernel.layout.NodeType;
+import com.simolution.kernel.layout.NodeSpec.Kind;
 
 /**
  * Human-facing helper for constructing genes safely and readably.
@@ -15,19 +15,19 @@ public final class GeneBuilder {
     private GeneBuilder() {}
 
     public static SourceStage fromSensor(int sensorTypeId) {
-        return new SourceStage(NodeType.SENSOR, sensorTypeId);
+        return new SourceStage(Kind.SENSOR, sensorTypeId);
     }
 
     public static SourceStage fromInternal(int internalTypeId) {
-        return new SourceStage(NodeType.INTERNAL, internalTypeId);
+        return new SourceStage(Kind.INTERNAL, internalTypeId);
     }
 
     public static final class SourceStage {
 
-        private final NodeType sourceType;
+        private final Kind sourceType;
         private final int sourceId;
 
-        private SourceStage(NodeType sourceType, int sourceId) {
+        private SourceStage(Kind sourceType, int sourceId) {
             this.sourceType = sourceType;
             this.sourceId = sourceId;
         }
@@ -35,14 +35,14 @@ public final class GeneBuilder {
         public DestinationStage toInternal(int internalTypeId) {
             return new DestinationStage(
                     sourceType, sourceId,
-                    NodeType.INTERNAL, internalTypeId
+                    Kind.INTERNAL, internalTypeId
             );
         }
 
         public DestinationStage toAction(int actionTypeId) {
             return new DestinationStage(
                     sourceType, sourceId,
-                    NodeType.ACTION, actionTypeId
+                    Kind.ACTION, actionTypeId
             );
         }
 
@@ -50,15 +50,15 @@ public final class GeneBuilder {
 
     public static final class DestinationStage {
 
-        private final NodeType sourceType;
+        private final Kind sourceType;
         private final int sourceId;
-        private final NodeType destinationType;
+        private final Kind destinationType;
         private final int destinationId;
 
         private DestinationStage(
-                NodeType sourceType,
+                Kind sourceType,
                 int sourceId,
-                NodeType destinationType,
+                Kind destinationType,
                 int destinationId
         ) {
             this.sourceType = sourceType;
@@ -79,16 +79,16 @@ public final class GeneBuilder {
 
     public static final class WeightStage {
 
-        private final NodeType sourceType;
+        private final Kind sourceType;
         private final int sourceId;
-        private final NodeType destinationType;
+        private final Kind destinationType;
         private final int destinationId;
         private final short weightRaw;
 
         private WeightStage(
-                NodeType sourceType,
+                Kind sourceType,
                 int sourceId,
-                NodeType destinationType,
+                Kind destinationType,
                 int destinationId,
                 short weightRaw
         ) {
@@ -106,11 +106,11 @@ public final class GeneBuilder {
             int raw = 0;
 
             // Source
-            raw |= (sourceType == NodeType.INTERNAL ? 1 : 0) << 31;
+            raw |= (sourceType == Kind.INTERNAL ? 1 : 0) << 31;
             raw |= (sourceId & 0x7F) << 24;
 
             // Destination
-            raw |= (destinationType == NodeType.ACTION ? 1 : 0) << 23;
+            raw |= (destinationType == Kind.ACTION ? 1 : 0) << 23;
             raw |= (destinationId & 0x7F) << 16;
 
             // Weight

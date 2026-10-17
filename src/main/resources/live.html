@@ -124,20 +124,21 @@
 <!-- fzstd 0.1.1 (MIT, decompress-only) — vendored from npm; decodes the zstd frame chunks in indexed (served) mode -->
 <script src="fzstd.min.js"></script>
 <script>
-// ---- node layout: mirrors com.simolution.kernel.layout.NodeLayout (kernel v5) ----
-// TOTAL=24 : 7 sensors, 8 internals, 9 actions; trailing entries per block = junk.
-const NAMES=["CONST","RAND","LOCAL_RESOURCE","SELF_ENERGY","SELF_MASS","JUNK-S5","JUNK-S6",
-             "ADD","MUL","CLAMP","DELAY","THRESH","JUNK-I5","JUNK-I6","JUNK-I7",
-             "ACTION_Y","HARVEST","REPRODUCE","MOVE_N","MOVE_S","MOVE_E","MOVE_W","GROW","JUNK-A8"];
-const SENS_TC=7,INT_TC=8,ACT_TC=9,SENS_M=5,INT_M=5,ACT_M=8,WMUL=4.0/32767,MAXW=4.0;
-const meaningful=(i)=> i<7 ? i<SENS_M : (i<15 ? (i-7)<INT_M : (i-15)<ACT_M);
-const kindOf=(i)=> i<7?0 : (i<15?1:2);
+// ---- node layout: loaded from <base>.layout.json (NodeLayout.toJson) or SIMOLUTION_EMBED.layout ----
+let NAMES=[],SENS_TC=0,INT_TC=0,ACT_TC=0,INT_OFF=0,ACT_OFF=0,JUNK=[],WMUL=0,MAXW=0;
+function applyLayout(L){
+  NAMES=L.names; SENS_TC=L.typeCounts.sensor; INT_TC=L.typeCounts.internal; ACT_TC=L.typeCounts.action;
+  INT_OFF=L.offsets.internal; ACT_OFF=L.offsets.action; JUNK=Object.values(L.junk);
+  WMUL=L.gene.weight.scale; MAXW=L.gene.weight.max;
+}
+const meaningful=(i)=> !JUNK.some(r=>i>=r[0]&&i<r[1]);
+const kindOf=(i)=> i<INT_OFF?0 : (i<ACT_OFF?1:2);
 // mirrors GeneDecoder.decode: [SrcType:1|SrcID:7|DstType:1|DstID:7|Weight:16]
 function decodeGene(raw){
   const g=raw|0, srcId=(g>>>24)&0x7f, dstId=(g>>>16)&0x7f, sB=(g>>>31)&1, dB=(g>>>23)&1;
   let w=g&0xffff; if(w&0x8000) w-=0x10000;
-  const src=sB===0?(srcId%SENS_TC):(7+(srcId%INT_TC));
-  const dst=dB===0?(7+(dstId%INT_TC)):(15+(dstId%ACT_TC));
+  const src=sB===0?(srcId%SENS_TC):(INT_OFF+(srcId%INT_TC));
+  const dst=dB===0?(INT_OFF+(dstId%INT_TC)):(ACT_OFF+(dstId%ACT_TC));
   return {src,dst,w:w*WMUL,junk:!(meaningful(src)&&meaningful(dst))};
 }
 
@@ -148,7 +149,7 @@ const chunkIndex=[];             // indexed mode: {ft,lt,off,len,count,startFram
 let totalFrames=0;
 const chunkCache=new Map();      // chunkNo -> parsed frames[]; LRU-capped (bounded RAM)
 const CHUNK_CACHE_CAP=6;
-let indexed=false, framesUrl='', framesIdxUrl='', catUrl='', birthsUrl='', curF=null;
+let indexed=false, framesUrl='', framesIdxUrl='', catUrl='', birthsUrl='', layoutUrl='', curF=null;
 let idx=0,done=false,showRes=true,replaying=false,selSlot=null,renderedKey=null,hideJunk=true;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),$=(id)=>document.getElementById(id);
 
@@ -421,9 +422,9 @@ function dataSource(){
     base=(/\.html?$/.test(b)&&b!=='index.html')?b.replace(/\.html?$/,''):'live'; }
   return {base};
 }
-function boot(){
+async function boot(){
   const s=dataSource();
-  if(s.embed){ const e=s.embed; W=e.world; every=e.sampleEvery||1; sizeCanvas();
+  if(s.embed){ const e=s.embed; applyLayout(e.layout); W=e.world; every=e.sampleEvery||1; sizeCanvas();
     $('meta').textContent=`${W}×${W} torus · every ${every} tick${every>1?'s':''}`;
     for(const [id,genes] of Object.entries(e.catalog||{})) catalog.set(+id,genes);
     for(const fr of e.frames) frames.push(fr); done=true; $('follow').checked=false;
@@ -433,8 +434,10 @@ function boot(){
     showFrame(0);
   } else { indexed=true; const base=s.base;
     framesUrl=base+'.frames.zst'; framesIdxUrl=base+'.frames.idx';
-    catUrl=base+'.catalog.gz'; birthsUrl=base+'.births.csv.gz';
+    catUrl=base+'.catalog.gz'; birthsUrl=base+'.births.csv.gz'; layoutUrl=base+'.layout.json';
     if(typeof fzstd==='undefined'){ $('badge').className='badge ended'; $('badge').textContent='fzstd.min.js not loaded'; return; }
+    try{ applyLayout(await (await fetch(layoutUrl,{cache:'no-store'})).json()); }
+    catch(e){ $('badge').className='badge ended'; $('badge').textContent=layoutUrl+' not loaded'; return; }
     pollIdx(); }
 }
 // ---- lineage walk (report-v13/v14): the always-on births store, read client-side ----
