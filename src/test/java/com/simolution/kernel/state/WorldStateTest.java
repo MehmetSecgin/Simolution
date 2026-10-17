@@ -2,6 +2,7 @@ package com.simolution.kernel.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -12,6 +13,9 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.state.FieldSpec.Dim;
+import com.simolution.kernel.state.FieldSpec.OnBirth;
+import com.simolution.kernel.state.FieldSpec.OnDeath;
 import com.simolution.kernel.state.FieldSpec.Persist;
 
 class WorldStateTest {
@@ -93,5 +97,15 @@ class WorldStateTest {
         final FieldSpec outputs = state.fields().stream().filter(s -> s.name().equals("outputsPrev")).findFirst().orElseThrow();
         assertSame(state.outputsPrev, outputs.array());
         assertTrue(state.cellChem != chem);
+    }
+
+    @Test
+    void zeroedFieldWithoutPerSlotExtentIsRejected() {
+        // arrange
+        final FieldSpec misdeclared = new FieldSpec("cellThing", Dim.CELL, Persist.SAVED, OnBirth.RESET_ZERO,
+                OnDeath.KEEP, new int[4]);
+
+        // act and assert
+        assertThrows(IllegalStateException.class, () -> WorldState.zeroStride(misdeclared));
     }
 }

@@ -78,18 +78,32 @@ class GeneDecoderTest {
     }
 
     @Test
-    void primitiveAccessorsMatchDecode() {
+    void primitiveAccessorsMatchIndependentReference() {
         for (int i = 0; i < 10_000; i++) {
             // arrange
             int gene = (int) Noise.mix(i * Noise.GOLDEN_GAMMA);
+            int srcType = (gene >>> 31) & 0x1;
+            int srcId = (gene >>> 24) & 0x7F;
+            int dstType = (gene >>> 23) & 0x1;
+            int dstId = (gene >>> 16) & 0x7F;
+            int low16 = gene & 0xFFFF;
+            int expectedSource = srcType == 0
+                    ? NodeLayout.SENSOR_OFFSET + (srcId % NodeLayout.Sensor.TYPE_COUNT) * NodeLayout.Sensor.INSTANCES_PER_TYPE
+                    : NodeLayout.INTERNAL_OFFSET + (srcId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
+            int expectedDestination = dstType == 0
+                    ? NodeLayout.INTERNAL_OFFSET + (dstId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE
+                    : NodeLayout.ACTION_OFFSET + (dstId % NodeLayout.Action.TYPE_COUNT) * NodeLayout.Action.INSTANCES_PER_TYPE;
+            double expectedWeight = (short) low16 * (4.0 / 32767);
 
             // act
-            CompiledConnection connection = GeneDecoder.decode(gene, 0);
+            int source = GeneDecoder.sourceLocal(gene);
+            int destination = GeneDecoder.destinationLocal(gene);
+            double weight = GeneDecoder.weight(gene);
 
             // assert
-            assertEquals(connection.sourceAbsoluteIndex, GeneDecoder.sourceLocal(gene));
-            assertEquals(connection.destinationAbsoluteIndex, GeneDecoder.destinationLocal(gene));
-            assertEquals(connection.weight, GeneDecoder.weight(gene), 0.0);
+            assertEquals(expectedSource, source);
+            assertEquals(expectedDestination, destination);
+            assertEquals(expectedWeight, weight, 0.0);
         }
     }
 }

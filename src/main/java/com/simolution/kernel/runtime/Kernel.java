@@ -14,6 +14,8 @@ import com.simolution.kernel.state.WorldState;
 public final class Kernel {
 
     private static final long LEGACY_RNG_SEED = 0L;
+    private static final int MUL_LOCAL = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
+    private static final int HARVEST_LOCAL = NodeLayout.ACTION_OFFSET + NodeLayout.Action.HARVEST;
 
     private static final NodeSpec.Role[] SENSOR_ROLES = sensorRoles();
 
@@ -56,9 +58,9 @@ public final class Kernel {
      * The substrate is a fixed pool of {@code genomes.length} slots; a slot is
      * alive iff its energy is &gt; 0 (contract v2 §5/§6, death is derived). Each
      * slot owns a fixed region {@code [slot·maxGenes, slot·maxGenes + maxGenes)}
-     * of the flat connection array and an equal region of the raw {@code genes}
+     * of the flat connection arrays and an equal region of the raw {@code genes}
      * array, both rewritten in place when the slot is reused by a birth — no
-     * growth, no per-birth heap allocation beyond decoding (contract v2 §12).
+     * growth, no per-birth heap allocation (contract v2 §12).
      * {@code maxGenes} is the per-slot gene capacity (headroom for genome growth,
      * §16); the live extent is {@code geneCount[slot]}.
      * <p>
@@ -203,16 +205,29 @@ public final class Kernel {
      * Decode a slot's live genes into its connection region and recompute the
      * structure-derived per-slot data (ranges, harvest transporter count, MUL
      * in-degree). Runs once per slot at construction and again at every birth
-     * (contract v2 §6/§12) — off the hot path, never per tick. Two decode passes
-     * place sum-destined connections (in gene order) then mul-destined ones (in
-     * gene order) contiguously without a scratch buffer; this is the same
-     * per-unit ordering the old global packed array produced, so results stay
-     * bit-identical across the storage rework.
+     * (contract v2 §6/§12) — off the hot path, never per tick, and allocation
+     * free: it reads the genes through the primitive {@link GeneDecoder}
+     * accessors and writes unit-local source/destination indices and the weight
+     * into the slot's flat region. Two passes place sum-destined connections (in
+     * gene order) then mul-destined ones (in gene order) contiguously without a
+     * scratch buffer.
+     * <p>
+     * A connection whose source is a junk node is not stored: junk outputs are
+     * exactly {@code +0.0}, so such a connection can neither move an accumulator
+     * (adding a signed zero to a sum that starts at {@code +0.0} never changes it)
+     * nor displace a MUL top-two entry (the comparisons are strict) nor count as
+     * active. {@code mulInDegree} still counts every MUL-destined gene, junk
+     * source included, and is computed from the genes before any pruning. A
+     * "transporter" (a stored connection feeding HARVEST) is by construction one
+     * with a meaningful source, the unit's structural uptake investment (contract
+     * v1 §5, ADR 0012).
      */
     private void compileSlot(final int unit) {
         final int[] genes = state.genes;
         final int[] geneCount = state.geneCount;
-        final CompiledConnection[] connections = state.connections;
+        final short[] connSrc = state.connSrc;
+        final short[] connDst = state.connDst;
+        final double[] connWeight = state.connWeight;
         final int[] sumStart = state.sumStart;
         final int[] sumEnd = state.sumEnd;
         final int[] mulStart = state.mulStart;
@@ -221,18 +236,25 @@ public final class Kernel {
         final int[] mulInDegree = state.mulInDegree;
 
         final int base = unit * maxGenes;
-        final int unitOffset = unit * NodeLayout.TOTAL;
         final int count = geneCount[unit];
 
         int cursor = base;
         int harvest = 0;
         for (int g = 0; g < count; g++) {
-            final CompiledConnection c = GeneDecoder.decode(genes[base + g], unitOffset);
-            if (isMulDestination(c)) {
+            final int gene = genes[base + g];
+            final int dst = GeneDecoder.destinationLocal(gene);
+            if (dst == MUL_LOCAL) {
                 continue;
             }
-            connections[cursor++] = c;
-            if (isHarvestTransporter(c)) {
+            final int src = GeneDecoder.sourceLocal(gene);
+            if (!NodeLayout.isMeaningful(src)) {
+                continue;
+            }
+            connSrc[cursor] = (short) src;
+            connDst[cursor] = (short) dst;
+            connWeight[cursor] = GeneDecoder.weight(gene);
+            cursor++;
+            if (dst == HARVEST_LOCAL) {
                 harvest++;
             }
         }
@@ -242,38 +264,24 @@ public final class Kernel {
         mulStart[unit] = cursor;
         int mulDegree = 0;
         for (int g = 0; g < count; g++) {
-            final CompiledConnection c = GeneDecoder.decode(genes[base + g], unitOffset);
-            if (!isMulDestination(c)) {
+            final int gene = genes[base + g];
+            if (GeneDecoder.destinationLocal(gene) != MUL_LOCAL) {
                 continue;
             }
-            connections[cursor++] = c;
             mulDegree = Math.min(2, mulDegree + 1);
+            final int src = GeneDecoder.sourceLocal(gene);
+            if (!NodeLayout.isMeaningful(src)) {
+                continue;
+            }
+            connSrc[cursor] = (short) src;
+            connDst[cursor] = (short) MUL_LOCAL;
+            connWeight[cursor] = GeneDecoder.weight(gene);
+            cursor++;
         }
         mulEnd[unit] = cursor;
 
         harvestConnCount[unit] = harvest;
         mulInDegree[unit] = mulDegree;
-    }
-
-    private static boolean isMulDestination(final CompiledConnection connection) {
-        final int dstLocal = connection.destinationAbsoluteIndex % NodeLayout.TOTAL;
-        return dstLocal == NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
-    }
-
-    /**
-     * A "transporter": a connection feeding the HARVEST node from a meaningful
-     * source. The count of these is a unit's structural uptake investment — its
-     * intake ceiling scales with it (contract v1 §5, ADR 0012), so eating
-     * capacity is a heritable genome trait, not a global grant. Junk-source
-     * connections carry no signal, so they are not transporters.
-     */
-    private static boolean isHarvestTransporter(final CompiledConnection connection) {
-        final int dstLocal = connection.destinationAbsoluteIndex % NodeLayout.TOTAL;
-        if (dstLocal != NodeLayout.ACTION_OFFSET + NodeLayout.Action.HARVEST) {
-            return false;
-        }
-        final int srcLocal = connection.sourceAbsoluteIndex % NodeLayout.TOTAL;
-        return NodeLayout.isMeaningful(srcLocal);
     }
 
     public void tick() {
@@ -323,7 +331,9 @@ public final class Kernel {
     private void propagateConnections() {
         final double[] energy = state.energy;
         final float[] outputsPrev = state.outputsPrev;
-        final CompiledConnection[] connections = state.connections;
+        final short[] connSrc = state.connSrc;
+        final short[] connDst = state.connDst;
+        final double[] connWeight = state.connWeight;
         final int[] sumStart = state.sumStart;
         final int[] sumEnd = state.sumEnd;
         final int[] mulStart = state.mulStart;
@@ -339,20 +349,19 @@ public final class Kernel {
                 continue;
             }
 
+            final int unitOffset = unit * NodeLayout.TOTAL;
             int active = 0;
 
             for (int i = sumStart[unit]; i < sumEnd[unit]; i++) {
-                final CompiledConnection c = connections[i];
-                final float signal = (float) (outputsPrev[c.sourceAbsoluteIndex] * c.weight);
-                accumulators[c.destinationAbsoluteIndex] += signal;
+                final float signal = (float) (outputsPrev[unitOffset + connSrc[i]] * connWeight[i]);
+                accumulators[unitOffset + connDst[i]] += signal;
                 if (signal != 0.0f) {
                     active++;
                 }
             }
 
             for (int i = mulStart[unit]; i < mulEnd[unit]; i++) {
-                final CompiledConnection c = connections[i];
-                final float signal = (float) (outputsPrev[c.sourceAbsoluteIndex] * c.weight);
+                final float signal = (float) (outputsPrev[unitOffset + connSrc[i]] * connWeight[i]);
                 if (Math.abs(signal) > Math.abs(mulTop1[unit])) {
                     mulTop2[unit] = mulTop1[unit];
                     mulTop1[unit] = signal;
@@ -461,9 +470,6 @@ public final class Kernel {
     }
 
     private void swapBuffers() {
-        final float[] outputsPrev = state.outputsPrev;
-        final float[] outputsNext = state.outputsNext;
-
         state.swapOutputs();
     }
 
@@ -995,7 +1001,6 @@ public final class Kernel {
      */
     private void finishChild(final int child, final int childCell, final int parent,
             final double childEnergy, final double childMass) {
-        final WorldState state = this.state;
         state.resetForBirth(child);
         state.energy[child] = childEnergy;
         state.mass[child] = childMass;
@@ -1047,6 +1052,7 @@ public final class Kernel {
 
         final int base = child * maxGenes;
         int count = geneCount[child];
+        final long prefix = Noise.mutationPrefix(LEGACY_RNG_SEED, child, state.tick);
         int opIndex = 0;
 
         for (int g = 0; g < count; g++) {
@@ -1055,7 +1061,7 @@ public final class Kernel {
                 final double rate = bit < 16
                         ? mutationRateWeight
                         : mutationRateStruct;
-                if (Noise.mutationUniform(LEGACY_RNG_SEED, child, state.tick, opIndex++)
+                if (Noise.mutationUniformFromPrefix(prefix, opIndex++)
                         < rate) {
                     gene ^= (1 << bit);
                 }
@@ -1065,7 +1071,7 @@ public final class Kernel {
 
         int survivors = 0;
         for (int g = 0; g < count; g++) {
-            final boolean delete = Noise.mutationUniform(LEGACY_RNG_SEED, child, state.tick, opIndex++)
+            final boolean delete = Noise.mutationUniformFromPrefix(prefix, opIndex++)
                     < indelRateDel;
             if (!delete) {
                 genes[base + survivors++] = genes[base + g];
@@ -1074,7 +1080,7 @@ public final class Kernel {
         count = survivors;
 
         for (int g = 0; g < survivors; g++) {
-            final boolean duplicate = Noise.mutationUniform(LEGACY_RNG_SEED, child, state.tick, opIndex++)
+            final boolean duplicate = Noise.mutationUniformFromPrefix(prefix, opIndex++)
                     < indelRateDup;
             if (duplicate && count < maxGenes) {
                 genes[base + count++] = genes[base + g];
@@ -1089,20 +1095,18 @@ public final class Kernel {
      * slot's sum range then mul range — the same per-unit ordering the wiring
      * export expects). Unlike the founders' static wiring, these reflect every
      * mutation a lineage accrued, so the descendants' evolved circuits can be
-     * inspected. End-of-run export only — allocates, never called per tick.
+     * inspected. Junk-source connections are not stored and so are absent.
+     * End-of-run export only — allocates, never called per tick.
      */
     public CompiledConnection[] liveConnections() {
         final double[] energy = state.energy;
-        final CompiledConnection[] connections = state.connections;
         final int[] sumStart = state.sumStart;
-        final int[] sumEnd = state.sumEnd;
-        final int[] mulStart = state.mulStart;
         final int[] mulEnd = state.mulEnd;
 
         int count = 0;
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] > 0.0) {
-                count += (sumEnd[unit] - sumStart[unit]) + (mulEnd[unit] - mulStart[unit]);
+                count += mulEnd[unit] - sumStart[unit];
             }
         }
         final CompiledConnection[] out = new CompiledConnection[count];
@@ -1111,11 +1115,8 @@ public final class Kernel {
             if (energy[unit] <= 0.0) {
                 continue;
             }
-            for (int i = sumStart[unit]; i < sumEnd[unit]; i++) {
-                out[cursor++] = connections[i];
-            }
-            for (int i = mulStart[unit]; i < mulEnd[unit]; i++) {
-                out[cursor++] = connections[i];
+            for (int i = sumStart[unit]; i < mulEnd[unit]; i++) {
+                out[cursor++] = connectionAt(unit, i);
             }
         }
         return out;
@@ -1126,29 +1127,25 @@ public final class Kernel {
      * same per-unit ordering {@link #liveConnections} uses), or an empty array if
      * the slot is dead. The evolved circuit of one unit — used by the replay
      * time-travel surface ({@code Replayer.circuitOf}) to inspect a unit at tick T.
-     * Allocates; not a per-tick path.
+     * Junk-source connections are not stored and so are absent. Allocates; not a
+     * per-tick path.
      */
     public CompiledConnection[] connectionsOf(final int slot) {
-        final double[] energy = state.energy;
-        final CompiledConnection[] connections = state.connections;
-        final int[] sumStart = state.sumStart;
-        final int[] sumEnd = state.sumEnd;
-        final int[] mulStart = state.mulStart;
-        final int[] mulEnd = state.mulEnd;
-
-        if (energy[slot] <= 0.0) {
+        if (state.energy[slot] <= 0.0) {
             return new CompiledConnection[0];
         }
-        final int n = (sumEnd[slot] - sumStart[slot]) + (mulEnd[slot] - mulStart[slot]);
-        final CompiledConnection[] out = new CompiledConnection[n];
-        int c = 0;
-        for (int i = sumStart[slot]; i < sumEnd[slot]; i++) {
-            out[c++] = connections[i];
-        }
-        for (int i = mulStart[slot]; i < mulEnd[slot]; i++) {
-            out[c++] = connections[i];
+        final int from = state.sumStart[slot];
+        final CompiledConnection[] out = new CompiledConnection[state.mulEnd[slot] - from];
+        for (int i = from; i < state.mulEnd[slot]; i++) {
+            out[i - from] = connectionAt(slot, i);
         }
         return out;
+    }
+
+    private CompiledConnection connectionAt(final int unit, final int i) {
+        final int unitOffset = unit * NodeLayout.TOTAL;
+        return new CompiledConnection(
+                unitOffset + state.connSrc[i], unitOffset + state.connDst[i], state.connWeight[i]);
     }
 
     public KernelSnapshot snapshot() {
@@ -1166,7 +1163,7 @@ public final class Kernel {
     /**
      * Serialize the complete <i>restorable</i> kernel state to a binary stream
      * (report-v8 checkpoints). Only mutable, future-affecting state is written;
-     * everything structure-derived ({@code connections}, sum/mul ranges,
+     * everything structure-derived ({@code connSrc/connDst/connWeight}, sum/mul ranges,
      * {@code harvestConnCount}, {@code mulInDegree}) is rebuilt by
      * {@link #loadState} from the genes, and the founding constants
      * ({@code creditedInitialEnergy}, {@code initialResourceTotal}) are recomputed

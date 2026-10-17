@@ -51,9 +51,23 @@ public final class Noise {
      * always, so a run's entire genealogy is reproducible.
      */
     public static double mutationUniform(long seed, int childSlot, int birthTick, int index) {
-        long h = mix(seed + GOLDEN_GAMMA * (childSlot + 1L));
-        h = mix(h + GOLDEN_GAMMA * (birthTick + 1L));
-        h = mix(h + GOLDEN_GAMMA * (index + 1L));
+        return mutationUniformFromPrefix(mutationPrefix(seed, childSlot, birthTick), index);
+    }
+
+    /**
+     * The first two mixes of {@link #mutationUniform}, which depend only on the
+     * birth event {@code (seed, childSlot, birthTick)}. A birth draws thousands
+     * of values, so it computes this once and finishes each draw with
+     * {@link #mutationUniformFromPrefix}.
+     */
+    public static long mutationPrefix(long seed, int childSlot, int birthTick) {
+        final long h = mix(seed + GOLDEN_GAMMA * (childSlot + 1L));
+        return mix(h + GOLDEN_GAMMA * (birthTick + 1L));
+    }
+
+    /** The last mix of {@link #mutationUniform}, given the birth's {@link #mutationPrefix}. */
+    public static double mutationUniformFromPrefix(long prefix, int index) {
+        final long h = mix(prefix + GOLDEN_GAMMA * (index + 1L));
         return (h >>> 11) * 0x1.0p-53;
     }
 

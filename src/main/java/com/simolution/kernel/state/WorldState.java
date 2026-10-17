@@ -6,7 +6,6 @@ import java.util.List;
 
 import com.simolution.kernel.config.ChemicalSpec;
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.state.FieldSpec.Dim;
 import com.simolution.kernel.state.FieldSpec.OnBirth;
@@ -48,7 +47,9 @@ public final class WorldState {
     public double[] cellChem;
     public double[] cellChemNext;
 
-    public final CompiledConnection[] connections;
+    public final short[] connSrc;
+    public final short[] connDst;
+    public final double[] connWeight;
     public final int[] sumStart;
     public final int[] sumEnd;
     public final int[] mulStart;
@@ -109,7 +110,9 @@ public final class WorldState {
         }
         this.initialResourceTotal = initialTotal;
 
-        this.connections = new CompiledConnection[geneCapacity];
+        this.connSrc = new short[geneCapacity];
+        this.connDst = new short[geneCapacity];
+        this.connWeight = new double[geneCapacity];
         this.sumStart = new int[slots];
         this.sumEnd = new int[slots];
         this.mulStart = new int[slots];
@@ -126,9 +129,11 @@ public final class WorldState {
         final List<FieldSpec> zero = new ArrayList<>();
         for (final FieldSpec spec : fields()) {
             if (spec.onBirth() == OnBirth.RESET_ZERO) {
+                zeroStride(spec);
                 reset.add(spec);
             }
             if (spec.onDeath() == OnDeath.ZERO) {
+                zeroStride(spec);
                 zero.add(spec);
             }
         }
@@ -172,7 +177,9 @@ public final class WorldState {
                 new FieldSpec("outputsPrev", Dim.UNIT_NODE, saved, zeroed, OnDeath.KEEP, outputsPrev),
                 new FieldSpec("delayMemory", Dim.UNIT_NODE, saved, zeroed, OnDeath.KEEP, delayMemory),
                 new FieldSpec("unitChem", Dim.CELL_CHEM, saved, explicit, OnDeath.KEEP, unitChem),
-                new FieldSpec("connections", Dim.GENE, derived, explicit, OnDeath.KEEP, connections),
+                new FieldSpec("connSrc", Dim.GENE, derived, explicit, OnDeath.KEEP, connSrc),
+                new FieldSpec("connDst", Dim.GENE, derived, explicit, OnDeath.KEEP, connDst),
+                new FieldSpec("connWeight", Dim.GENE, derived, explicit, OnDeath.KEEP, connWeight),
                 new FieldSpec("sumStart", Dim.UNIT, derived, explicit, OnDeath.KEEP, sumStart),
                 new FieldSpec("sumEnd", Dim.UNIT, derived, explicit, OnDeath.KEEP, sumEnd),
                 new FieldSpec("mulStart", Dim.UNIT, derived, explicit, OnDeath.KEEP, mulStart),
@@ -204,8 +211,22 @@ public final class WorldState {
         }
     }
 
+    /**
+     * Entries per slot of a field that is zeroed per slot. Only {@link Dim#UNIT} and
+     * {@link Dim#UNIT_NODE} have a per-slot extent here, so any other shape declared
+     * with a zeroing policy is a declaration error.
+     */
+    static int zeroStride(final FieldSpec spec) {
+        return switch (spec.dim()) {
+            case UNIT -> 1;
+            case UNIT_NODE -> NodeLayout.TOTAL;
+            default -> throw new IllegalStateException(
+                    "field " + spec.name() + " has dim " + spec.dim() + " and cannot be zeroed per slot");
+        };
+    }
+
     private static void zeroSlot(final FieldSpec spec, final int slot) {
-        final int stride = spec.dim() == Dim.UNIT_NODE ? NodeLayout.TOTAL : 1;
+        final int stride = zeroStride(spec);
         final int from = slot * stride;
         final int to = from + stride;
         switch (spec.array()) {

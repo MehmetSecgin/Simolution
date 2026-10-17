@@ -15,3 +15,13 @@ Machine: Apple M2 Pro, 12 cores, OpenJDK 26.0.1+8 (`-Xmx4g`).
 | big500 (W=500, 20000 founders) | 1000 | 82197 | 12 | 523 |
 
 Heap MB is `totalMemory() - freeMemory()` right after the run, without a forced GC, so it includes uncollected garbage.
+
+## after A6
+
+Flat `short`/`double` connection arrays, compile-time junk pruning, hoisted mutation hash, allocation-free births. Same machine and command as above.
+
+| config | ticks | wall ms | ticks/s | heap MB |
+|---|---|---|---|---|
+| small (W=64, 200 founders) | 2000 | 1852 | 1079 | 11 |
+| dense200 (W=200, 4000 founders) | 3000 | 38000 | 78 | 86 |
+| big500 (W=500, 20000 founders) | 1000 | 74964 | 13 | 426 |
