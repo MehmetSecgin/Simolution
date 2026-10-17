@@ -1,6 +1,7 @@
 package com.simolution.sim;
 
 import com.simolution.kernel.EngineVersion;
+import com.simolution.kernel.config.EngineConfig;
 
 /**
  * Renders a run into the report text format. Every value is deterministic: same
@@ -17,19 +18,20 @@ public final class RunReport {
 
     public static String render(final RunConfig config, final StructuralStats structure, final DynamicsSummary dynamics) {
         final StringBuilder out = new StringBuilder(2048);
-        final int units = config.units();
+        final int units = config.founderCount();
+        final EngineConfig engine = config.engine();
 
         out.append("# Simolution run report\n");
         out.append("schema: ").append(SCHEMA).append('\n');
         out.append("kernel: ").append(EngineVersion.ID).append('\n');
-        out.append("seed: ").append(config.seed()).append('\n');
+        out.append("seed: ").append(engine.seed()).append('\n');
         out.append("units: ").append(units).append('\n');
-        out.append("world-width: ").append(config.worldWidth()).append('\n');
-        out.append("grid-cells: ").append(config.worldWidth() * config.worldWidth()).append('\n');
+        out.append("world-width: ").append(engine.worldWidth()).append('\n');
+        out.append("grid-cells: ").append(engine.worldWidth() * engine.worldWidth()).append('\n');
         out.append("ticks: ").append(config.ticks()).append('\n');
-        out.append("genome-source: ").append(config.demo() ? "builtin-demo" : "random").append('\n');
-        out.append("genes-per-unit: ").append(config.demo() ? 4 : config.genesPerUnit()).append('\n');
-        out.append("max-genes: ").append(config.maxGenes()).append('\n');
+        out.append("genome-source: ").append(genomeSourceName(config.genomes())).append('\n');
+        out.append("genes-per-unit: ").append(config.genomes().genesPerFounder()).append('\n');
+        out.append("max-genes: ").append(engine.maxGenes()).append('\n');
 
         out.append("\n## structure\n");
         out.append("connections-compiled: ").append(structure.connectionsCompiled()).append('\n');
@@ -74,5 +76,12 @@ public final class RunReport {
 
         out.append("state-digest: ").append(String.format("%016x", dynamics.stateDigest())).append('\n');
         return out.toString();
+    }
+
+    private static String genomeSourceName(final GenomeSource genomes) {
+        return switch (genomes) {
+            case GenomeSource.Demo _ -> "builtin-demo";
+            case GenomeSource.Random _ -> "random";
+        };
     }
 }

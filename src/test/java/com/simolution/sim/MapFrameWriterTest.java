@@ -56,9 +56,9 @@ class MapFrameWriterTest {
 
     private static MapFrameWriter writer(ByteArrayOutputStream frames, StringWriter idx,
                                          StringWriter catalog, int world, int ticks,
-                                         int targetFrames, int from, int to) throws Exception {
+                                         MapSampling sampling) throws Exception {
         return new MapFrameWriter(frames, idx, new GenomeCatalogWriter(catalog),
-                world, ticks, targetFrames, from, to, EngineConfig.v5Defaults(0L, world, 8));
+                ticks, sampling, EngineConfig.v5Defaults(0L, world, 8));
     }
 
     @Test
@@ -66,7 +66,7 @@ class MapFrameWriterTest {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, 0, 3, 5);
+        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, new MapSampling.Window(3, 5));
         for (int i = 0; i < 8; i++) {
             k.tick();
             w.observe(k.snapshot());
@@ -83,15 +83,14 @@ class MapFrameWriterTest {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
-        // targetFrames 0 -> sample every tick (default)
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, 0, -1, -1);
+        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, MapSampling.EVERY_TICK);
         for (int i = 0; i < 10; i++) {
             k.tick();
             w.observe(k.snapshot());
         }
         w.close();
 
-        assertTrue(idx.toString().contains("sample-every 1"), "targetFrames 0 = every tick");
+        assertTrue(idx.toString().contains("sample-every 1"), "every-tick sampling");
         assertEquals(10, tickLines(decode(frames, idx.toString())).size(),
                 "a frame for every one of the 10 ticks");
     }
@@ -101,8 +100,7 @@ class MapFrameWriterTest {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
-        // 10 ticks, 5 target frames -> sample-every 2 -> ticks 2,4,6,8,10
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, 5, -1, -1);
+        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, new MapSampling.Spread(5));
         for (int i = 0; i < 10; i++) {
             k.tick();
             w.observe(k.snapshot());
@@ -120,7 +118,7 @@ class MapFrameWriterTest {
         StringWriter idx = new StringWriter();
         StringWriter catalog = new StringWriter();
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, catalog, 4, 8, 0, 1, 5);
+        MapFrameWriter w = writer(frames, idx, catalog, 4, 8, new MapSampling.Window(1, 5));
         for (int i = 0; i < 6; i++) {
             k.tick();
             w.observe(k.snapshot());
@@ -143,7 +141,7 @@ class MapFrameWriterTest {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
         Kernel k = new Kernel(GenomeFactory.random(7L, 9, 12), Kernel.scatterFounders(0L, 9, 6), EngineConfig.v5Defaults(0L, 6, 12), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 6, 8, 0, 1, 4);
+        MapFrameWriter w = writer(frames, idx, new StringWriter(), 6, 8, new MapSampling.Window(1, 4));
         for (int i = 0; i < 5; i++) {
             k.tick();
             w.observe(k.snapshot());
@@ -165,7 +163,7 @@ class MapFrameWriterTest {
         StringWriter idx = new StringWriter();
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()),
-                4, 6, 0, 1, 4, EngineConfig.v5Defaults(0L, 4, 8));
+                6, new MapSampling.Window(1, 4), EngineConfig.v5Defaults(0L, 4, 8));
         for (int i = 0; i < 5; i++) {
             k.tick();
             w.observe(k.snapshot());
@@ -201,7 +199,7 @@ class MapFrameWriterTest {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
-        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, 0, 1, 1);
+        MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, new MapSampling.Window(1, 1));
         k.tick();
         w.observe(k.snapshot());
         w.close();
@@ -221,7 +219,7 @@ class MapFrameWriterTest {
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()), 4, 8, 0, 1, 1, config);
+        MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()), 8, new MapSampling.Window(1, 1), config);
 
         // act
         k.tick();

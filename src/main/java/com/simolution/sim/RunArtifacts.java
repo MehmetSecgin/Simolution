@@ -32,12 +32,13 @@ public final class RunArtifacts implements Closeable {
 
     public static RunArtifacts open(final RunConfig config, final Founders founders, final Kernel kernel)
             throws IOException {
-        if (config.outPath() == null) {
+        if (config.reportPath() == null) {
             return new RunArtifacts(null, false, null);
         }
-        final RunPaths paths = new RunPaths(Path.of(config.outPath()));
-        final boolean framesEnabled = config.mapFrames() >= 0 || config.mapFrom() >= 0;
-        final RunArtifacts artifacts = new RunArtifacts(paths, framesEnabled, config.observe() ? paths.obsDir() : null);
+        final RunPaths paths = new RunPaths(config.reportPath());
+        final boolean framesEnabled = config.mapSampling().enabled();
+        final RunArtifacts artifacts = new RunArtifacts(paths, framesEnabled,
+                config.observation().enabled() ? paths.obsDir() : null);
         try {
             artifacts.openWriters(config, founders, kernel);
         } catch (IOException | RuntimeException e) {
@@ -85,8 +86,8 @@ public final class RunArtifacts implements Closeable {
         addWriter(new BirthLogWriter(gzipWriter(paths.births()), catalog));
         if (framesEnabled) {
             addWriter(new MapFrameWriter(Files.newOutputStream(paths.framesZst()),
-                    Files.newBufferedWriter(paths.framesIdx()), catalog, founders.engine().worldWidth(),
-                    config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo(), founders.engine()));
+                    Files.newBufferedWriter(paths.framesIdx()), catalog, config.ticks(), config.mapSampling(),
+                    founders.engine()));
         }
         if (obsDir != null) {
             openObservability(config, founders, kernel);
@@ -101,9 +102,10 @@ public final class RunArtifacts implements Closeable {
                 founders.slotCount(), founderCount, founders.cells(), founders.engine()));
         addWriter(new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
                 founderCount, founders.slotCount()));
-        final RunDirectory runDirectory = RunDirectory.create(obsDir, kernel, config.checkpointEvery());
+        final int checkpointEvery = config.observation().checkpointEvery();
+        final RunDirectory runDirectory = RunDirectory.create(obsDir, kernel, checkpointEvery);
         observers.add(snapshot -> runDirectory.checkpointIfDue(kernel));
-        RunConsole.announceObservability(obsDir, config.checkpointEvery());
+        RunConsole.announceObservability(obsDir, checkpointEvery);
     }
 
     private <W extends TickObserver & Closeable> void addWriter(final W writer) {

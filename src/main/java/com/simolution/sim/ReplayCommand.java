@@ -16,14 +16,16 @@ public final class ReplayCommand {
             String obs = null;
             Integer at = null;
             String snapshotOut = null;
-            int threads = Runtime.getRuntime().availableProcessors();
-            for (int i = 0; i < args.length; i++) {
-                switch (args[i]) {
-                    case "--replay" -> obs = args[++i];
-                    case "--at" -> at = Integer.parseInt(args[++i]);
-                    case "--snapshot-out" -> snapshotOut = args[++i];
-                    case "--threads" -> threads = Integer.parseInt(args[++i]);
-                    default -> throw new IllegalArgumentException("Unknown replay argument: " + args[i]);
+            int threads = RunConfig.allCores();
+            final ArgCursor cursor = new ArgCursor(args);
+            while (cursor.hasNext()) {
+                final String flag = cursor.next();
+                switch (flag) {
+                    case "--replay" -> obs = cursor.value(flag);
+                    case "--at" -> at = cursor.intValue(flag);
+                    case "--snapshot-out" -> snapshotOut = cursor.value(flag);
+                    case "--threads" -> threads = cursor.intValue(flag);
+                    default -> throw new IllegalArgumentException("Unknown replay argument: " + flag);
                 }
             }
             if (obs == null || at == null) {

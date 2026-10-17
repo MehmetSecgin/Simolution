@@ -8,15 +8,17 @@ import com.simolution.kernel.runtime.Kernel;
 public record Founders(int[][] genomes, int[] cells, EngineConfig engine) {
 
     public static Founders create(RunConfig config) {
-        int[][] genomes = config.demo()
-                ? new int[][] {GenomeFactory.demo()}
-                : GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
-        int longest = config.maxGenes();
+        long seed = config.engine().seed();
+        int[][] genomes = switch (config.genomes()) {
+            case GenomeSource.Demo _ -> new int[][] {GenomeFactory.demo()};
+            case GenomeSource.Random random -> GenomeFactory.random(seed, config.founderCount(), random.genesPerFounder());
+        };
+        int longest = config.engine().maxGenes();
         for (int[] genome : genomes) {
             longest = Math.max(longest, genome.length);
         }
         EngineConfig engine = config.engine().withMaxGenes(longest);
-        int[] cells = Kernel.scatterFounders(config.seed(), genomes.length, engine.worldWidth());
+        int[] cells = Kernel.scatterFounders(seed, genomes.length, engine.worldWidth());
         return new Founders(genomes, cells, engine);
     }
 

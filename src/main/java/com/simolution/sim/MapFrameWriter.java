@@ -61,9 +61,8 @@ public final class MapFrameWriter implements TickObserver, Closeable {
     private final OutputStream out;
     private final Writer idx;
     private final GenomeCatalogWriter catalog;
-    private final int sampleEvery;
-    private final int windowFrom;
-    private final int windowTo;
+    private final int totalTicks;
+    private final MapSampling sampling;
     private final double cellCapacity;
     private final int cellCount;
 
@@ -86,41 +85,26 @@ public final class MapFrameWriter implements TickObserver, Closeable {
     private int[] lastGenomeId;
     private int cacheStride;
 
-    /**
-     * {@code windowFrom >= 0} selects window mode: a frame every tick in
-     * {@code [windowFrom, windowTo]} and nothing outside. Otherwise {@code targetFrames}
-     * sets the across-run downsampling — {@code <= 0} means a frame <b>every tick</b>
-     * (default; per-tick is the owner's requirement, the size win is the lean row + zstd).
-     *
-     * @param out the {@code .frames.zst} stream — appended zstd chunks (binary).
-     * @param idx the {@code .frames.idx} stream — one ASCII line per chunk.
-     */
     public MapFrameWriter(final OutputStream out, final Writer idx, final GenomeCatalogWriter catalog,
-                          final int worldWidth, final int totalTicks, final int targetFrames,
-                          final int windowFrom, final int windowTo, final EngineConfig config) throws IOException {
+                          final int totalTicks, final MapSampling sampling, final EngineConfig config)
+            throws IOException {
+        final int worldWidth = config.worldWidth();
         this.out = out;
         this.cellCapacity = config.chemicals().get(0).capacity();
         this.cellCount = worldWidth * worldWidth;
         this.idx = idx;
         this.catalog = catalog;
-        this.windowFrom = windowFrom;
-        this.windowTo = windowTo;
-        this.sampleEvery = windowFrom >= 0
-                ? 1
-                : (targetFrames <= 0 ? 1 : Math.max(1, totalTicks / targetFrames));
+        this.totalTicks = totalTicks;
+        this.sampling = sampling;
         this.chunk = new StringBuilder(8 * worldWidth + 4096);
-        idx.write("format v14 world " + worldWidth + " sample-every " + sampleEvery
+        idx.write("format v14 world " + worldWidth + " sample-every " + sampling.sampleEvery(totalTicks)
                 + " chunk " + CHUNK_FRAMES + "\n");
         idx.flush();
     }
 
     @Override
     public void observe(final KernelSnapshot snapshot) throws IOException {
-        if (windowFrom >= 0) {
-            if (snapshot.tick < windowFrom || snapshot.tick > windowTo) {
-                return;
-            }
-        } else if (snapshot.tick % sampleEvery != 0) {
+        if (!sampling.samples(snapshot.tick, totalTicks)) {
             return;
         }
         chunk.append("t ").append(snapshot.tick).append('\n');

@@ -14,9 +14,9 @@ import com.simolution.kernel.runtime.Kernel;
 class RunReportTest {
 
     private static String runAndRender(RunConfig config) {
-        int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
+        int[][] genomes = GenomeFactory.random(config.engine().seed(), config.founderCount(), config.genomes().genesPerFounder());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
+        StructuralStats structure = StructuralAnalyzer.analyze(connections, config.founderCount());
         try (Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(),
                 config.engine(), 1)) {
             DynamicsObserver observer = new DynamicsObserver();
@@ -31,7 +31,7 @@ class RunReportTest {
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 16, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(42L, 64, 16), 1, false);
+        RunConfig config = new RunConfig(25, 200, new GenomeSource.Random(16), false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.v5Defaults(42L, 64, 16), 1, false);
 
         // act
         String first = runAndRender(config);
@@ -44,18 +44,17 @@ class RunReportTest {
     @Test
     void reportDoesNotInlinePerUnitDetail() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(1L, 64, 8), 1, false));
+        String report = runAndRender(new RunConfig(25, 50, new GenomeSource.Random(8), false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.v5Defaults(1L, 64, 8), 1, false));
 
         // assert
         assertFalse(report.contains("## units"));
-        // report-v13 retired the per-unit CSV sidecar; the report no longer points to one
         assertFalse(report.contains("per-unit-detail"));
     }
 
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(9L, 64, 8), 1, false));
+        String report = runAndRender(new RunConfig(5, 50, new GenomeSource.Random(8), false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.v5Defaults(9L, 64, 8), 1, false));
 
         // assert
         assertTrue(report.contains("schema: report-v15"));
@@ -76,7 +75,7 @@ class RunReportTest {
     @Test
     void reportOmitsRetiredLines() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(9L, 64, 8), 1, false));
+        String report = runAndRender(new RunConfig(5, 50, new GenomeSource.Random(8), false, null, MapSampling.EVERY_TICK, new Observation(false, 0), EngineConfig.v5Defaults(9L, 64, 8), 1, false));
 
         // assert
         for (String retired : new String[] {"## intake", "## burn-rate", "## terminal-regimes", "## action-channel",

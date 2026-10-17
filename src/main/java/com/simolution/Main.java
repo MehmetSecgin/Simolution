@@ -31,7 +31,7 @@ public class Main {
         }
         RunConfig config = RunConfig.parse(args);
         Founders founders = Founders.create(config);
-        StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.units());
+        StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());
         DynamicsObserver dynamics = new DynamicsObserver();
         TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
         try (Kernel kernel = founders.newKernel(config.threads());
@@ -56,7 +56,7 @@ public class Main {
         observers.addAll(artifacts.observers());
         if (config.trace()) {
             ConsoleTableLogger trace = new ConsoleTableLogger();
-            int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
+            int unitsToTrace = Math.min(config.founderCount(), MAX_TRACED_UNITS);
             observers.add(snapshot -> trace.log(snapshot, unitsToTrace));
         }
         return observers.toArray(TickObserver[]::new);

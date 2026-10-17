@@ -3,9 +3,13 @@ package com.simolution.bench;
 import java.io.IOException;
 import java.util.Arrays;
 
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.DynamicsObserver;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.sim.Founders;
+import com.simolution.sim.GenomeSource;
+import com.simolution.sim.MapSampling;
+import com.simolution.sim.Observation;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.SimulationRun;
 import com.simolution.sim.TickObserver;
@@ -14,6 +18,10 @@ import com.simolution.sim.TimeSeriesReport;
 public final class Bench {
 
     private static final int TIMED_RUNS = 3;
+    private static final long SEED = 42L;
+    private static final int GENES_PER_FOUNDER = 32;
+    private static final int MAX_GENES = 64;
+    private static final int DEFAULT_THREADS = 1;
 
     private record Row(String name, int ticks, long wallMillis, long heapMegabytes) {
     }
@@ -25,20 +33,21 @@ public final class Bench {
         if (args.length != 0 && !(args.length == 2 && args[0].equals("--threads"))) {
             throw new IllegalArgumentException("usage: bench [--threads N]");
         }
-        final String threads = args.length == 2 ? args[1] : "1";
-        System.out.println("threads " + threads + ", " + Runtime.getRuntime().availableProcessors() + " cores");
+        final int threads = args.length == 2 ? Integer.parseInt(args[1]) : DEFAULT_THREADS;
+        System.out.println("threads " + threads + ", " + RunConfig.allCores() + " cores");
         System.out.println("config | ticks | wall ms | ticks/s | heap MB");
-        row("small", 64, 200, 2000, threads);
-        row("dense200", 200, 4000, 3000, threads);
-        row("big500", 500, 20000, 1000, threads);
+        row("small", config(64, 200, 2000, threads));
+        row("dense200", config(200, 4000, 3000, threads));
+        row("big500", config(500, 20000, 1000, threads));
     }
 
-    private static void row(final String name, final int world, final int units, final int ticks,
-            final String threads) throws IOException {
-        final RunConfig config = RunConfig.parse(new String[] {
-                "--units", Integer.toString(units), "--ticks", Integer.toString(ticks),
-                "--seed", "42", "--world", Integer.toString(world), "--threads", threads});
-        runOnce(config);
+    static RunConfig config(final int world, final int founders, final int ticks, final int threads) {
+        return new RunConfig(founders, ticks, new GenomeSource.Random(GENES_PER_FOUNDER), false, null,
+                MapSampling.OFF, Observation.OFF, EngineConfig.v5Defaults(SEED, world, MAX_GENES), threads, false);
+    }
+
+    private static void row(final String name, final RunConfig config) throws IOException {
+        runOnce(config, "warmup");
         final Row[] runs = new Row[TIMED_RUNS];
         for (int i = 0; i < TIMED_RUNS; i++) {
             runs[i] = runOnce(config, name);
@@ -49,14 +58,8 @@ public final class Bench {
                 median.ticks() * 1000L / Math.max(1L, median.wallMillis()), median.heapMegabytes());
     }
 
-    private static void runOnce(final RunConfig config) throws IOException {
-        runOnce(config, "warmup");
-    }
-
     private static Row runOnce(final RunConfig config, final String name) throws IOException {
-        final int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
-        final int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, config.worldWidth());
-        final Kernel kernel = new Kernel(genomes, founderCells, config.engine(), config.threads());
+        final Kernel kernel = Founders.create(config).newKernel(config.threads());
         final TickObserver[] observers = {new DynamicsObserver(), new TimeSeriesReport(config.ticks())};
         final long wallMillis = SimulationRun.execute(kernel, config.ticks(), observers).elapsedMillis();
         kernel.close();
