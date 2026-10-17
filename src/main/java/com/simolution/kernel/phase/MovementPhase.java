@@ -12,21 +12,27 @@ import com.simolution.kernel.state.WorldState;
  * thresholded by {@code MOVE_DEADZONE} so a quiet circuit stays put. Diagonals are emergent
  * (both axes firing).
  * <p>
- * {@link #run} (parallel, per unit) reads only phase-start state and writes only
- * {@code moveIntent[own slot]}: the target cell, or {@code -1} when the unit is dead, its
- * drive is inside the deadzone, the target is occupied at phase start, or
+ * {@link #run} (parallel, per unit) reads only phase-start state and writes {@code moveIntent[own
+ * slot]}: the target cell, or {@code -1} when the unit is dead, its drive is inside the deadzone,
+ * the target is occupied at phase start, or
  * {@code energy ≤ MOVE_COST_BASE + MOVE_COST_PER_MASS · mass} (a step never kills, so no cell
- * is freed here). {@link #finish} (serial) resolves the claims in ascending slot order: the
- * first intent on a target cell wins ({@code cellWinner}), winners move and pay the cost to
- * the sink (and damage, motility is dissipation), losers stay and pay nothing. A cell vacated
- * this tick was occupied at phase start, so it is never a valid target and there are no
- * same-tick chains. The slot never changes, so the connection store is untouched and nothing
- * is allocated.
+ * is freed here). A unit with a target also claims it in {@code cellWinner} through
+ * {@link CellClaim}, so after the pass each claimed cell holds its lowest claiming slot: the
+ * first intent in ascending slot order, as the contract's serial resolve picks it.
  * <p>
- * {@code finish} resets exactly the {@code cellWinner} entries it set, so the resolve costs
- * O(slots) for the scan and no O(cells) clear; {@code cellWinner} is {@code -1} between phases.
- * Charges are summed in ascending slot order into {@code sinkPartial[0]} and merged, so the
- * total does not depend on the thread count.
+ * The one resolve pass (parallel, per unit) moves the winners: a unit whose
+ * {@code cellWinner[target]} is itself moves, pays the cost to its chunk's sink partial (and
+ * damage, motility is dissipation) and resets that entry to {@code -1}; losers stay and pay
+ * nothing. The writes are disjoint: each winner writes its own slot, the cell it leaves (its own,
+ * occupied at phase start) and its target (free at phase start, claimed by it alone). A loser
+ * that reads its target's entry after the winner reset it reads {@code -1}, which is not its own
+ * slot either. A cell vacated this tick was occupied at phase start, so it is never a valid
+ * target and there are no same-tick chains. The slot never changes, so the connection store is
+ * untouched and nothing is allocated.
+ * <p>
+ * Every claimed entry is reset by its winner, so {@code cellWinner} is {@code -1} between
+ * phases with no O(cells) clear. {@link #finish} merges the sink partials in ascending chunk
+ * index, so the total does not depend on the thread count.
  * <p>
  * Shape is {@link Shape#CLAIM}.
  */
@@ -66,6 +72,7 @@ public final class MovementPhase implements Phase {
         final int[] position = state.position;
         final int[] cellOccupant = state.cellOccupant;
         final int[] moveIntent = state.moveIntent;
+        final int[] cellWinner = state.cellWinner;
         final float[] outputsPrev = state.outputsPrev;
 
         final int w = state.worldWidth;
@@ -106,11 +113,17 @@ public final class MovementPhase implements Phase {
                 continue;
             }
             moveIntent[unit] = target;
+            CellClaim.claim(cellWinner, target, unit);
         }
     }
 
     @Override
-    public void finish() {
+    public int resolvePasses() {
+        return 1;
+    }
+
+    @Override
+    public void resolve(final int pass, final int from, final int to, final int chunk) {
         final double[] energy = state.energy;
         final double[] mass = state.mass;
         final double[] damage = state.damage;
@@ -118,16 +131,9 @@ public final class MovementPhase implements Phase {
         final int[] cellOccupant = state.cellOccupant;
         final int[] moveIntent = state.moveIntent;
         final int[] cellWinner = state.cellWinner;
-        final int slots = state.unitCount;
 
-        for (int unit = 0; unit < slots; unit++) {
-            final int target = moveIntent[unit];
-            if (target >= 0 && cellWinner[target] < 0) {
-                cellWinner[target] = unit;
-            }
-        }
         double sink = 0.0;
-        for (int unit = 0; unit < slots; unit++) {
+        for (int unit = from; unit < to; unit++) {
             final int target = moveIntent[unit];
             if (target < 0 || cellWinner[target] != unit) {
                 continue;
@@ -141,7 +147,11 @@ public final class MovementPhase implements Phase {
             sink += moveCost;
             cellWinner[target] = -1;
         }
-        state.sinkPartial[0] += sink;
+        state.sinkPartial[chunk] += sink;
+    }
+
+    @Override
+    public void finish() {
         state.mergePartials();
     }
 }

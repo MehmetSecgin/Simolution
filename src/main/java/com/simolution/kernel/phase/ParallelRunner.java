@@ -8,7 +8,8 @@ import java.util.concurrent.locks.LockSupport;
  * Runs the phase list on a fixed pool of persistent threads (engine v6 design §5.8).
  * <p>
  * A splittable phase ({@link Shape#PER_UNIT}, {@link Shape#PER_CELL}, {@link Shape#CLAIM})
- * is cut into {@link Chunks} and each chunk is run exactly once, by whichever thread claims
+ * is cut into {@link Chunks} and each chunk of each pass ({@link Phase#run} and every
+ * {@link Phase#resolve} pass) is run exactly once, by whichever thread claims
  * it from an atomic counter. Which thread runs a chunk never matters: a phase writes only its
  * own indices and its own {@code chunk} partial, and partials are merged in ascending chunk
  * index afterwards. {@link Shape#SERIAL} phases, phases of a single chunk and every phase when
@@ -50,6 +51,7 @@ import java.util.concurrent.locks.LockSupport;
 public final class ParallelRunner implements PhaseRunner, AutoCloseable {
 
     private static final int SPINS = 1 << 12;
+    private static final int RUN = -1;
 
     private final int threads;
     private final Thread[] workers;
@@ -59,6 +61,7 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
     private volatile int generation;
     private Thread caller;
     private Phase current;
+    private int currentPass;
     private int extent;
     private int chunkCount;
     private boolean closing;
@@ -83,29 +86,48 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
             final int n = phase.extent();
             if (phase.shape() == Shape.SERIAL) {
                 phase.run(0, n, 0);
-            } else if (threads == 1 || Chunks.count(n) <= 1) {
-                runInline(phase, n);
             } else {
-                runSplit(phase, n);
+                runPass(phase, RUN, n);
+                for (int pass = 0; pass < phase.resolvePasses(); pass++) {
+                    phase.prepareResolve(pass);
+                    runPass(phase, pass, n);
+                }
             }
             phase.finish();
         }
     }
 
-    private static void runInline(final Phase phase, final int n) {
-        final int count = Chunks.count(n);
-        for (int c = 0; c < count; c++) {
-            final int from = c * Chunks.SIZE;
-            phase.run(from, Math.min(n, from + Chunks.SIZE), c);
+    private void runPass(final Phase phase, final int pass, final int n) {
+        if (threads == 1 || Chunks.count(n) <= 1) {
+            runInline(phase, pass, n);
+        } else {
+            runSplit(phase, pass, n);
         }
     }
 
-    private void runSplit(final Phase phase, final int n) {
+    private static void runInline(final Phase phase, final int pass, final int n) {
+        final int count = Chunks.count(n);
+        for (int c = 0; c < count; c++) {
+            final int from = c * Chunks.SIZE;
+            runChunk(phase, pass, from, Math.min(n, from + Chunks.SIZE), c);
+        }
+    }
+
+    private static void runChunk(final Phase phase, final int pass, final int from, final int to, final int chunk) {
+        if (pass == RUN) {
+            phase.run(from, to, chunk);
+        } else {
+            phase.resolve(pass, from, to, chunk);
+        }
+    }
+
+    private void runSplit(final Phase phase, final int pass, final int n) {
         if (closing) {
             throw new IllegalStateException("runner is closed");
         }
         caller = Thread.currentThread();
         current = phase;
+        currentPass = pass;
         extent = n;
         chunkCount = Chunks.count(n);
         failure = null;
@@ -142,13 +164,14 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
 
     private void claimChunks() {
         final Phase phase = current;
+        final int pass = currentPass;
         final int n = extent;
         final int count = chunkCount;
         try {
             int c;
             while ((c = nextChunk.getAndIncrement()) < count) {
                 final int from = c * Chunks.SIZE;
-                phase.run(from, Math.min(n, from + Chunks.SIZE), c);
+                runChunk(phase, pass, from, Math.min(n, from + Chunks.SIZE), c);
             }
         } catch (final Throwable t) {
             failure = t;
