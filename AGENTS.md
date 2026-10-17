@@ -20,6 +20,8 @@ Next: sensors that read beyond the own cell, several resources with separate har
 ```sh
 ./gradlew test    # JUnit 5; spec-conformance, determinism matrix, resume equivalence, strict-math lint
 ./gradlew build   # full verification
+./gradlew check   # tests plus spotlessCheck and Checkstyle (layout, final, var rules)
+./gradlew spotlessApply   # reformat: layout, import order, unused imports
 
 # population run with deterministic report (schema: docs/specs/report-v15.md)
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100"
@@ -233,6 +235,22 @@ The owner wants autonomous implementation but full understanding. So: small sing
 - Production code has no test-only or unused members: if all tests were deleted, nothing in src/main would be unused. Test helpers live in src/test (support/).
 - Tests mirror main package layout and build worlds, genes, audits and frame output through the shared helpers in `src/test/java/com/simolution/support` (`Worlds`, `Genes`, `EnergyAudit`, `Ticks`, `FrameHarness`, `CheckpointBytes`). Spec-conformance tests compare kernel output against an independent reference model that stays out of those helpers (see KernelVerticalSliceTest, GeneDecoderTest).
 - No known deviations from binding specs. MUL semantics (in-degree 0 → 0, 1 → pass-through, ≥2 → product of two strongest) per ADR 0005.
+
+## Code style
+
+Spotless (Eclipse JDT) owns layout and imports, Checkstyle owns `final` and `var`; `./gradlew check` fails on any breach. Spec: [docs/notes/code-style-design.md](docs/notes/code-style-design.md), decision: [ADR 0049](docs/decisions/0049-code-style.md).
+
+- `final` on every local variable, main and test.
+- `final` on every parameter of a method or constructor with a body, never on interface or abstract methods. A parameter the body reassigns stays non-final and carries `@SuppressWarnings("checkstyle:FinalParameters")`.
+- `final` on every field that is never reassigned after construction. Not enforced by a tool: apply it by hand and in review.
+- No `final` on catch parameters, enhanced-for variables, lambda parameters or methods.
+- `final` on a class only when it is static-only (with a private constructor), or when all its constructors are private (Checkstyle `FinalClass` requires it). No other class is final.
+- No `var`, main or test. Tests write `final Type name`.
+- Records with 2 or more components: one component per line, `)` on its own line, an empty body is `) {}`. A single component may stay on one line.
+- 4-space indent, 8-space continuation, 120 columns, no tabs. The formatter keeps lines a human wrapped and leaves comments alone.
+- Imports: static first, then `java`, `javax`, `org`, `com`, everything else, one blank line between groups. No wildcards, no unused imports.
+- Test names stay sentence style (`observersRunInArrayOrderEveryTick`); contract references go in `@DisplayName`.
+- No Lombok.
 
 ## Branching
 
