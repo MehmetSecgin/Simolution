@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'com.diffplug.spotless' version '8.10.3'
 }
 
 group = 'com.simolution'
@@ -29,6 +30,17 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+spotless {
+    java {
+        target 'src/*/java/**/*.java'
+        importOrder('\\#', 'java', 'javax', 'org', 'com', '')
+        removeUnusedImports()
+        eclipse('4.40').configFile('config/eclipse/formatter.xml')
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
 }
 
 tasks.register('bench', JavaExec) {
