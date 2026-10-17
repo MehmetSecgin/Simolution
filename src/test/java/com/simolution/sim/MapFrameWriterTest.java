@@ -15,7 +15,9 @@ import org.junit.jupiter.api.Test;
 
 import com.github.luben.zstd.Zstd;
 
+import com.simolution.kernel.config.ChemicalSpec;
 import com.simolution.kernel.config.EngineConfig;
+import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
 
 /**
@@ -208,5 +210,28 @@ class MapFrameWriterTest {
         String rLine = out.lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
         assertTrue(Pattern.compile("[0-9]x[0-9]+").matcher(rLine).find(),
                 "resource field is DxN run-length tokens, not dense digits");
+    }
+
+    @Test
+    void secondChemicalDoesNotWidenTheResourceField() throws Exception {
+        // arrange
+        ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        EngineConfig config = EngineConfig.v5Defaults(0L, 4, 8).withChemicals(List.of(first, second));
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
+        ByteArrayOutputStream frames = new ByteArrayOutputStream();
+        StringWriter idx = new StringWriter();
+        MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()), 4, 8, 0, 1, 1, config);
+
+        // act
+        k.tick();
+        w.maybeFrame(k.snapshot());
+        w.close();
+        String rLine = decode(frames, idx.toString()).lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
+
+        // assert
+        int cells = Pattern.compile("[0-9]x([0-9]+)").matcher(rLine).results()
+                .mapToInt(m -> Integer.parseInt(m.group(1))).sum();
+        assertEquals(16, cells);
     }
 }

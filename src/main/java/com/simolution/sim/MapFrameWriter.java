@@ -65,6 +65,7 @@ public final class MapFrameWriter implements Closeable {
     private final int windowFrom;
     private final int windowTo;
     private final double cellCapacity;
+    private final int cellCount;
 
     private final StringBuilder chunk;
     private int firstTickInChunk = -1;
@@ -99,6 +100,7 @@ public final class MapFrameWriter implements Closeable {
                           final int windowFrom, final int windowTo, final EngineConfig config) throws IOException {
         this.out = out;
         this.cellCapacity = config.chemicals().get(0).capacity();
+        this.cellCount = worldWidth * worldWidth;
         this.idx = idx;
         this.catalog = catalog;
         this.windowFrom = windowFrom;
@@ -199,8 +201,8 @@ public final class MapFrameWriter implements Closeable {
         chunk.append('r');
         int runLevel = -1;
         int runLen = 0;
-        for (final double r : field) {
-            int level = (int) Math.round(9.0 * r / cellCapacity);
+        for (int cell = 0; cell < cellCount; cell++) {
+            int level = (int) Math.round(9.0 * field[cell] / cellCapacity);
             if (level < 0) {
                 level = 0;
             } else if (level > 9) {

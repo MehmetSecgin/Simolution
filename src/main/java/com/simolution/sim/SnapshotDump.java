@@ -34,8 +34,9 @@ public final class SnapshotDump {
 
         final double cellCapacity = config.chemicals().get(0).capacity();
         out.append("resource ");
-        for (final double r : snapshot.resourceField) {
-            int level = (int) Math.round(9.0 * r / cellCapacity);
+        final int cellCount = snapshot.worldWidth * snapshot.worldWidth;
+        for (int cell = 0; cell < cellCount; cell++) {
+            int level = (int) Math.round(9.0 * snapshot.resourceField[cell] / cellCapacity);
             if (level < 0) {
                 level = 0;
             } else if (level > 9) {
