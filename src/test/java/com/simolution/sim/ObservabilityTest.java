@@ -73,7 +73,7 @@ class ObservabilityTest {
         RunDirectory run = RunDirectory.create(obsDir, kernel, CHECKPOINT_EVERY);
         for (int i = 0; i < TICKS; i++) {
             kernel.tick();
-            run.afterTick(kernel);
+            run.checkpointIfDue(kernel);
         }
     }
 
@@ -92,7 +92,7 @@ class ObservabilityTest {
             KernelSnapshot s = kernel.snapshot();
             if (observe) {
                 eventLog.observe(s);
-                metrics.sample(s);
+                metrics.observe(s);
             }
             digest = fold(digest, s);
         }

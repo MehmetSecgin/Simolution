@@ -20,7 +20,7 @@ import com.simolution.kernel.runtime.KernelSnapshot;
  * {@code deaths = founderCount + births_cum − population}. {@code audit_error}
  * is the closed-system residual (contract v3 §7) and must stay ~0.
  */
-public final class MetricsWriter implements Closeable {
+public final class MetricsWriter implements TickObserver, Closeable {
 
     private final Writer out;
     private final int founderCount;
@@ -36,7 +36,8 @@ public final class MetricsWriter implements Closeable {
                 + "field_total,sink,inflow_cum,audit_error,max_generation,mass_total\n");
     }
 
-    public void sample(final KernelSnapshot snapshot) throws IOException {
+    @Override
+    public void observe(final KernelSnapshot snapshot) throws IOException {
         Arrays.fill(lineageSeen, false);
         int population = 0;
         int lineagesAlive = 0;

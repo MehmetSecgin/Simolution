@@ -11,7 +11,7 @@ import com.simolution.kernel.runtime.KernelSnapshot;
  * non-zero propagations that unit made this tick (0 for a slot that was dead at the start of the
  * tick), so the totals cover every living unit, descendants included.
  */
-public final class DynamicsObserver {
+public final class DynamicsObserver implements TickObserver {
 
     private int ticksObserved;
     private long ticksWithAnyActivity;
@@ -19,7 +19,7 @@ public final class DynamicsObserver {
     private int peakPopulation;
     private KernelSnapshot last;
 
-    /** Call once after every kernel.tick(), with that tick's snapshot. */
+    @Override
     public void observe(final KernelSnapshot snapshot) {
         ticksObserved++;
         last = snapshot;

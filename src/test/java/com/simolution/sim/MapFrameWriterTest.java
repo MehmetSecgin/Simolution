@@ -69,7 +69,7 @@ class MapFrameWriterTest {
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, 0, 3, 5);
         for (int i = 0; i < 8; i++) {
             k.tick();
-            w.maybeFrame(k.snapshot());
+            w.observe(k.snapshot());
         }
         w.close();
 
@@ -87,7 +87,7 @@ class MapFrameWriterTest {
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, 0, -1, -1);
         for (int i = 0; i < 10; i++) {
             k.tick();
-            w.maybeFrame(k.snapshot());
+            w.observe(k.snapshot());
         }
         w.close();
 
@@ -105,7 +105,7 @@ class MapFrameWriterTest {
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, 5, -1, -1);
         for (int i = 0; i < 10; i++) {
             k.tick();
-            w.maybeFrame(k.snapshot());
+            w.observe(k.snapshot());
         }
         w.close();
 
@@ -123,7 +123,7 @@ class MapFrameWriterTest {
         MapFrameWriter w = writer(frames, idx, catalog, 4, 8, 0, 1, 5);
         for (int i = 0; i < 6; i++) {
             k.tick();
-            w.maybeFrame(k.snapshot());
+            w.observe(k.snapshot());
         }
         w.close();
         String framesText = decode(frames, idx.toString());
@@ -146,7 +146,7 @@ class MapFrameWriterTest {
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 6, 8, 0, 1, 4);
         for (int i = 0; i < 5; i++) {
             k.tick();
-            w.maybeFrame(k.snapshot());
+            w.observe(k.snapshot());
         }
         w.close();
         String out = decode(frames, idx.toString());
@@ -168,7 +168,7 @@ class MapFrameWriterTest {
                 4, 6, 0, 1, 4, EngineConfig.v5Defaults(0L, 4, 8));
         for (int i = 0; i < 5; i++) {
             k.tick();
-            w.maybeFrame(k.snapshot());
+            w.observe(k.snapshot());
         }
         w.close();
         byte[] bytes = frames.toByteArray();
@@ -203,7 +203,7 @@ class MapFrameWriterTest {
         Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, 0, 1, 1);
         k.tick();
-        w.maybeFrame(k.snapshot());
+        w.observe(k.snapshot());
         w.close();
         String out = decode(frames, idx.toString());
 
@@ -225,7 +225,7 @@ class MapFrameWriterTest {
 
         // act
         k.tick();
-        w.maybeFrame(k.snapshot());
+        w.observe(k.snapshot());
         w.close();
         String rLine = decode(frames, idx.toString()).lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
 

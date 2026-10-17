@@ -1,12 +1,14 @@
 package com.simolution.bench;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.RunConfig;
+import com.simolution.sim.SimulationRun;
+import com.simolution.sim.TickObserver;
 import com.simolution.sim.TimeSeriesReport;
 
 public final class Bench {
@@ -19,7 +21,7 @@ public final class Bench {
     private Bench() {
     }
 
-    public static void main(final String[] args) {
+    public static void main(final String[] args) throws IOException {
         if (args.length != 0 && !(args.length == 2 && args[0].equals("--threads"))) {
             throw new IllegalArgumentException("usage: bench [--threads N]");
         }
@@ -32,7 +34,7 @@ public final class Bench {
     }
 
     private static void row(final String name, final int world, final int units, final int ticks,
-            final String threads) {
+            final String threads) throws IOException {
         final RunConfig config = RunConfig.parse(new String[] {
                 "--units", Integer.toString(units), "--ticks", Integer.toString(ticks),
                 "--seed", "42", "--world", Integer.toString(world), "--threads", threads});
@@ -47,25 +49,16 @@ public final class Bench {
                 median.ticks() * 1000L / Math.max(1L, median.wallMillis()), median.heapMegabytes());
     }
 
-    private static void runOnce(final RunConfig config) {
+    private static void runOnce(final RunConfig config) throws IOException {
         runOnce(config, "warmup");
     }
 
-    private static Row runOnce(final RunConfig config, final String name) {
+    private static Row runOnce(final RunConfig config, final String name) throws IOException {
         final int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         final int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, config.worldWidth());
         final Kernel kernel = new Kernel(genomes, founderCells, config.engine(), config.threads());
-        final DynamicsObserver observer = new DynamicsObserver();
-        final TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
-
-        final long start = System.nanoTime();
-        for (int i = 0; i < config.ticks(); i++) {
-            kernel.tick();
-            final KernelSnapshot snapshot = kernel.snapshot();
-            observer.observe(snapshot);
-            timeSeries.sample(i, snapshot);
-        }
-        final long wallMillis = (System.nanoTime() - start) / 1_000_000;
+        final TickObserver[] observers = {new DynamicsObserver(), new TimeSeriesReport(config.ticks())};
+        final long wallMillis = SimulationRun.execute(kernel, config.ticks(), observers).elapsedMillis();
         kernel.close();
         final Runtime runtime = Runtime.getRuntime();
         final long heapMegabytes = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);

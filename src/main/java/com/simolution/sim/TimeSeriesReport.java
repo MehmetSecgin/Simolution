@@ -10,7 +10,7 @@ import com.simolution.kernel.runtime.KernelSnapshot;
  * observer's running aggregates this is a small ordered trace, written to the
  * .timeseries.csv sidecar for charting.
  */
-public final class TimeSeriesReport {
+public final class TimeSeriesReport implements TickObserver {
 
     public static final int BUCKETS = 1000;
     public static final String HEADER = "tick,population,births,max_generation,unit_energy,reservoir";
@@ -25,8 +25,9 @@ public final class TimeSeriesReport {
         out.append(HEADER).append('\n');
     }
 
-    /** Call once per tick with {@code i} the 0-based tick index and the snapshot. */
-    public void sample(final int i, final KernelSnapshot snapshot) {
+    @Override
+    public void observe(final KernelSnapshot snapshot) {
+        final int i = snapshot.tick - 1;
         if (i % step != 0 && i != totalTicks - 1) {
             return;
         }

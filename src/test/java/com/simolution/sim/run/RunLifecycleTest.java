@@ -49,7 +49,7 @@ class RunLifecycleTest {
         canonical.add(bytes(recorded));
         for (int t = 1; t <= TICKS; t++) {
             recorded.tick();
-            run.afterTick(recorded);
+            run.checkpointIfDue(recorded);
             canonical.add(bytes(recorded));
         }
 
@@ -77,7 +77,7 @@ class RunLifecycleTest {
         final RunDirectory run = RunDirectory.create(dir, kernel, EVERY);
         for (int t = 1; t <= 120; t++) {
             kernel.tick();
-            run.afterTick(kernel);
+            run.checkpointIfDue(kernel);
         }
 
         assertTrue(Files.exists(dir.resolve("ckpt/0.ckpt")));
@@ -97,7 +97,7 @@ class RunLifecycleTest {
         final RunDirectory parent = RunDirectory.create(parentDir, kernel, EVERY);
         for (int t = 1; t <= 100; t++) {
             kernel.tick();
-            parent.afterTick(kernel);
+            parent.checkpointIfDue(kernel);
         }
 
         final Kernel atParent = RunDirectory.seek(parentDir, 100, 1);

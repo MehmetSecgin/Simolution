@@ -71,7 +71,7 @@ public final class RunDirectory {
         return runId;
     }
 
-    public void afterTick(final Kernel kernel) throws IOException {
+    public void checkpointIfDue(final Kernel kernel) throws IOException {
         final int tick = kernel.currentTick();
         if (checkpointEvery > 0 && tick % checkpointEvery == 0) {
             try (OutputStream out = Files.newOutputStream(ckptDir.resolve(tick + ".ckpt"))) {

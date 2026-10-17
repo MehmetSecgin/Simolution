@@ -26,7 +26,7 @@ import com.simolution.kernel.state.WorldState;
  * {@link #observe} allocates only on an actual birth and touches only this tick's births.
  * Memory is constant in tick count (memory doctrine).
  */
-public final class BirthLogWriter implements Closeable {
+public final class BirthLogWriter implements TickObserver, Closeable {
 
     private final Writer out;
     private final GenomeCatalogWriter catalog;
@@ -40,6 +40,7 @@ public final class BirthLogWriter implements Closeable {
         out.write("tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated\n");
     }
 
+    @Override
     public void observe(final KernelSnapshot snapshot) throws IOException {
         final WorldState state = snapshot.state;
         for (int i = 0; i < state.birthCount; i++) {

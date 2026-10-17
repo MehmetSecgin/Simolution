@@ -51,7 +51,7 @@ import com.simolution.kernel.runtime.KernelSnapshot;
  * chunk is sealed by {@link #close()}, which also writes the {@code end <finalTick>} idx
  * trailer (report-v12 trailer semantics).
  */
-public final class MapFrameWriter implements Closeable {
+public final class MapFrameWriter implements TickObserver, Closeable {
 
     /** Frames per zstd chunk — the cross-frame window zstd compresses over (also seek/live granularity). */
     public static final int CHUNK_FRAMES = 256;
@@ -114,12 +114,8 @@ public final class MapFrameWriter implements Closeable {
         idx.flush();
     }
 
-    /**
-     * Buffer a frame if this tick is a sample point; seal the chunk when it fills. Call
-     * once per tick after {@code observe}; reads the snapshot's resource field and, for
-     * each living unit, its cell ({@code position[slot]}), slot and genome id.
-     */
-    public void maybeFrame(final KernelSnapshot snapshot) throws IOException {
+    @Override
+    public void observe(final KernelSnapshot snapshot) throws IOException {
         if (windowFrom >= 0) {
             if (snapshot.tick < windowFrom || snapshot.tick > windowTo) {
                 return;

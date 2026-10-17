@@ -34,7 +34,7 @@ import com.simolution.kernel.state.WorldState;
  * the JSONL text it streams, and only on an actual event (events are rare relative
  * to ticks).
  */
-public final class EventLogWriter implements Closeable {
+public final class EventLogWriter implements TickObserver, Closeable {
 
     private final Writer out;
     private final int maxUnits;
@@ -89,6 +89,7 @@ public final class EventLogWriter implements Closeable {
         }
     }
 
+    @Override
     public void observe(final KernelSnapshot snapshot) throws IOException {
         final int tick = snapshot.tick;
         final double[] energy = snapshot.energy;
