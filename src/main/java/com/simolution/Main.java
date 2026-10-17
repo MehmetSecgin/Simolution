@@ -55,7 +55,6 @@ public class Main {
         int worldWidth = engine.worldWidth();
         int maxUnits = worldWidth * worldWidth;
         int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, worldWidth);
-        Kernel kernel = new Kernel(genomes, founderCells, engine, config.threads());
         DynamicsObserver observer = new DynamicsObserver();
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
@@ -89,48 +88,54 @@ public class Main {
             }
         }
 
+        Kernel kernel = new Kernel(genomes, founderCells, engine, config.threads());
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
         RunDirectory runDirectory = null;
         Path obsDir = null;
-        if (config.observe()) {
-            obsDir = obsDir(Path.of(config.outPath()));
-            Files.createDirectories(obsDir);
-            eventLog = new EventLogWriter(Files.newBufferedWriter(obsDir.resolve("events.jsonl")),
-                    maxUnits, genomes.length, founderCells, engine);
-            metrics = new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
-                    genomes.length, maxUnits);
-            runDirectory = RunDirectory.create(obsDir, kernel, config.checkpointEvery());
-            System.out.println("observability layer writing to " + obsDir + "/ (run.json, events.jsonl, "
-                    + "metrics.csv, ckpt/ every " + config.checkpointEvery() + " ticks)");
-        }
+        long startNanos;
+        long finalDigest;
+        try {
+            if (config.observe()) {
+                obsDir = obsDir(Path.of(config.outPath()));
+                Files.createDirectories(obsDir);
+                eventLog = new EventLogWriter(Files.newBufferedWriter(obsDir.resolve("events.jsonl")),
+                        maxUnits, genomes.length, founderCells, engine);
+                metrics = new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
+                        genomes.length, maxUnits);
+                runDirectory = RunDirectory.create(obsDir, kernel, config.checkpointEvery());
+                System.out.println("observability layer writing to " + obsDir + "/ (run.json, events.jsonl, "
+                        + "metrics.csv, ckpt/ every " + config.checkpointEvery() + " ticks)");
+            }
 
-        long startNanos = System.nanoTime();
-        for (int i = 0; i < config.ticks(); i++) {
-            kernel.tick();
-            KernelSnapshot snapshot = kernel.snapshot();
-            observer.observe(snapshot);
-            if (config.digestEveryTick()) {
-                System.out.printf("digest %d %016x%n", kernel.currentTick(), kernel.stateDigest());
+            startNanos = System.nanoTime();
+            for (int i = 0; i < config.ticks(); i++) {
+                kernel.tick();
+                KernelSnapshot snapshot = kernel.snapshot();
+                observer.observe(snapshot);
+                if (config.digestEveryTick()) {
+                    System.out.printf("digest %d %016x%n", kernel.currentTick(), kernel.stateDigest());
+                }
+                timeSeries.sample(i, snapshot);
+                if (birthLog != null) {
+                    birthLog.observe(snapshot);
+                }
+                if (mapWriter != null) {
+                    mapWriter.maybeFrame(snapshot);
+                }
+                if (eventLog != null) {
+                    eventLog.observe(snapshot);
+                    metrics.sample(snapshot);
+                    runDirectory.afterTick(kernel);
+                }
+                if (trace != null) {
+                    trace.log(snapshot, unitsToTrace);
+                }
             }
-            timeSeries.sample(i, snapshot);
-            if (birthLog != null) {
-                birthLog.observe(snapshot);
-            }
-            if (mapWriter != null) {
-                mapWriter.maybeFrame(snapshot);
-            }
-            if (eventLog != null) {
-                eventLog.observe(snapshot);
-                metrics.sample(snapshot);
-                runDirectory.afterTick(kernel);
-            }
-            if (trace != null) {
-                trace.log(snapshot, unitsToTrace);
-            }
+            finalDigest = kernel.stateDigest();
+        } finally {
+            kernel.close();
         }
-        long finalDigest = kernel.stateDigest();
-        kernel.close();
         if (mapWriter != null) {
             mapWriter.close();
         }

@@ -109,7 +109,12 @@ public final class RunDirectory {
             throw new IllegalStateException(
                     "checkpoint " + best + ".ckpt holds tick " + kernel.currentTick());
         }
-        kernel.step(tick - best);
+        try {
+            kernel.step(tick - best);
+        } catch (final RuntimeException e) {
+            kernel.close();
+            throw e;
+        }
         return kernel;
     }
 
