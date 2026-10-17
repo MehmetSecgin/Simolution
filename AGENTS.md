@@ -102,12 +102,12 @@ Requires JDK 26 (`.sdkmanrc` pins `26.0.1.0+8-open`; `sdk env` activates it).
 
 ```
 com.simolution
-├── Main                      entry point: demo, population run, --replay (seek) front end
+├── Main                      entry point: reads like the run (`RunConfig` → `Founders` → observers → `SimulationRun` → report), `--replay` goes to `ReplayCommand`
 ├── bench.Bench               reproducible benchmark (`./gradlew bench`): small / dense200 / big500, median of 3 timed runs
 └── kernel
     ├── EngineVersion         the one engine version constant (report header, checkpoints, run.json)
     ├── config
-    │   ├── EngineConfig      per-run law constants as one immutable record (JSON via ConfigJson, `--config`); `branchCompatible` says which changes keep the state shape
+    │   ├── EngineConfig      per-run law constants as one immutable record grouped into `World`, `Founder`, `Metabolism`, `Harvest`, `Motility`, `Growth`, `Sensing`, `Reproduction`, `Mutation` (plus the chemical table); `defaults(seed, worldWidth, maxGenes)` and `with…` copies; JSON stays flat through `ConfigJson` (`--config`); `branchCompatible` says which changes keep the state shape
     │   ├── ChemicalSpec      one diffusing field: inflow, capacity, initial, diffusion, decay, decay target (ADR 0042)
     │   └── InflowConfig / InflowSource / CompiledInflowField / ValueNoise   programmable inflow field (contract-v7), static sources baked once
     ├── layout
@@ -115,8 +115,9 @@ com.simolution
     │   ├── NodeLayout        offsets, TOTAL, TYPE_COUNT and name lookup generated from the catalog; `toJson()` is `<base>.layout.json`
     │   └── CompiledConnection {srcAbsIdx, dstAbsIdx, weight}   inspection view only (`Kernel.connectionsOf`), not the engine's storage
     ├── genome
-    │   ├── GeneBuilder       fluent 32-bit gene packing (manual/test use only)
-    │   ├── GeneDecoder       gene → local source/destination index, weight; modulo ID wrap; weight scaling
+    │   ├── GeneLayout        the 32-bit gene layout once: shifts, masks, `pack` and the named field accessors
+    │   ├── GeneBuilder       fluent gene packing over `GeneLayout` (manual/test use only)
+    │   ├── GeneDecoder       gene → local source/destination index, weight; modulo ID wrap; weight scaling (`NOMINAL_MAX_WEIGHT` is nominal, raw -32768 decodes just past it)
     │   ├── SlotCompiler      writes a slot's flat connection region (source/destination/weight arrays), junk-source connections pruned; once per slot at start, at birth and at restore, no allocation
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (harness structure stats and tests)
     ├── state
@@ -136,13 +137,18 @@ com.simolution
     └── logging
         └── ConsoleTableLogger renders snapshots as a per-tick trace table
 com.simolution.sim            run harness + observer (laws stay in kernel, interpretation here)
-├── RunConfig                 CLI args: --units --ticks --seed --genes --world --config --threads --digest-every-tick --trace --out ...
-├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
+├── RunConfig / RunOptions    CLI parse into grouped records (`GenomeSource`, `Observation`, `MapSampling`, `EngineConfig`); `ArgCursor` reads flags and fails with "<flag> needs a value"; `InflowSpecParser` reads the `--inflow` DSL
+├── Founders                  the founder genomes, cells and engine config of a run; `newKernel(threads)`
+├── GenomeFactory             seeded random genomes and the 4-gene demo genome; stateless hash like RAND noise
+├── SimulationRun / RunResult the tick loop: tick, snapshot, every `TickObserver` in order; final digest and elapsed time
+├── RunArtifacts / RunPaths   opens the `--out` sidecars and the `--observe` run directory, lists their observers; `RunPaths` names every sidecar beside the report
+├── RunConsole                report and timing lines on stdout
+├── ReplayCommand             `--replay <dir> --at T`: seek and dump a snapshot
 ├── StructuralAnalyzer/Stats  wiring-derived stats of the founders: junk load, reachability, weights
-├── DynamicsObserver/Summary  running aggregates over snapshots (activity, populations, energy, mass); no per-unit state, no trajectory
-├── RunReport                 byte-deterministic report-v15 text (aggregates + distributions + reproduction)
+├── DynamicsObserver/Summary  running aggregates over snapshots (activity, populations, energy, mass) into grouped summary records; no per-unit state, no trajectory
+├── RunReport                 byte-deterministic report-v15 text in one method per section (aggregates + distributions + reproduction)
 ├── TimeSeriesSampler         <base>.timeseries.csv, one row per tick
-├── MapFrameWriter            streams spatial frames to <base>.frames.zst as 256-frame chunks, each zstd-19 (report-v14: lean row `u <cell> <slot> <genomeId>`; RLE resource field) + a <base>.frames.idx ASCII chunk index (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
+├── MapFrameWriter            writes map frames: `FrameSampler` picks the ticks, `SlotGenomeCache` maps slots to catalog ids, `ResourceLevels` quantises the field, `ChunkedFrameStream` seals 256-frame zstd-19 chunks into <base>.frames.zst (report-v14: lean row `u <cell> <slot> <genomeId>`; RLE resource field) and the ASCII <base>.frames.idx (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
 ├── GenomeCatalogWriter       <base>.catalog.gz: gzipped global write-once genome dictionary (`g <id> <count> <genes>`), whole-loaded + native-gunzipped by the viewer; frames carry the id
 ├── BirthLogWriter            <base>.births.csv.gz: one row per birth from the engine's birth list (lineage/generation/parent exact, genome ids from the shared catalog); DuckDB-queryable lineage store
 ├── EventLogWriter            events.jsonl (observe): births from the birth list, deaths/extinctions derived from snapshot deltas; mutation bits by child↔parent gene diff (no kernel hook)
@@ -151,7 +157,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 └── run
     ├── RunDirectoryWriter    run.json + ckpt/<tick>.ckpt, `runId`, `checkpointIfDue`, `createBranch`
     ├── RunDirectoryReader    `seek(dir, T, threads)`: nearest checkpoint, then step forward
-    └── LatestFrame           latest-frame-wins publisher: the tick loop publishes a compact frame every N ticks, readers never block it
+    └── LatestFrame           latest-frame-wins publisher: the tick loop publishes a compact frame every N ticks, readers never block it (kept for the web app; nothing in production calls it yet)
 ```
 
 The tick, in order: `clear → propagate → evaluate → swap → intake → inflow → cost → growth → reproduction → movement → diffusion → decay`. Shapes: `clear`, `propagate`, `evaluate`, `intake`, `cost`, `growth` are per-unit; `inflow`, `diffusion`, `decay` are per-cell; `reproduction` and `movement` are claims; `swap` is serial.
@@ -229,7 +235,7 @@ The owner wants autonomous implementation but full understanding. So: small sing
 
 - Conventional Commits (`feat:`, `refactor(kernel):`, ...).
 - Comments only for an invariant or numeric trick a name cannot carry (examples: MUL in-degree rule, saturating-drive overflow rearrangement, mutation operation-counter determinism, Noise hashing, barrier handshake, signed-zero junk pruning). Everything else is a name or lives in docs/. No history in code. Tests: only `// arrange`, `// act`, `// assert`.
-- Tests mirror main package layout; spec-conformance tests compare kernel output against an independent reference model (see KernelVerticalSliceTest).
+- Tests mirror main package layout and build worlds, genes, audits and frame output through the shared helpers in `src/test/java/com/simolution/support` (`Worlds`, `Genes`, `EnergyAudit`, `Ticks`, `FrameHarness`, `CheckpointBytes`). Spec-conformance tests compare kernel output against an independent reference model that stays out of those helpers (see KernelVerticalSliceTest, GeneDecoderTest).
 - No known deviations from binding specs. MUL semantics (in-degree 0 → 0, 1 → pass-through, ≥2 → product of two strongest) per ADR 0005.
 
 ## Branching

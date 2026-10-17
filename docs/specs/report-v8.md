@@ -1,6 +1,6 @@
 # report-v8 — run observability: event/metric logs, checkpoints, deterministic replay, query layer
 
-> Superseded in part by engine v6: `manifest.json`, `Replayer`, `CheckpointWriter` and `saveState` are replaced by versioned self-sufficient checkpoints and `RunDirectory` (checkpoint format version 2; see [ADR 0043](../decisions/0043-per-run-config-versioned-checkpoints-seek-branch.md) and [contract-v9](../contract/contract-v9.md) §7). `events.jsonl` and `metrics.csv` are unchanged.
+> Superseded in part by engine v6: `manifest.json`, `Replayer`, `CheckpointWriter` and `saveState` are replaced by versioned self-sufficient checkpoints and `RunDirectoryWriter` and `RunDirectoryReader` (checkpoint format version 2; see [ADR 0043](../decisions/0043-per-run-config-versioned-checkpoints-seek-branch.md) and [contract-v9](../contract/contract-v9.md) §7). `events.jsonl` and `metrics.csv` are unchanged.
 
 Delta over [report-v7](report-v7.md): adds an **observability layer** so a finished
 (or running) simulation can be explored after the fact — *"go to tick T and see
