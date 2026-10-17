@@ -28,7 +28,7 @@ class CheckpointCodecTest {
     private static final EngineConfig CONFIG = EngineConfig.v5Defaults(7L, WORLD, GENES * 2);
 
     private static Kernel newKernel() {
-        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(FOUNDERS, WORLD), CONFIG);
+        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(FOUNDERS, WORLD), CONFIG, 1);
     }
 
     private static byte[] write(final Kernel kernel) throws IOException {
@@ -38,7 +38,7 @@ class CheckpointCodecTest {
     }
 
     private static Kernel read(final byte[] bytes) throws IOException {
-        return CheckpointCodec.read(new ByteArrayInputStream(bytes));
+        return CheckpointCodec.read(new ByteArrayInputStream(bytes), 1);
     }
 
     private static IllegalStateException refused(final byte[] bytes) {
@@ -145,7 +145,7 @@ class CheckpointCodecTest {
         final byte[] bytes = write(newKernel());
 
         final IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> CheckpointCodec.readBranch(new ByteArrayInputStream(bytes), CONFIG.withWorldWidth(40)));
+                () -> CheckpointCodec.readBranch(new ByteArrayInputStream(bytes), CONFIG.withWorldWidth(40), 1));
 
         assertTrue(e.getMessage().contains("shape"), e.getMessage());
     }
@@ -156,7 +156,7 @@ class CheckpointCodecTest {
         original.step(100);
         final byte[] bytes = write(original);
 
-        final Kernel branched = CheckpointCodec.readBranch(new ByteArrayInputStream(bytes), withBasalCost(0.6));
+        final Kernel branched = CheckpointCodec.readBranch(new ByteArrayInputStream(bytes), withBasalCost(0.6), 1);
         final Kernel unbranched = read(bytes);
 
         assertEquals(0.6, branched.config().basalCost());

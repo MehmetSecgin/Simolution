@@ -56,7 +56,7 @@ public class Main {
         int worldWidth = engine.worldWidth();
         int maxUnits = worldWidth * worldWidth;
         int[] founderCells = Kernel.scatterFounders(genomes.length, worldWidth);
-        Kernel kernel = new Kernel(genomes, founderCells, engine);
+        Kernel kernel = new Kernel(genomes, founderCells, engine, config.threads());
         DynamicsObserver observer = new DynamicsObserver(config.units(), connections, engine);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
@@ -130,6 +130,7 @@ public class Main {
                 trace.log(snapshot, unitsToTrace);
             }
         }
+        kernel.close();
         if (mapWriter != null) {
             mapWriter.close();
         }
@@ -179,7 +180,7 @@ public class Main {
     }
 
     /**
-     * Replay surface (report-v8): {@code --replay <obsDir> --at <T> [--snapshot-out <file>]}.
+     * Replay surface (report-v8): {@code --replay <obsDir> --at <T> [--snapshot-out <file>] [--threads N]}.
      * Reconstructs tick T from the recorded run (checkpoint + forward ticks) and
      * writes a {@link SnapshotDump} (lattice + per-unit table + evolved circuits) —
      * the input {@code tools/timetravel.py} renders into an HTML state page. With
@@ -189,19 +190,23 @@ public class Main {
         String obs = null;
         Integer at = null;
         String snapshotOut = null;
+        int threads = Runtime.getRuntime().availableProcessors();
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--replay" -> obs = args[++i];
                 case "--at" -> at = Integer.parseInt(args[++i]);
                 case "--snapshot-out" -> snapshotOut = args[++i];
+                case "--threads" -> threads = Integer.parseInt(args[++i]);
                 default -> throw new IllegalArgumentException("Unknown replay argument: " + args[i]);
             }
         }
         if (obs == null || at == null) {
             throw new IllegalArgumentException("replay needs --replay <obsDir> and --at <tick>");
         }
-        Kernel kernel = RunDirectory.seek(Path.of(obs), at);
-        String dump = SnapshotDump.render(kernel.snapshot(), kernel.liveConnections(), kernel.config());
+        String dump;
+        try (Kernel kernel = RunDirectory.seek(Path.of(obs), at, threads)) {
+            dump = SnapshotDump.render(kernel.snapshot(), kernel.liveConnections(), kernel.config());
+        }
         if (snapshotOut == null) {
             System.out.print(dump);
         } else {

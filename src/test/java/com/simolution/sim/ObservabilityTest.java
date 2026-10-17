@@ -41,7 +41,7 @@ class ObservabilityTest {
     private static final EngineConfig ENGINE = EngineConfig.v5Defaults(0L, WORLD, MAX_GENES);
 
     private static Kernel freshKernel() {
-        return new Kernel(genomes(), founderCells(), ENGINE);
+        return new Kernel(genomes(), founderCells(), ENGINE, 1);
     }
 
     // replay from a checkpoint reproduces the canonical history exactly:
@@ -54,7 +54,7 @@ class ObservabilityTest {
             for (int i = 0; i < t; i++) {
                 canonical.tick();
             }
-            assertSnapshotsEqual(canonical.snapshot(), RunDirectory.seek(obsDir, t).snapshot(), t);
+            assertSnapshotsEqual(canonical.snapshot(), RunDirectory.seek(obsDir, t, 1).snapshot(), t);
         }
     }
 

@@ -163,7 +163,7 @@ class InflowConfigTest {
     void cyclicRunConservesEnergy() {
         int w = 60, founders = 100;
         Kernel k = new Kernel(GenomeFactory.random(3L, founders, 8), Kernel.scatterFounders(founders, w),
-                EngineConfig.v5Defaults(0L, w, 16).withChemical0Inflow(InflowConfig.cyclic(400, 10, 8.0)));
+                EngineConfig.v5Defaults(0L, w, 16).withChemical0Inflow(InflowConfig.cyclic(400, 10, 8.0)), 1);
         assertAuditHolds(k);
     }
 
@@ -174,7 +174,7 @@ class InflowConfigTest {
                 EngineConfig.v5Defaults(0L, w, 16).withChemical0Inflow(InflowConfig.field(0.0, InflowConfig.Combine.MAX,
                         new InflowSource.Noise(11L, 0.06, 0.5, 3.0, 8.0, 5000),
                         new InflowSource.Disk(0.7, 0.3, 6, 5.0, 1000, 0,
-                                InflowSource.Motion.DRIFT, 0.01, 0.0, 0))));
+                                InflowSource.Motion.DRIFT, 0.01, 0.0, 0))), 1);
         assertAuditHolds(k);
     }
 

@@ -1,49 +1,32 @@
 package com.simolution.kernel.phase;
 
-import com.simolution.kernel.config.ChemicalSpec;
-import com.simolution.kernel.config.CompiledInflowField;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.state.WorldState;
 
 /**
  * Phase 5: energy intake, <b>cell-local</b> (contract v3 §4, supersedes v1's shared-reservoir
- * allocation), then per-chemical inflow admission. Each alive unit draws from the cell it
- * occupies ({@code position[slot]}) only, from chemical 0: {@code intake = min(demand,
- * cellResource)} with the unchanged saturating {@code demand} (contract v1 §5). Because cells
- * are exclusive (one unit per cell, contract v3 §2) there is no within-cell contention.
- * The cell is debited by exactly the intake.
+ * allocation). Each alive unit draws from the cell it occupies ({@code position[slot]}) only,
+ * from chemical 0: {@code intake = min(demand, cellResource)} with the unchanged saturating
+ * {@code demand} (contract v1 §5). Because cells are exclusive (one unit per cell, contract
+ * v3 §2) there is no within-cell contention. The cell is debited by exactly the intake.
+ * Intake runs before cost so a unit can pay this tick's metabolism with this tick's harvest;
+ * harvest output is read from {@code outputsPrev}, the just-swapped current tick.
+ * {@link InflowPhase} then tops the cells up.
  * <p>
- * Every cell of every chemical then admits up to that chemical's inflow cap, limited by its
- * capacity; the summed admission is the sole energy the audit treats as entering the system
- * ({@code cumulativeInflow}), so {@code initial energy + initial resource + inflow ==
- * Σ energy + Σ chemicals + sink} stays exact (contract v3 §7). Intake runs before cost so a
- * unit can pay this tick's metabolism with this tick's harvest; harvest output is read from
- * {@code outputsPrev}, the just-swapped current tick. Diffusion (phase 10) relaxes the field
- * afterward.
- * <p>
- * Shape is {@link Shape#SERIAL}: the unit pass must finish before inflow tops the cells up,
- * and {@code cumulativeInflow} is an ordered floating-point sum.
+ * Shape is {@link Shape#PER_UNIT}: a unit writes only its own energy and its own cell's
+ * chemical 0, and no other unit reads that cell in this phase. Nothing is added to a shared
+ * total here, so no partials are needed.
  */
 public final class IntakePhase implements Phase {
 
     private final WorldState state;
-    private final CompiledInflowField[] inflow;
-    private final double[] capacity;
     private final double harvestCapacityPerConnection;
     private final double harvestHalfSaturation;
     private final double harvestMassExponent;
 
     public IntakePhase(final WorldState state, final EngineConfig config) {
         this.state = state;
-        final int chemCount = config.chemicals().size();
-        this.inflow = new CompiledInflowField[chemCount];
-        this.capacity = new double[chemCount];
-        for (int k = 0; k < chemCount; k++) {
-            final ChemicalSpec chemical = config.chemicals().get(k);
-            inflow[k] = chemical.inflow().compile(state.worldWidth);
-            capacity[k] = chemical.capacity();
-        }
         this.harvestCapacityPerConnection = config.harvestCapacityPerConnection();
         this.harvestHalfSaturation = config.harvestHalfSaturation();
         this.harvestMassExponent = config.harvestMassExponent();
@@ -56,7 +39,7 @@ public final class IntakePhase implements Phase {
 
     @Override
     public Shape shape() {
-        return Shape.SERIAL;
+        return Shape.PER_UNIT;
     }
 
     @Override
@@ -82,18 +65,6 @@ public final class IntakePhase implements Phase {
             final double intake = Math.min(demand, cellChem[cell]);
             energy[unit] += intake;
             cellChem[cell] -= intake;
-        }
-
-        final int cells = state.unitCount;
-        for (int k = 0; k < state.chemCount; k++) {
-            final int offset = k * cells;
-            for (int cell = from; cell < to; cell++) {
-                final double cap = inflow[k].cap(cell, state.tick);
-                final double admitted = Math.min(cap,
-                        Math.max(0.0, capacity[k] - cellChem[offset + cell]));
-                cellChem[offset + cell] += admitted;
-                state.cumulativeInflow += admitted;
-            }
         }
     }
 

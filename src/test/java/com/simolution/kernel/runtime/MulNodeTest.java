@@ -33,7 +33,7 @@ class MulNodeTest {
     }
 
     private static double mulOutputAfterTwoTicks(int... genome) {
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
         kernel.tick();
         kernel.tick();
         return kernel.snapshot().outputs[MUL_IDX];
@@ -110,7 +110,7 @@ class MulNodeTest {
     void realPlusJunkInputCountsJunkInDegreeAndOutputsZero() {
         // arrange
         int[] genome = {constToMul((short) 8192), junkToMul((short) 8192)};
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
 
         // act
         kernel.tick();
@@ -126,7 +126,7 @@ class MulNodeTest {
     void junkOnlyInputCountsInDegreeAndOutputsZero() {
         // arrange
         int[] genome = {junkToMul((short) 8192)};
-        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
 
         // act
         kernel.tick();
@@ -160,7 +160,7 @@ class MulNodeTest {
                            .weightRaw(unit)
                            .build()
         };
-        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32), 1);
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
 
         // act

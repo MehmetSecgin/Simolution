@@ -38,7 +38,7 @@ class BiomassTest {
         // arrange
         int worldWidth = 50;
         int founders = 200;
-        Kernel kernel = new Kernel(GenomeFactory.random(13L, founders, 8), Kernel.scatterFounders(founders, worldWidth), EngineConfig.v5Defaults(0L, worldWidth, 16));
+        Kernel kernel = new Kernel(GenomeFactory.random(13L, founders, 8), Kernel.scatterFounders(founders, worldWidth), EngineConfig.v5Defaults(0L, worldWidth, 16), 1);
 
         // act + assert
         for (int t = 0; t < 2000; t++) {
@@ -61,7 +61,7 @@ class BiomassTest {
     @Test
     void fissionHalvesMassAndEnergy() {
         // arrange: a unit that always wants to divide (CONST -> REPRODUCE > 0)
-        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.REPRODUCE, (short) 8192)}}, new int[] {4}, EngineConfig.v5Defaults(0L, 3, 8));
+        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.REPRODUCE, (short) 8192)}}, new int[] {4}, EngineConfig.v5Defaults(0L, 3, 8), 1);
 
         // act: tick until the first fission
         int birthTick = -1;
@@ -95,7 +95,7 @@ class BiomassTest {
     @Test
     void growConvertsEnergyIntoMass() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8));
+        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8), 1);
 
         // act: a few ticks so GROW propagates and fires
         for (int t = 0; t < 5; t++) {
@@ -115,7 +115,7 @@ class BiomassTest {
     @Test
     void selfMassSensorReflectsMass() {
         // arrange: a grower, so mass changes and the sensor must follow
-        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8));
+        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8), 1);
 
         // act + assert: the sensor is read in the evaluate phase, before this
         // tick's growth (phase 7), so it reflects the mass at the tick's start —

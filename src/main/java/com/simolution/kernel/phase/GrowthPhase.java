@@ -18,8 +18,9 @@ import com.simolution.kernel.state.WorldState;
  * fresh mass then dissipates via {@link WorldState#die}); the kernel does not
  * protect against suicidal growth wiring, selection does.
  * <p>
- * Shape is {@link Shape#SERIAL} because the lossy remainder adds to the shared
- * {@code energySink} in slot order.
+ * Shape is {@link Shape#PER_UNIT}: a unit writes only its own energy and mass and (on
+ * death) its own slot's death fields and its own cell's occupancy. The lossy remainder and
+ * death mass go to the chunk's {@code sinkPartial}, merged in {@link #finish()}.
  */
 public final class GrowthPhase implements Phase {
 
@@ -42,7 +43,7 @@ public final class GrowthPhase implements Phase {
 
     @Override
     public Shape shape() {
-        return Shape.SERIAL;
+        return Shape.PER_UNIT;
     }
 
     @Override
@@ -55,6 +56,7 @@ public final class GrowthPhase implements Phase {
         final double[] energy = state.energy;
         final double[] mass = state.mass;
         final float[] outputsPrev = state.outputsPrev;
+        double sink = 0.0;
 
         for (int unit = from; unit < to; unit++) {
             if (energy[unit] <= 0.0) {
@@ -74,10 +76,16 @@ public final class GrowthPhase implements Phase {
             energy[unit] -= commit;
             final double gained = growYield * commit;
             mass[unit] += gained;
-            state.energySink += commit - gained;
+            sink += commit - gained;
             if (energy[unit] <= 0.0) {
-                state.die(unit);
+                sink += state.die(unit);
             }
         }
+        state.sinkPartial[chunk] += sink;
+    }
+
+    @Override
+    public void finish() {
+        state.mergePartials();
     }
 }

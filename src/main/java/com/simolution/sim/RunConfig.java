@@ -24,7 +24,8 @@ public record RunConfig(
         int checkpointEvery,
         int mapFrom,
         int mapTo,
-        EngineConfig engine
+        EngineConfig engine,
+        int threads
 ) {
 
     public long seed() {
@@ -52,6 +53,7 @@ public record RunConfig(
         Double cyclePeak = null;
         Integer mapFrom = null;
         Integer mapTo = null;
+        Integer threads = null;
         Long seed = null;
         String configPath = null;
         boolean trace = false;
@@ -81,6 +83,7 @@ public record RunConfig(
                 case "--map-from" -> mapFrom = Integer.parseInt(args[++i]);
                 case "--map-to" -> mapTo = Integer.parseInt(args[++i]);
                 case "--out" -> outPath = args[++i];
+                case "--threads" -> threads = Integer.parseInt(args[++i]);
                 default -> throw new IllegalArgumentException("Unknown argument: " + args[i]);
             }
         }
@@ -97,6 +100,11 @@ public record RunConfig(
             throw new IllegalArgumentException("--map-from requires --map-to >= --map-from");
         }
 
+        if (threads != null && threads < 1) {
+            throw new IllegalArgumentException("--threads must be at least 1, got " + threads);
+        }
+        final int threadCount = threads == null ? Runtime.getRuntime().availableProcessors() : threads;
+
         final EngineConfig base = configPath == null ? null : loadConfig(configPath);
 
         boolean demo = units == null && genes == null;
@@ -106,7 +114,7 @@ public record RunConfig(
                     : EngineConfig.v5Defaults(seed == null ? 0L : seed, 1, 0);
             return new RunConfig(1, ticks == null ? 10 : ticks, 0, true, true, outPath,
                     mapFrames == null ? -1 : mapFrames, observe, checkpointEvery == null ? 2000 : checkpointEvery,
-                    -1, -1, engine);
+                    -1, -1, engine, threadCount);
         }
         int u = units == null ? 1 : units;
         int g = genes == null ? 32 : genes;
@@ -143,7 +151,8 @@ public record RunConfig(
                 checkpointEvery == null ? 2000 : checkpointEvery,
                 mapFrom == null ? -1 : mapFrom,
                 mapTo == null ? -1 : mapTo,
-                engine
+                engine,
+                threadCount
         );
     }
 

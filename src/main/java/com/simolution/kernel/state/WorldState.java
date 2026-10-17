@@ -7,6 +7,7 @@ import java.util.List;
 import com.simolution.kernel.config.ChemicalSpec;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.phase.Chunks;
 import com.simolution.kernel.state.FieldSpec.Dim;
 import com.simolution.kernel.state.FieldSpec.OnBirth;
 import com.simolution.kernel.state.FieldSpec.OnDeath;
@@ -61,6 +62,8 @@ public final class WorldState {
     public final float[] mulTop1;
     public final float[] mulTop2;
     public final int[] activeThisTick;
+    public final double[] sinkPartial;
+    public final double[] inflowPartial;
 
     public int tick;
     public double energySink;
@@ -124,6 +127,8 @@ public final class WorldState {
         this.mulTop1 = new float[slots];
         this.mulTop2 = new float[slots];
         this.activeThisTick = new int[slots];
+        this.sinkPartial = new double[Chunks.count(slots)];
+        this.inflowPartial = new double[Chunks.count(slots)];
 
         final List<FieldSpec> reset = new ArrayList<>();
         final List<FieldSpec> zero = new ArrayList<>();
@@ -191,7 +196,9 @@ public final class WorldState {
                 new FieldSpec("mulTop2", Dim.UNIT, scratch, explicit, OnDeath.KEEP, mulTop2),
                 new FieldSpec("activeThisTick", Dim.UNIT, scratch, zeroed, OnDeath.KEEP, activeThisTick),
                 new FieldSpec("outputsNext", Dim.UNIT_NODE, scratch, zeroed, OnDeath.KEEP, outputsNext),
-                new FieldSpec("cellChemNext", Dim.CELL_CHEM, scratch, explicit, OnDeath.KEEP, cellChemNext));
+                new FieldSpec("cellChemNext", Dim.CELL_CHEM, scratch, explicit, OnDeath.KEEP, cellChemNext),
+                new FieldSpec("sinkPartial", Dim.CHUNK, scratch, explicit, OnDeath.KEEP, sinkPartial),
+                new FieldSpec("inflowPartial", Dim.CHUNK, scratch, explicit, OnDeath.KEEP, inflowPartial));
     }
 
     /**
@@ -219,12 +226,32 @@ public final class WorldState {
      * {@code mass} is zeroed so {@code Σ mass} tracks the living only. The cell is
      * freed (contract v3 §5: "death frees a cell", no carve-out for cause).
      * Called wherever a charge can cross a unit to {@code energy ≤ 0}: the
-     * metabolic bill and all-in growth.
+     * metabolic bill and all-in growth. Returns the dissipated mass, which the
+     * caller adds to its chunk's sink total.
      */
-    public void die(final int slot) {
-        energySink += mass[slot];
+    public double die(final int slot) {
+        final double dissipated = mass[slot];
         applyDeath(slot);
         cellOccupant[position[slot]] = -1;
+        return dissipated;
+    }
+
+    /**
+     * Adds every chunk's partial into {@code energySink} and {@code cumulativeInflow} in
+     * ascending chunk index, then zeroes the partials (engine v6 design §5.3, reduction).
+     * Chunk boundaries are fixed by {@link Chunks#SIZE}, and a phase sums each chunk in index
+     * order into a local that it stores once into its chunk's entry (one store per chunk, no
+     * cache-line ping-pong between threads), so both totals are the same for any thread count. A phase that writes
+     * partials calls this from its {@code finish()}, so partials are zero between phases.
+     * Both arrays are {@link Persist#SCRATCH}: they are always zero when a checkpoint is taken.
+     */
+    public void mergePartials() {
+        for (int c = 0; c < sinkPartial.length; c++) {
+            energySink += sinkPartial[c];
+            cumulativeInflow += inflowPartial[c];
+        }
+        Arrays.fill(sinkPartial, 0.0);
+        Arrays.fill(inflowPartial, 0.0);
     }
 
     /**

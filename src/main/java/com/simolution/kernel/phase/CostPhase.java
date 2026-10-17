@@ -35,8 +35,9 @@ import com.simolution.kernel.state.WorldState;
  * No term scales with connection count: cost lives on what a unit does and holds, not on what
  * it has.
  * <p>
- * Shape is {@link Shape#SERIAL} because every charge adds to the shared {@code energySink}
- * in slot order.
+ * Shape is {@link Shape#PER_UNIT}: a unit writes only its own energy, damage and (on death)
+ * its own slot's death fields and its own cell's occupancy. Charges and death mass go to the
+ * chunk's {@code sinkPartial}, merged into {@code energySink} in {@link #finish()}.
  */
 public final class CostPhase implements Phase {
 
@@ -61,7 +62,7 @@ public final class CostPhase implements Phase {
 
     @Override
     public Shape shape() {
-        return Shape.SERIAL;
+        return Shape.PER_UNIT;
     }
 
     @Override
@@ -75,6 +76,7 @@ public final class CostPhase implements Phase {
         final double[] mass = state.mass;
         final double[] damage = state.damage;
         final int[] activeThisTick = state.activeThisTick;
+        double sink = 0.0;
 
         for (int unit = from; unit < to; unit++) {
             if (energy[unit] <= 0.0) {
@@ -86,11 +88,17 @@ public final class CostPhase implements Phase {
             final double charge = Math.min(
                     basalCost + activity + maintenance + aging, energy[unit]);
             energy[unit] -= charge;
-            state.energySink += charge;
+            sink += charge;
             damage[unit] += charge;
             if (energy[unit] <= 0.0) {
-                state.die(unit);
+                sink += state.die(unit);
             }
         }
+        state.sinkPartial[chunk] += sink;
+    }
+
+    @Override
+    public void finish() {
+        state.mergePartials();
     }
 }

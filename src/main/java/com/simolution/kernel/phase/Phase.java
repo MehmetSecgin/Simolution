@@ -6,7 +6,8 @@ package com.simolution.kernel.phase;
  * its {@link Shape}. {@code run} must allocate nothing.
  * <p>
  * A runner calls {@link #prepare()}, then {@link #run} over the whole {@code [0, extent())}
- * range (split into chunks for the shapes that allow it), then {@link #finish()}.
+ * range (split into {@link Chunks} for the shapes that allow it, {@code chunk} being the
+ * chunk index), then {@link #finish()}.
  */
 public interface Phase {
 

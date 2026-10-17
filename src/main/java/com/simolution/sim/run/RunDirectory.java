@@ -22,7 +22,8 @@ import com.simolution.kernel.state.CheckpointCodec;
  * count, so it identifies the run and nothing about how it was executed.
  * <p>
  * {@link #seek} loads the nearest checkpoint at or before the tick and steps forward, so it
- * needs nothing but the directory. {@code checkpointEvery <= 0} keeps only the first checkpoint.
+ * needs nothing but the directory and the thread count to run with. {@code checkpointEvery <= 0}
+ * keeps only the first checkpoint.
  */
 public final class RunDirectory {
 
@@ -79,7 +80,7 @@ public final class RunDirectory {
         }
     }
 
-    public static Kernel seek(final Path dir, final int tick) throws IOException {
+    public static Kernel seek(final Path dir, final int tick, final int threads) throws IOException {
         if (tick < 0) {
             throw new IllegalArgumentException("tick " + tick + " is negative");
         }
@@ -101,9 +102,10 @@ public final class RunDirectory {
         }
         final Kernel kernel;
         try (InputStream in = Files.newInputStream(ckptDir.resolve(best + ".ckpt"))) {
-            kernel = CheckpointCodec.read(in);
+            kernel = CheckpointCodec.read(in, threads);
         }
         if (kernel.currentTick() != best) {
+            kernel.close();
             throw new IllegalStateException(
                     "checkpoint " + best + ".ckpt holds tick " + kernel.currentTick());
         }

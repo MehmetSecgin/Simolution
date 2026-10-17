@@ -7,29 +7,30 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.SlotCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.phase.Chunks;
 import com.simolution.kernel.phase.ClearPhase;
 import com.simolution.kernel.phase.DecayPhase;
 import com.simolution.kernel.phase.DiffusionPhase;
 import com.simolution.kernel.phase.EvaluatePhase;
 import com.simolution.kernel.phase.GrowthPhase;
+import com.simolution.kernel.phase.InflowPhase;
 import com.simolution.kernel.phase.IntakePhase;
 import com.simolution.kernel.phase.CostPhase;
 import com.simolution.kernel.phase.MovementPhase;
 import com.simolution.kernel.phase.Phase;
-import com.simolution.kernel.phase.PhaseRunner;
 import com.simolution.kernel.phase.PropagatePhase;
 import com.simolution.kernel.phase.ReproductionPhase;
-import com.simolution.kernel.phase.SerialRunner;
+import com.simolution.kernel.phase.ParallelRunner;
 import com.simolution.kernel.phase.SwapPhase;
 import com.simolution.kernel.state.WorldState;
 
-public final class Kernel {
+public final class Kernel implements AutoCloseable {
 
     private final EngineConfig config;
     private final WorldState state;
     private final int unitCount;
     private final List<Phase> phases;
-    private final PhaseRunner runner = new SerialRunner();
+    private final ParallelRunner runner;
 
     /**
      * The substrate is a fixed pool of {@code genomes.length} slots; a slot is
@@ -52,8 +53,13 @@ public final class Kernel {
      * The chemical table is any number of chemicals; each decays to the sink
      * ({@code decayTarget == -1}) or into another chemical. Chemical 0 is the one
      * units sense and harvest.
+     * <p>
+     * {@code threads} sizes the {@link ParallelRunner} the kernel owns (close the kernel to
+     * stop it). It is an execution setting, not part of the config or of checkpoints: the
+     * state after any tick is identical for every thread count.
      */
-    public Kernel(final int[][] initialGenomes, final int[] founderCells, final EngineConfig config) {
+    public Kernel(final int[][] initialGenomes, final int[] founderCells, final EngineConfig config,
+            final int threads) {
         validateChemicals(config);
         this.config = config;
         final int worldWidth = config.worldWidth();
@@ -118,12 +124,14 @@ public final class Kernel {
                 new EvaluatePhase(state, config),
                 new SwapPhase(state),
                 new IntakePhase(state, config),
+                new InflowPhase(state, config),
                 new CostPhase(state, config),
                 new GrowthPhase(state, config),
                 new ReproductionPhase(state, config),
                 new MovementPhase(state, config),
                 new DiffusionPhase(state, config),
                 new DecayPhase(state, config));
+        this.runner = new ParallelRunner(threads);
     }
 
     private static void validateChemicals(final EngineConfig config) {
@@ -147,6 +155,7 @@ public final class Kernel {
      * The tick as an ordered list of declared phases, built once at construction
      * (contract v0 §8, the locked order of the 11-phase pipeline): clear, propagate,
      * evaluate, swap, intake, cost, growth, reproduction, movement, diffusion, decay.
+     * Intake is two entries, intake (per unit) then inflow (per cell), so each has one shape.
      */
     public List<Phase> phases() {
         return phases;
@@ -267,15 +276,14 @@ public final class Kernel {
                 unitOffset + state.connSrc[i], unitOffset + state.connDst[i], state.connWeight[i]);
     }
 
+    /** Totals are {@link Chunks#orderedSum chunk-ordered sums}, so they do not depend on the thread count. */
     public KernelSnapshot snapshot() {
-        double resourceTotal = 0.0;
-        for (final double r : state.cellChem) {
-            resourceTotal += r;
-        }
-        double massTotal = 0.0;
-        for (final double m : state.mass) {
-            massTotal += m;
-        }
-        return new KernelSnapshot(state, resourceTotal, massTotal);
+        return new KernelSnapshot(state, Chunks.orderedSum(state.cellChem), Chunks.orderedSum(state.mass));
+    }
+
+    /** Stops the runner's worker threads. Idempotent. */
+    @Override
+    public void close() {
+        runner.close();
     }
 }

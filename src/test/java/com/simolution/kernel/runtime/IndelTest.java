@@ -34,7 +34,7 @@ class IndelTest {
     private static Kernel evolvingKernel() {
         return new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), Kernel.scatterFounders(UNITS, WORLD),
                 EngineConfig.v5Defaults(0L, WORLD, MAX_GENES)
-                        .withChemical0Inflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)));
+                        .withChemical0Inflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
     }
 
     // contract-v4 §1: MAX_GENES is a hard soft-cap ceiling and 0 the floor —
@@ -84,7 +84,7 @@ class IndelTest {
     // (no connections, no harvest, no motility), and dies of basal cost.
     @Test
     void emptyGenomeIsInertAndMortal() {
-        Kernel kernel = new Kernel(new int[][] {{}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8));
+        Kernel kernel = new Kernel(new int[][] {{}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8), 1);
         double previous = DEFAULTS.initialEnergy();
         boolean died = false;
         for (int t = 0; t < 200_000 && !died; t++) {

@@ -25,3 +25,18 @@ Flat `short`/`double` connection arrays, compile-time junk pruning, hoisted muta
 | small (W=64, 200 founders) | 2000 | 1852 | 1079 | 11 |
 | dense200 (W=200, 4000 founders) | 3000 | 38000 | 78 | 86 |
 | big500 (W=500, 20000 founders) | 1000 | 74964 | 13 | 426 |
+
+## after B1
+
+`ParallelRunner` with fixed 4096-entry chunks; intake, inflow, cost, growth and decay now split across threads with per-chunk partial totals. Reproduction and movement are still serial, and the harness (observer, time series) runs on the caller every tick. Same machine (Apple M2 Pro, 12 cores: 8 performance + 4 efficiency) and command, `--threads 1` and `--threads 4`.
+
+| config | threads | ticks | wall ms | ticks/s | heap MB |
+|---|---|---|---|---|---|
+| small (W=64, 200 founders) | 1 | 2000 | 1850 | 1081 | 11 |
+| small (W=64, 200 founders) | 4 | 2000 | 1855 | 1078 | 22 |
+| dense200 (W=200, 4000 founders) | 1 | 3000 | 36882 | 81 | 85 |
+| dense200 (W=200, 4000 founders) | 4 | 3000 | 35925 | 83 | 152 |
+| big500 (W=500, 20000 founders) | 1 | 1000 | 74129 | 13 | 447 |
+| big500 (W=500, 20000 founders) | 4 | 1000 | 68941 | 14 | 428 |
+
+W=64 is a single chunk, so it never splits. On the larger worlds 4 threads give only 3 to 7 percent: the time goes to the serial phases and the harness, not to the phases split here.

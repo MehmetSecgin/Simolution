@@ -22,16 +22,22 @@ public final class Bench {
     }
 
     public static void main(final String[] args) {
+        if (args.length != 0 && !(args.length == 2 && args[0].equals("--threads"))) {
+            throw new IllegalArgumentException("usage: bench [--threads N]");
+        }
+        final String threads = args.length == 2 ? args[1] : "1";
+        System.out.println("threads " + threads + ", " + Runtime.getRuntime().availableProcessors() + " cores");
         System.out.println("config | ticks | wall ms | ticks/s | heap MB");
-        row("small", 64, 200, 2000);
-        row("dense200", 200, 4000, 3000);
-        row("big500", 500, 20000, 1000);
+        row("small", 64, 200, 2000, threads);
+        row("dense200", 200, 4000, 3000, threads);
+        row("big500", 500, 20000, 1000, threads);
     }
 
-    private static void row(final String name, final int world, final int units, final int ticks) {
+    private static void row(final String name, final int world, final int units, final int ticks,
+            final String threads) {
         final RunConfig config = RunConfig.parse(new String[] {
                 "--units", Integer.toString(units), "--ticks", Integer.toString(ticks),
-                "--seed", "42", "--world", Integer.toString(world)});
+                "--seed", "42", "--world", Integer.toString(world), "--threads", threads});
         runOnce(config);
         final Row[] runs = new Row[TIMED_RUNS];
         for (int i = 0; i < TIMED_RUNS; i++) {
@@ -51,7 +57,7 @@ public final class Bench {
         final int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         final CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         final int[] founderCells = Kernel.scatterFounders(genomes.length, config.worldWidth());
-        final Kernel kernel = new Kernel(genomes, founderCells, config.engine());
+        final Kernel kernel = new Kernel(genomes, founderCells, config.engine(), config.threads());
         final DynamicsObserver observer = new DynamicsObserver(config.units(), connections, config.engine());
         final TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
 
@@ -63,6 +69,7 @@ public final class Bench {
             timeSeries.sample(i, snapshot);
         }
         final long wallMillis = (System.nanoTime() - start) / 1_000_000;
+        kernel.close();
         final Runtime runtime = Runtime.getRuntime();
         final long heapMegabytes = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
         return new Row(name, config.ticks(), wallMillis, heapMegabytes);

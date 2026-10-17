@@ -15,7 +15,9 @@ import com.simolution.kernel.state.WorldState;
  * higher-indexed one has its product decay in the same tick, and into a lower-indexed one
  * from the next tick. A chemical that decays into itself is rejected at construction.
  * <p>
- * Shape is {@link Shape#SERIAL} because the sink is an ordered floating-point sum.
+ * Shape is {@link Shape#PER_CELL}: each cell reads and writes only its own chemicals, in
+ * place. Decay to the sink goes to the chunk's {@code sinkPartial}, merged in
+ * {@link #finish()}.
  */
 public final class DecayPhase implements Phase {
 
@@ -40,7 +42,7 @@ public final class DecayPhase implements Phase {
 
     @Override
     public Shape shape() {
-        return Shape.SERIAL;
+        return Shape.PER_CELL;
     }
 
     @Override
@@ -51,6 +53,7 @@ public final class DecayPhase implements Phase {
     @Override
     public void run(final int from, final int to, final int chunk) {
         final double[] cellChem = state.cellChem;
+        double sink = 0.0;
 
         final int cells = state.unitCount;
         for (int k = 0; k < rate.length; k++) {
@@ -65,11 +68,17 @@ public final class DecayPhase implements Phase {
                 final double lost = cellChem[offset + cell] * r;
                 cellChem[offset + cell] -= lost;
                 if (toSink) {
-                    state.energySink += lost;
+                    sink += lost;
                 } else {
                     cellChem[targetOffset + cell] += lost;
                 }
             }
         }
+        state.sinkPartial[chunk] += sink;
+    }
+
+    @Override
+    public void finish() {
+        state.mergePartials();
     }
 }

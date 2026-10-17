@@ -30,7 +30,8 @@ import com.simolution.kernel.state.FieldSpec.Persist;
  * The three strings are {@code int} byte length plus UTF-8 (not {@code writeUTF}, whose
  * 64 KiB cap a config with many inflow cells can exceed). Structure-derived fields are
  * rebuilt from the genes by {@link SlotCompiler}; scratch is never written. No thread count
- * is stored, so checkpoint bytes are a pure function of the simulation state.
+ * is stored, so checkpoint bytes are a pure function of the simulation state; the reader
+ * names the thread count of the restored kernel, which may differ from the writer's.
  * <p>
  * Every refusal is an {@link IllegalStateException} naming its cause.
  */
@@ -67,19 +68,21 @@ public final class CheckpointCodec {
         data.flush();
     }
 
-    public static Kernel read(final InputStream in) throws IOException {
-        return read(in, null);
+    public static Kernel read(final InputStream in, final int threads) throws IOException {
+        return read(in, null, threads);
     }
 
     /**
      * Restores the checkpoint under {@code override} instead of the config it was written with.
      * Refused unless the override keeps every shape-defining value ({@link EngineConfig#branchCompatible}).
      */
-    public static Kernel readBranch(final InputStream in, final EngineConfig override) throws IOException {
-        return read(in, override);
+    public static Kernel readBranch(final InputStream in, final EngineConfig override, final int threads)
+            throws IOException {
+        return read(in, override, threads);
     }
 
-    private static Kernel read(final InputStream in, final EngineConfig override) throws IOException {
+    private static Kernel read(final InputStream in, final EngineConfig override, final int threads)
+            throws IOException {
         final DataInputStream data = new DataInputStream(new BufferedInputStream(in));
         try {
             final byte[] magic = new byte[MAGIC.length];
@@ -106,8 +109,13 @@ public final class CheckpointCodec {
                 throw new IllegalStateException(
                         "branch config changes the state shape (world width, max genes or chemical count)");
             }
-            final Kernel kernel = new Kernel(new int[0][], new int[0], override == null ? written : override);
-            readState(data, kernel.state());
+            final Kernel kernel = new Kernel(new int[0][], new int[0], override == null ? written : override, threads);
+            try {
+                readState(data, kernel.state());
+            } catch (final IOException | RuntimeException e) {
+                kernel.close();
+                throw e;
+            }
             return kernel;
         } catch (final EOFException e) {
             throw new IllegalStateException("checkpoint truncated", e);

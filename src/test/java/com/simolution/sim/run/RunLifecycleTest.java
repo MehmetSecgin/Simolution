@@ -33,7 +33,7 @@ class RunLifecycleTest {
     private static final int EVERY = 50;
 
     private static Kernel newKernel(final EngineConfig config) {
-        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(FOUNDERS, WORLD), config);
+        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(FOUNDERS, WORLD), config, 1);
     }
 
     private static byte[] bytes(final Kernel kernel) throws IOException {
@@ -54,7 +54,7 @@ class RunLifecycleTest {
         }
 
         for (int t = 0; t <= TICKS; t++) {
-            assertArrayEquals(canonical.get(t), bytes(RunDirectory.seek(dir, t)), "state at tick " + t);
+            assertArrayEquals(canonical.get(t), bytes(RunDirectory.seek(dir, t, 1)), "state at tick " + t);
         }
     }
 
@@ -100,7 +100,7 @@ class RunLifecycleTest {
             parent.afterTick(kernel);
         }
 
-        final Kernel atParent = RunDirectory.seek(parentDir, 100);
+        final Kernel atParent = RunDirectory.seek(parentDir, 100, 1);
         final RunDirectory branch = RunDirectory.createBranch(branchDir, atParent, EVERY, parent.runId(), 100);
 
         final JsonNode json = new ObjectMapper().readTree(Files.readString(branchDir.resolve("run.json")));
@@ -108,7 +108,7 @@ class RunLifecycleTest {
         assertEquals(100, json.get("parent").get("tick").asInt());
         assertTrue(Files.exists(branchDir.resolve("ckpt/100.ckpt")));
         assertNotNull(branch.runId());
-        assertEquals(100, RunDirectory.seek(branchDir, 100).currentTick());
+        assertEquals(100, RunDirectory.seek(branchDir, 100, 1).currentTick());
     }
 
     @Test

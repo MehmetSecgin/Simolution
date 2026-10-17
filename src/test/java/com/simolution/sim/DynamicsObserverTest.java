@@ -38,7 +38,7 @@ class DynamicsObserverTest {
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         final int worldWidth = (int) Math.ceil(Math.sqrt(Math.max(genomes.length, 4000)));
         EngineConfig engine = EngineConfig.v5Defaults(0L, worldWidth, 32);
-        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), engine);
+        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), engine, 1);
         DynamicsObserver observer = new DynamicsObserver(genomes.length, connections, engine);
         for (int i = 0; i < ticks; i++) {
             kernel.tick();

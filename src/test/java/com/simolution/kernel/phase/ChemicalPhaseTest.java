@@ -24,7 +24,7 @@ class ChemicalPhaseTest {
 
     private static Kernel emptyKernel(final List<ChemicalSpec> chemicals) {
         final EngineConfig config = EngineConfig.v5Defaults(0L, WORLD_WIDTH, 4).withChemicals(chemicals);
-        return new Kernel(new int[0][], new int[0], config);
+        return new Kernel(new int[0][], new int[0], config, 1);
     }
 
     @Test
@@ -72,7 +72,7 @@ class ChemicalPhaseTest {
     }
 
     @Test
-    void kernelDeclaresTheElevenPhasesInOrderWithTheirShapes() {
+    void kernelDeclaresThePhasesInOrderWithTheirShapes() {
         // arrange
         final Kernel kernel = emptyKernel(EngineConfig.v5Defaults(0L, WORLD_WIDTH, 4).chemicals());
 
@@ -80,12 +80,13 @@ class ChemicalPhaseTest {
         final List<Phase> phases = kernel.phases();
 
         // assert
-        assertEquals(List.of("clear", "propagate", "evaluate", "swap", "intake", "cost", "growth",
+        assertEquals(List.of("clear", "propagate", "evaluate", "swap", "intake", "inflow", "cost", "growth",
                 "reproduction", "movement", "diffusion", "decay"),
                 phases.stream().map(Phase::name).toList());
-        assertEquals(Shape.PER_UNIT, phases.get(1).shape());
-        assertEquals(Shape.PER_CELL, phases.get(9).shape());
-        assertEquals(Shape.SERIAL, phases.get(7).shape());
+        assertEquals(List.of(Shape.PER_UNIT, Shape.PER_UNIT, Shape.PER_UNIT, Shape.SERIAL, Shape.PER_UNIT,
+                Shape.PER_CELL, Shape.PER_UNIT, Shape.PER_UNIT, Shape.SERIAL, Shape.SERIAL, Shape.PER_CELL,
+                Shape.PER_CELL),
+                phases.stream().map(Phase::shape).toList());
     }
 
     @Test
