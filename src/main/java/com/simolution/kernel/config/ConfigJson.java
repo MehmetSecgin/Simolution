@@ -94,8 +94,13 @@ public final class ConfigJson {
         }
     }
 
+    // A misspelt key must be named before the missing key it leaves behind, and a missing key must
+    // surface as the validation failure its default value causes, so this lenient pass comes first.
     private static void rejectUnknownKeys(final String json) throws JsonProcessingException {
-        MAPPER.readValue(json, FlatEngineConfig.class);
+        final FlatEngineConfig flat = MAPPER.readValue(json, FlatEngineConfig.class);
+        if (flat.chemicals() != null) {
+            inflate(flat);
+        }
     }
 
     private static EngineConfig readStrict(final String json) throws JsonProcessingException {
@@ -143,19 +148,20 @@ public final class ConfigJson {
     }
 
     private static EngineConfig inflate(final FlatEngineConfig flat) {
-        return new EngineConfig(
-                flat.seed(),
-                new World(flat.worldWidth(), flat.maxGenes()),
-                flat.chemicals(),
-                new Founder(flat.initialEnergy(), flat.initialMass()),
-                new Metabolism(flat.basalCost(), flat.costPerPropagation(), flat.maintPerMass(), flat.agingCost()),
-                new Harvest(flat.harvestCapacityPerConnection(), flat.harvestHalfSaturation(),
-                        flat.harvestMassExponent()),
-                new Motility(flat.moveCostBase(), flat.moveCostPerMass(), flat.moveDeadzone()),
-                new Growth(flat.growMax(), flat.growHalfSaturation(), flat.growYield()),
-                new Sensing(flat.selfEnergyScale(), flat.selfMassScale()),
-                new Reproduction(flat.buildCost(), flat.buildCostPerGene()),
-                new Mutation(flat.mutationRateWeight(), flat.mutationRateStruct(), flat.indelRateDup(),
-                        flat.indelRateDel()));
+        final World world = new World(flat.worldWidth(), flat.maxGenes());
+        EngineConfig.validateChemicals(flat.chemicals());
+        final Founder founder = new Founder(flat.initialEnergy(), flat.initialMass());
+        final Metabolism metabolism =
+                new Metabolism(flat.basalCost(), flat.costPerPropagation(), flat.maintPerMass(), flat.agingCost());
+        final Harvest harvest = new Harvest(flat.harvestCapacityPerConnection(), flat.harvestHalfSaturation(),
+                flat.harvestMassExponent());
+        final Motility motility = new Motility(flat.moveCostBase(), flat.moveCostPerMass(), flat.moveDeadzone());
+        final Sensing sensing = new Sensing(flat.selfEnergyScale(), flat.selfMassScale());
+        final Growth growth = new Growth(flat.growMax(), flat.growHalfSaturation(), flat.growYield());
+        final Reproduction reproduction = new Reproduction(flat.buildCost(), flat.buildCostPerGene());
+        final Mutation mutation = new Mutation(flat.mutationRateWeight(), flat.mutationRateStruct(),
+                flat.indelRateDup(), flat.indelRateDel());
+        return new EngineConfig(flat.seed(), world, flat.chemicals(), founder, metabolism, harvest, motility, growth,
+                sensing, reproduction, mutation);
     }
 }

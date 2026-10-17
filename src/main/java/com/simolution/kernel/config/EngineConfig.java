@@ -20,7 +20,7 @@ public record EngineConfig(
         validateChemicals(chemicals);
     }
 
-    private static void validateChemicals(final List<ChemicalSpec> chemicals) {
+    static void validateChemicals(final List<ChemicalSpec> chemicals) {
         if (chemicals.isEmpty()) {
             throw new IllegalArgumentException("chemicals must hold at least one entry (units sense and harvest chemical 0)");
         }
