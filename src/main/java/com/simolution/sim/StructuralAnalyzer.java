@@ -1,89 +1,89 @@
 package com.simolution.sim;
 
-import java.util.Arrays;
-
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 
-/**
- * Tick-independent statistics derived purely from compiled wiring.
- * Everything here is fixed for a given (seed, units, genesPerUnit) —
- * it is the structure that structural decay will one day tax
- * (contract v0 §4).
- */
 public final class StructuralAnalyzer {
 
     private StructuralAnalyzer() {}
 
-    public static StructuralStats analyze(final CompiledConnection[] connections, final int unitCount) {
+    private record UnitWiring(long meaningful, boolean reachable, boolean randWired, long duplicates) {
+    }
 
-        long meaningful = 0;
-        long duplicates = 0;
-        double absSum = 0.0;
-        double absMax = 0.0;
-        long positives = 0;
+    private static final class WeightTally {
+        private double absSum;
+        private double absMax;
+        private long positives;
 
-        final boolean[] seenPair = new boolean[NodeLayout.TOTAL * NodeLayout.TOTAL];
-        final boolean[] reachable = new boolean[unitCount];
-        final boolean[] randWired = new boolean[unitCount];
-        final int[] perUnitConnections = new int[unitCount];
-        final int[] perUnitMeaningful = new int[unitCount];
-
-        int cursor = 0;
-        for (int unit = 0; unit < unitCount; unit++) {
-            final int unitEnd = endOfUnit(connections, cursor, unit);
-            perUnitConnections[unit] = unitEnd - cursor;
-
-            Arrays.fill(seenPair, false);
-            final boolean[][] adjacency = new boolean[NodeLayout.TOTAL][NodeLayout.TOTAL];
-
-            for (int i = cursor; i < unitEnd; i++) {
-                final CompiledConnection c = connections[i];
-                final int srcLocal = c.sourceAbsoluteIndex % NodeLayout.TOTAL;
-                final int dstLocal = c.destinationAbsoluteIndex % NodeLayout.TOTAL;
-
-                absSum += Math.abs(c.weight);
-                absMax = Math.max(absMax, Math.abs(c.weight));
-                if (c.weight > 0.0) {
+        void addAll(final CompiledConnection[] connections, final int from, final int to) {
+            for (int i = from; i < to; i++) {
+                final double weight = connections[i].weight;
+                absSum += Math.abs(weight);
+                absMax = Math.max(absMax, Math.abs(weight));
+                if (weight > 0.0) {
                     positives++;
                 }
-
-                final int pairKey = srcLocal * NodeLayout.TOTAL + dstLocal;
-                if (seenPair[pairKey]) {
-                    duplicates++;
-                } else {
-                    seenPair[pairKey] = true;
-                }
-
-                final boolean bothMeaningful =
-                        NodeLayout.isMeaningful(srcLocal) && NodeLayout.isMeaningful(dstLocal);
-                if (bothMeaningful) {
-                    meaningful++;
-                    perUnitMeaningful[unit]++;
-                    adjacency[srcLocal][dstLocal] = true;
-                    if (srcLocal == NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND) {
-                        randWired[unit] = true;
-                    }
-                }
             }
+        }
 
-            reachable[unit] = sensorReachesAction(adjacency);
-            cursor = unitEnd;
+        double absMean(final long total) {
+            return total == 0 ? 0.0 : absSum / total;
+        }
+
+        double positiveFraction(final long total) {
+            return total == 0 ? 0.0 : (double) positives / total;
+        }
+    }
+
+    public static StructuralStats analyze(final CompiledConnection[] connections, final int unitCount) {
+        final WeightTally weights = new WeightTally();
+        final boolean[] reachable = new boolean[unitCount];
+        final boolean[] randWired = new boolean[unitCount];
+        long meaningful = 0;
+        long duplicates = 0;
+
+        int from = 0;
+        for (int unit = 0; unit < unitCount; unit++) {
+            final int to = endOfUnit(connections, from, unit);
+            weights.addAll(connections, from, to);
+            final UnitWiring wiring = wiringOf(connections, from, to);
+            meaningful += wiring.meaningful();
+            duplicates += wiring.duplicates();
+            reachable[unit] = wiring.reachable();
+            randWired[unit] = wiring.randWired();
+            from = to;
         }
 
         final long total = connections.length;
-        return new StructuralStats(
-                total,
-                meaningful,
-                duplicates,
-                total == 0 ? 0.0 : absSum / total,
-                absMax,
-                total == 0 ? 0.0 : (double) positives / total,
-                reachable,
-                randWired,
-                perUnitConnections,
-                perUnitMeaningful
-        );
+        return new StructuralStats(total, meaningful, duplicates, weights.absMean(total), weights.absMax,
+                weights.positiveFraction(total), reachable, randWired);
+    }
+
+    private static UnitWiring wiringOf(final CompiledConnection[] connections, final int from, final int to) {
+        final boolean[] seenPair = new boolean[NodeLayout.TOTAL * NodeLayout.TOTAL];
+        final boolean[][] adjacency = new boolean[NodeLayout.TOTAL][NodeLayout.TOTAL];
+        long meaningful = 0;
+        long duplicates = 0;
+        boolean randWired = false;
+
+        for (int i = from; i < to; i++) {
+            final int srcLocal = connections[i].sourceAbsoluteIndex % NodeLayout.TOTAL;
+            final int dstLocal = connections[i].destinationAbsoluteIndex % NodeLayout.TOTAL;
+
+            final int pairKey = srcLocal * NodeLayout.TOTAL + dstLocal;
+            if (seenPair[pairKey]) {
+                duplicates++;
+            } else {
+                seenPair[pairKey] = true;
+            }
+
+            if (NodeLayout.isMeaningful(srcLocal) && NodeLayout.isMeaningful(dstLocal)) {
+                meaningful++;
+                adjacency[srcLocal][dstLocal] = true;
+                randWired |= srcLocal == NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
+            }
+        }
+        return new UnitWiring(meaningful, sensorReachesAction(adjacency), randWired, duplicates);
     }
 
     private static int endOfUnit(final CompiledConnection[] connections, final int start, final int unit) {

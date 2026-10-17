@@ -8,10 +8,12 @@ public record StructuralStats(
         double weightAbsMax,
         double weightPositiveFraction,
         boolean[] sensorActionReachable,
-        boolean[] randWired,
-        int[] perUnitConnections,
-        int[] perUnitMeaningful
+        boolean[] randWired
 ) {
+
+    public long connectionsJunkTouching() {
+        return connectionsCompiled - connectionsMeaningful;
+    }
 
     public int countReachable() {
         return count(sensorActionReachable);

@@ -66,7 +66,7 @@ python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.ht
 # any thread count and for inflow runs (the checkpoint carries the full config):
 ./gradlew run --args="--replay runs/foo.obs --at 600 --snapshot-out runs/foo.obs/snap-600.txt"
 python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
-# branch (API, no CLI flag): CheckpointCodec.readBranch(in, changedConfig, threads) + RunDirectory.createBranch.
+# branch (API, no CLI flag): CheckpointCodec.readBranch(in, changedConfig, threads) + RunDirectoryWriter.createBranch.
 # A branch may change rates, costs, thresholds and inflow; it may not change world size, maxGenes
 # or chemical count. Checkpoints from another engine version or format are refused.
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
@@ -141,7 +141,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── StructuralAnalyzer/Stats  wiring-derived stats of the founders: junk load, reachability, weights
 ├── DynamicsObserver/Summary  running aggregates over snapshots (activity, populations, energy, mass); no per-unit state, no trajectory
 ├── RunReport                 byte-deterministic report-v15 text (aggregates + distributions + reproduction)
-├── TimeSeriesReport          <base>.timeseries.csv, one row per tick
+├── TimeSeriesSampler         <base>.timeseries.csv, one row per tick
 ├── MapFrameWriter            streams spatial frames to <base>.frames.zst as 256-frame chunks, each zstd-19 (report-v14: lean row `u <cell> <slot> <genomeId>`; RLE resource field) + a <base>.frames.idx ASCII chunk index (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
 ├── GenomeCatalogWriter       <base>.catalog.gz: gzipped global write-once genome dictionary (`g <id> <count> <genes>`), whole-loaded + native-gunzipped by the viewer; frames carry the id
 ├── BirthLogWriter            <base>.births.csv.gz: one row per birth from the engine's birth list (lineage/generation/parent exact, genome ids from the shared catalog); DuckDB-queryable lineage store
@@ -149,7 +149,8 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── MetricsWriter             metrics.csv (observe): per-tick aggregates, streamed, O(1)/tick
 ├── SnapshotDump              one-shot tick-T state page (lattice + per-unit + evolved circuits) for tools/timetravel.py
 └── run
-    ├── RunDirectory          run.json + ckpt/<tick>.ckpt, `runId`, `seek(dir, T, threads)`, `createBranch`
+    ├── RunDirectoryWriter    run.json + ckpt/<tick>.ckpt, `runId`, `checkpointIfDue`, `createBranch`
+    ├── RunDirectoryReader    `seek(dir, T, threads)`: nearest checkpoint, then step forward
     └── LatestFrame           latest-frame-wins publisher: the tick loop publishes a compact frame every N ticks, readers never block it
 ```
 
@@ -245,7 +246,7 @@ Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://
 6. ~~Space (basic)~~ done (ADR 0018 geometry, 0019 economics): 2D toroidal lattice, per-cell resource field + diffusion, `LOCAL_RESOURCE` replaces global RESOURCE, one-pixel-one-unit, spatial birth into a free Moore neighbour, halt-on-full retired. Sessile. Yields coexisting lineages (vs the old monoculture).
 7. ~~Motility~~ done (ADR 0020): `MOVE_N/S/E/W` effectors (Fork B), one Moore step/tick, `MOVE_COST`, deadzone, blocked-if-occupied; position decoupled from slot (no per-move recompile/alloc); chemotaxis emergent via LOCAL_RESOURCE + DELAY.
 8. ~~Spatial map + scrub viewer + live viewer~~ done (report-v7): `MapFrameWriter` streams a sampled `<base>.map.txt` (resource field + per-cell lineage, O(1) RAM); `tools/mapviz.py` renders a self-contained HTML scrub player; `--serve PORT` started an in-JVM `LiveServer` (`com.sun.net.httpserver`, no deps) that tailed the file so a run could be watched live (`src/main/resources/live.html`, follow-live + scrub). **report-v12 (ADR 0031) removed the bespoke `LiveServer` + `--serve`**: the viewer now parses `.map.txt` client-side and tails it over a generic static server (or runs fully offline from baked frames).
-9. ~~Observability layer~~ done (report-v8, ADR 0023): deterministic-replay time-travel (manifest + checkpoints + `Replayer`; replaced in engine v6 by `RunDirectory` and `CheckpointCodec`, ADR 0043), decoupled `EventLogWriter`/`MetricsWriter` sinks (kernel stays pure: no event hook; events + mutation bits derived from snapshots/gene-diff), DuckDB/Parquet query layer, `tools/timetravel.py` time-travel page. `--observe` off by default; sink-off runs byte-identical.
+9. ~~Observability layer~~ done (report-v8, ADR 0023): deterministic-replay time-travel (manifest + checkpoints + `Replayer`; replaced in engine v6 by `RunDirectoryWriter`/`RunDirectoryReader` and `CheckpointCodec`, ADR 0043), decoupled `EventLogWriter`/`MetricsWriter` sinks (kernel stays pure: no event hook; events + mutation bits derived from snapshots/gene-diff), DuckDB/Parquet query layer, `tools/timetravel.py` time-travel page. `--observe` off by default; sink-off runs byte-identical.
 10. ~~Variable-length genomes (indels)~~ done (contract-v4, ADR 0026): heritable gene *count* via per-gene deletion + per-survivor tandem duplication at birth (operation-counter RNG keying), soft `MAX_GENES` cap (floor 0 = inert), replication cost ∝ child length (`BUILD_COST_PER_GENE`, build-time anti-bloat — no per-tick per-gene tax). Gene dosage emergent (duplicate a transporter → more harvest capacity).
 11. ~~Biomass (Pirt size physics)~~ done (contract-v5, ADR 0028): `mass` as a distinct crystallized-energy variable, `GROW` effector + `SELF_MASS` sensor, maintenance ∝ mass (replaces the energy proxy), harvest ∝ mass^α surface law, move cost ∝ mass, **symmetric binary fission** (split mass+energy 50/50), ungated `REPRODUCE` trigger (size-control checkpoint emergent — no `M_DIV_MIN`), growth phase 7, death dissipates mass→sink.
 12. ~~report-v10 (surface mass)~~ done: `## mass` report section, `final_mass` (units.csv) + `mass_total` (metrics.csv) columns, `mass` on map-frame `u` lines, colour-by-mass in `tools/mapviz.py` + `live.html`.

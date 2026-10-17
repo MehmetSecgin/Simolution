@@ -2,18 +2,8 @@ package com.simolution.sim;
 
 import com.simolution.kernel.runtime.KernelSnapshot;
 
-/**
- * Observes a run from outside the kernel (contract v0 §12: interpretation is external to the
- * laws). The kernel exposes only snapshots; this class keeps running totals over them, never a
- * trajectory, and holds no per-unit state, so it costs one pass over the slot pool per tick.
- * <p>
- * Activity is the kernel's own count: {@link KernelSnapshot#activeThisTick} holds, per slot, the
- * non-zero propagations that unit made this tick (0 for a slot that was dead at the start of the
- * tick), so the totals cover every living unit, descendants included.
- */
 public final class DynamicsObserver implements TickObserver {
 
-    private int ticksObserved;
     private long ticksWithAnyActivity;
     private long propagationsTotal;
     private int peakPopulation;
@@ -21,7 +11,6 @@ public final class DynamicsObserver implements TickObserver {
 
     @Override
     public void observe(final KernelSnapshot snapshot) {
-        ticksObserved++;
         last = snapshot;
 
         final int[] active = snapshot.activeThisTick;
@@ -43,38 +32,25 @@ public final class DynamicsObserver implements TickObserver {
         }
     }
 
-    /**
-     * Reads the last observed snapshot's live kernel arrays, so call it before the kernel ticks
-     * again. {@code stateDigest} is the final-state {@link com.simolution.kernel.state.StateDigest}.
-     */
-    public DynamicsSummary summarize(final long stateDigest) {
-        final int finalPopulation = last == null ? 0 : livingCount(last);
-        final int distinctLineagesAlive = last == null ? 0 : distinctLineagesAlive(last);
-        final double finalEnergyTotal = last == null ? 0.0 : sum(last.energy);
-        final double finalMassTotal = last == null ? 0.0 : last.massTotal();
-        final double finalMassMax = last == null ? 0.0 : maxLivingMass(last);
-        final double finalReservoir = last == null ? 0.0 : last.reservoir();
+    /** Reads the last observed snapshot's live kernel arrays, so call it before the kernel ticks again. */
+    public DynamicsSummary summarize(final long finalStateDigest) {
+        if (last == null) {
+            return DynamicsSummary.empty(finalStateDigest);
+        }
+        return summaryOf(last, finalStateDigest);
+    }
 
+    private DynamicsSummary summaryOf(final KernelSnapshot snapshot, final long finalStateDigest) {
         return new DynamicsSummary(
-                ticksObserved,
-                ticksWithAnyActivity,
-                propagationsTotal,
-                finalEnergyTotal,
-                last == null ? 0.0 : last.energySink,
-                last == null ? 0.0 : last.creditedInitialEnergy,
-                last == null ? 0.0 : last.initialResourceTotal,
-                finalReservoir,
-                last == null ? 0.0 : last.cumulativeInflow,
-                stateDigest,
-                peakPopulation,
-                finalPopulation,
-                distinctLineagesAlive,
-                last == null ? 0L : last.birthsTotal,
-                last == null ? 0 : last.maxGeneration,
-                last == null ? 0.0 : last.creditedInitialMass,
-                finalMassTotal,
-                finalMassMax
-        );
+                new DynamicsSummary.Activity(ticksWithAnyActivity, propagationsTotal),
+                new DynamicsSummary.Population(peakPopulation, livingCount(snapshot),
+                        distinctLineagesAlive(snapshot), snapshot.birthsTotal, snapshot.maxGeneration),
+                new DynamicsSummary.EnergyLedger(snapshot.creditedInitialEnergy, sum(snapshot.energy),
+                        snapshot.energySink, snapshot.initialResourceTotal, snapshot.reservoir(),
+                        snapshot.cumulativeInflow),
+                new DynamicsSummary.Mass(snapshot.creditedInitialMass, snapshot.massTotal(),
+                        maxLivingMass(snapshot)),
+                finalStateDigest);
     }
 
     private static double sum(final double[] values) {

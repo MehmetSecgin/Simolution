@@ -1,41 +1,45 @@
 package com.simolution.sim;
 
-public record DynamicsSummary(
-        int ticks,
-        long ticksWithAnyActivity,
-        long propagationsTotal,
-        double finalEnergyTotal,
-        double finalEnergySink,
-        double initialEnergyTotal,
-        double initialReservoir,
-        double finalReservoir,
-        double cumulativeInflow,
-        long stateDigest,
-        int peakPopulation,
-        int finalPopulation,
-        int distinctLineagesAlive,
-        long birthsTotal,
-        int maxGeneration,
-        double creditedInitialMass,
-        double finalMassTotal,
-        double finalMassMax
-) {
+public record DynamicsSummary(Activity activity, Population population, EnergyLedger energy, Mass mass,
+        long stateDigest) {
 
-    /**
-     * Open-system audit (contract v1 §7): energy flows reservoir → units →
-     * sink, and a fixed inflow tops up the reservoir. Inflow is the accounted
-     * source, so the closed-system balance generalises: starting energy plus
-     * everything admitted by inflow must equal live energy + reservoir + sink,
-     * to floating-point exactness.
-     */
+    public record Activity(long ticksWithAnyActivity, long propagationsTotal) {
+    }
+
+    public record Population(int peak, int finalCount, int distinctLineagesAlive, long birthsTotal,
+            int maxGeneration) {
+    }
+
+    public record EnergyLedger(double initialEnergy, double finalEnergy, double finalSink,
+            double initialResource, double finalResource, double cumulativeInflow) {
+
+        public double intakeTotal() {
+            return initialResource + cumulativeInflow - finalResource;
+        }
+    }
+
+    public record Mass(double initialMass, double finalTotal, double finalMax) {
+    }
+
+    public static DynamicsSummary empty(final long stateDigest) {
+        return new DynamicsSummary(
+                new Activity(0, 0),
+                new Population(0, 0, 0, 0, 0),
+                new EnergyLedger(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                new Mass(0.0, 0.0, 0.0),
+                stateDigest);
+    }
+
+    /** Sums in this order on purpose: the report's last digits depend on it. */
     public double energyAuditError() {
-        final double credited = initialEnergyTotal + initialReservoir + creditedInitialMass + cumulativeInflow;
-        final double held = finalEnergyTotal + finalReservoir + finalMassTotal + finalEnergySink;
+        final double credited = energy.initialEnergy() + energy.initialResource() + mass.initialMass()
+                + energy.cumulativeInflow();
+        final double held = energy.finalEnergy() + energy.finalResource() + mass.finalTotal() + energy.finalSink();
         return Math.abs(credited - held);
     }
 
-    /** Energy drawn out of the reservoir into units over the whole run. */
-    public double intakeTotal() {
-        return initialReservoir + cumulativeInflow - finalReservoir;
+    public double finalMassMean() {
+        final int living = population.finalCount();
+        return living == 0 ? 0.0 : mass.finalTotal() / living;
     }
 }

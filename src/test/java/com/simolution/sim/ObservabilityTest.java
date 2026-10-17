@@ -15,7 +15,8 @@ import org.junit.jupiter.api.io.TempDir;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
-import com.simolution.sim.run.RunDirectory;
+import com.simolution.sim.run.RunDirectoryReader;
+import com.simolution.sim.run.RunDirectoryWriter;
 
 class ObservabilityTest {
 
@@ -53,7 +54,7 @@ class ObservabilityTest {
             }
 
             // act
-            Kernel seeked = RunDirectory.seek(obsDir, t, 1);
+            Kernel seeked = RunDirectoryReader.seek(obsDir, t, 1);
 
             // assert
             assertSnapshotsEqual(canonical.snapshot(), seeked.snapshot(), t);
@@ -73,7 +74,7 @@ class ObservabilityTest {
 
     private void recordRun(Path obsDir) throws IOException {
         Kernel kernel = freshKernel();
-        RunDirectory run = RunDirectory.create(obsDir, kernel, CHECKPOINT_EVERY);
+        RunDirectoryWriter run = RunDirectoryWriter.create(obsDir, kernel, CHECKPOINT_EVERY);
         for (int i = 0; i < TICKS; i++) {
             kernel.tick();
             run.checkpointIfDue(kernel);

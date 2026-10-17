@@ -18,7 +18,7 @@ import com.simolution.sim.SimulationRun;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
 import com.simolution.sim.TickObserver;
-import com.simolution.sim.TimeSeriesReport;
+import com.simolution.sim.TimeSeriesSampler;
 
 public class Main {
 
@@ -33,7 +33,7 @@ public class Main {
         Founders founders = Founders.create(config);
         StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());
         DynamicsObserver dynamics = new DynamicsObserver();
-        TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
+        TimeSeriesSampler timeSeries = new TimeSeriesSampler(config.ticks());
         try (Kernel kernel = founders.newKernel(config.threads());
              RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
             TickObserver[] observers = observers(config, kernel, dynamics, timeSeries, artifacts);
@@ -47,7 +47,7 @@ public class Main {
     }
 
     private static TickObserver[] observers(RunConfig config, Kernel kernel, DynamicsObserver dynamics,
-            TimeSeriesReport timeSeries, RunArtifacts artifacts) {
+            TimeSeriesSampler timeSeries, RunArtifacts artifacts) {
         List<TickObserver> observers = new ArrayList<>();
         observers.add(dynamics);
         if (config.digestEveryTick()) {

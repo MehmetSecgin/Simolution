@@ -44,7 +44,7 @@ class RunLifecycleTest {
 
     private static void assertSeekMatchesUninterrupted(final EngineConfig config, final Path dir) throws IOException {
         final Kernel recorded = newKernel(config);
-        final RunDirectory run = RunDirectory.create(dir, recorded, EVERY);
+        final RunDirectoryWriter run = RunDirectoryWriter.create(dir, recorded, EVERY);
         final List<byte[]> canonical = new ArrayList<>();
         canonical.add(bytes(recorded));
         for (int t = 1; t <= TICKS; t++) {
@@ -54,7 +54,7 @@ class RunLifecycleTest {
         }
 
         for (int t = 0; t <= TICKS; t++) {
-            assertArrayEquals(canonical.get(t), bytes(RunDirectory.seek(dir, t, 1)), "state at tick " + t);
+            assertArrayEquals(canonical.get(t), bytes(RunDirectoryReader.seek(dir, t, 1)), "state at tick " + t);
         }
     }
 
@@ -74,7 +74,7 @@ class RunLifecycleTest {
     @Test
     void checkpointsLandEveryNTicksAndRunJsonNamesTheRun(@TempDir final Path dir) throws IOException {
         final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
-        final RunDirectory run = RunDirectory.create(dir, kernel, EVERY);
+        final RunDirectoryWriter run = RunDirectoryWriter.create(dir, kernel, EVERY);
         for (int t = 1; t <= 120; t++) {
             kernel.tick();
             run.checkpointIfDue(kernel);
@@ -94,21 +94,21 @@ class RunLifecycleTest {
     @Test
     void branchRecordsItsParent(@TempDir final Path parentDir, @TempDir final Path branchDir) throws IOException {
         final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
-        final RunDirectory parent = RunDirectory.create(parentDir, kernel, EVERY);
+        final RunDirectoryWriter parent = RunDirectoryWriter.create(parentDir, kernel, EVERY);
         for (int t = 1; t <= 100; t++) {
             kernel.tick();
             parent.checkpointIfDue(kernel);
         }
 
-        final Kernel atParent = RunDirectory.seek(parentDir, 100, 1);
-        final RunDirectory branch = RunDirectory.createBranch(branchDir, atParent, EVERY, parent.runId(), 100);
+        final Kernel atParent = RunDirectoryReader.seek(parentDir, 100, 1);
+        final RunDirectoryWriter branch = RunDirectoryWriter.createBranch(branchDir, atParent, EVERY, parent.runId(), 100);
 
         final JsonNode json = new ObjectMapper().readTree(Files.readString(branchDir.resolve("run.json")));
         assertEquals(parent.runId(), json.get("parent").get("runId").asText());
         assertEquals(100, json.get("parent").get("tick").asInt());
         assertTrue(Files.exists(branchDir.resolve("ckpt/100.ckpt")));
         assertNotNull(branch.runId());
-        assertEquals(100, RunDirectory.seek(branchDir, 100, 1).currentTick());
+        assertEquals(100, RunDirectoryReader.seek(branchDir, 100, 1).currentTick());
     }
 
     @Test

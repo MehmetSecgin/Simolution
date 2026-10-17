@@ -55,9 +55,8 @@ class DynamicsObserverTest {
         DynamicsSummary summary = runAndSummarize(new int[][] {{}}, 10);
 
         // assert
-        assertEquals(10, summary.ticks());
-        assertEquals(0, summary.ticksWithAnyActivity());
-        assertEquals(0, summary.propagationsTotal());
+        assertEquals(0, summary.activity().ticksWithAnyActivity());
+        assertEquals(0, summary.activity().propagationsTotal());
     }
 
     @Test
@@ -66,9 +65,9 @@ class DynamicsObserverTest {
         DynamicsSummary summary = runAndSummarize(new int[][] {FEEDBACK_GENOME}, 50);
 
         // assert
-        assertTrue(summary.ticksWithAnyActivity() > 0);
-        assertTrue(summary.ticksWithAnyActivity() < 50);
-        assertTrue(summary.propagationsTotal() >= summary.ticksWithAnyActivity());
+        assertTrue(summary.activity().ticksWithAnyActivity() > 0);
+        assertTrue(summary.activity().ticksWithAnyActivity() < 50);
+        assertTrue(summary.activity().propagationsTotal() >= summary.activity().ticksWithAnyActivity());
     }
 
     @Test
@@ -103,9 +102,9 @@ class DynamicsObserverTest {
         }
 
         // assert
-        assertEquals(expectedPropagations, summary.propagationsTotal());
-        assertEquals(expectedActiveTicks, summary.ticksWithAnyActivity());
-        assertEquals(peak, summary.peakPopulation());
+        assertEquals(expectedPropagations, summary.activity().propagationsTotal());
+        assertEquals(expectedActiveTicks, summary.activity().ticksWithAnyActivity());
+        assertEquals(peak, summary.population().peak());
     }
 
     @Test

@@ -2,15 +2,8 @@ package com.simolution.sim;
 
 import com.simolution.kernel.runtime.KernelSnapshot;
 
-/**
- * A bounded time series of population-level metrics for visualization. Samples
- * at most {@code BUCKETS} evenly-spaced ticks regardless of run length, so its
- * footprint is constant in ticks (memory discipline): the only population-vs-time
- * data the system keeps, downsampled rather than full-resolution. Unlike the
- * observer's running aggregates this is a small ordered trace, written to the
- * .timeseries.csv sidecar for charting.
- */
-public final class TimeSeriesReport implements TickObserver {
+/** Keeps at most {@code BUCKETS} evenly spaced rows, so the footprint is constant in ticks. */
+public final class TimeSeriesSampler implements TickObserver {
 
     public static final int BUCKETS = 1000;
     public static final String HEADER = "tick,population,births,max_generation,unit_energy,reservoir";
@@ -19,7 +12,7 @@ public final class TimeSeriesReport implements TickObserver {
     private final int step;
     private final int totalTicks;
 
-    public TimeSeriesReport(final int totalTicks) {
+    public TimeSeriesSampler(final int totalTicks) {
         this.totalTicks = totalTicks;
         this.step = Math.max(1, totalTicks / BUCKETS);
         out.append(HEADER).append('\n');
@@ -27,10 +20,16 @@ public final class TimeSeriesReport implements TickObserver {
 
     @Override
     public void observe(final KernelSnapshot snapshot) {
-        final int i = snapshot.tick - 1;
-        if (i % step != 0 && i != totalTicks - 1) {
-            return;
+        if (isSampled(snapshot.tick - 1)) {
+            appendRow(snapshot);
         }
+    }
+
+    private boolean isSampled(final int tickIndex) {
+        return tickIndex % step == 0 || tickIndex == totalTicks - 1;
+    }
+
+    private void appendRow(final KernelSnapshot snapshot) {
         int population = 0;
         double unitEnergy = 0.0;
         for (final double e : snapshot.energy) {

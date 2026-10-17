@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.sim.run.RunDirectory;
+import com.simolution.sim.run.RunDirectoryReader;
 
 public final class ReplayCommand {
 
@@ -45,7 +45,7 @@ public final class ReplayCommand {
     public static void run(final String[] args) throws IOException {
         final ReplayArgs replay = ReplayArgs.parse(args);
         final String dump;
-        try (Kernel kernel = RunDirectory.seek(replay.obsDir(), replay.tick(), replay.threads())) {
+        try (Kernel kernel = RunDirectoryReader.seek(replay.obsDir(), replay.tick(), replay.threads())) {
             dump = SnapshotDump.render(kernel.snapshot(), kernel.liveConnections(), kernel.config());
         }
         if (replay.snapshotOut() == null) {

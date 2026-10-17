@@ -14,7 +14,7 @@ import java.util.zip.GZIPOutputStream;
 
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.sim.run.RunDirectory;
+import com.simolution.sim.run.RunDirectoryWriter;
 
 public final class RunArtifacts implements Closeable {
 
@@ -104,7 +104,7 @@ public final class RunArtifacts implements Closeable {
                 founderCount, founders.cells(), founders.engine().founder().initialEnergy()));
         addWriter(new MetricsWriter(openText(obsDir.resolve("metrics.csv")), founderCount));
         final int checkpointEvery = config.observation().checkpointEvery();
-        final RunDirectory runDirectory = RunDirectory.create(obsDir, kernel, checkpointEvery);
+        final RunDirectoryWriter runDirectory = RunDirectoryWriter.create(obsDir, kernel, checkpointEvery);
         observers.add(snapshot -> runDirectory.checkpointIfDue(kernel));
         RunConsole.announceObservability(obsDir, checkpointEvery);
     }

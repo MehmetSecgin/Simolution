@@ -13,7 +13,7 @@ import com.simolution.sim.Observation;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.SimulationRun;
 import com.simolution.sim.TickObserver;
-import com.simolution.sim.TimeSeriesReport;
+import com.simolution.sim.TimeSeriesSampler;
 
 public final class Bench {
 
@@ -60,7 +60,7 @@ public final class Bench {
 
     private static Row runOnce(final RunConfig config, final String name) throws IOException {
         final Kernel kernel = Founders.create(config).newKernel(config.threads());
-        final TickObserver[] observers = {new DynamicsObserver(), new TimeSeriesReport(config.ticks())};
+        final TickObserver[] observers = {new DynamicsObserver(), new TimeSeriesSampler(config.ticks())};
         final long wallMillis = SimulationRun.execute(kernel, config.ticks(), observers).elapsedMillis();
         kernel.close();
         final Runtime runtime = Runtime.getRuntime();
