@@ -1,5 +1,6 @@
 package com.simolution.sim;
 
+import com.simolution.kernel.EngineVersion;
 import java.util.Arrays;
 
 /**
@@ -21,7 +22,7 @@ public final class RunReport {
 
         out.append("# Simolution run report\n");
         out.append("schema: ").append(SCHEMA).append('\n');
-        out.append("kernel: v5\n");
+        out.append("kernel: ").append(EngineVersion.ID).append('\n');
         out.append("seed: ").append(config.seed()).append('\n');
         out.append("units: ").append(units).append('\n');
         out.append("world-width: ").append(config.worldWidth()).append('\n');

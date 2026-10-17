@@ -131,11 +131,6 @@ public record RunConfig(
                     cycleRadius == null ? Math.max(1, w / 5) : cycleRadius,
                     cyclePeak == null ? 6.0 : cyclePeak));
         }
-        if (observe && !engine.chemicals().get(0).inflow().equals(InflowConfig.uniform(1.0))) {
-            throw new IllegalArgumentException(
-                    "non-uniform inflow with --observe is not supported yet "
-                    + "(the replay manifest does not carry the inflow field)");
-        }
         return new RunConfig(
                 u,
                 ticks == null ? 1000 : ticks,

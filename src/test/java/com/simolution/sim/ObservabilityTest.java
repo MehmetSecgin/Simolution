@@ -2,26 +2,23 @@ package com.simolution.sim;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.simolution.kernel.config.ConfigJson;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.sim.run.RunDirectory;
 
 /**
- * Conformance for the report-v8 observability layer: replay is exact, the
- * sink never perturbs the run, and the manifest round-trips. These are the
- * guarantees the spec calls out as must-hold.
+ * Conformance for the observability layer: replay is exact and the sink never
+ * perturbs the run. These are the guarantees the spec calls out as must-hold.
  */
 class ObservabilityTest {
 
@@ -52,14 +49,12 @@ class ObservabilityTest {
     @Test
     void replaySeekMatchesCanonicalAtEveryTick(@TempDir Path obsDir) throws IOException {
         recordRun(obsDir);
-        Replayer replayer = Replayer.open(obsDir);
-
         for (int t : new int[] {0, 1, 137, 200, 400, 401, 600}) {
             Kernel canonical = freshKernel();
             for (int i = 0; i < t; i++) {
                 canonical.tick();
             }
-            assertSnapshotsEqual(canonical.snapshot(), replayer.seekTo(t), t);
+            assertSnapshotsEqual(canonical.snapshot(), RunDirectory.seek(obsDir, t).snapshot(), t);
         }
     }
 
@@ -67,63 +62,27 @@ class ObservabilityTest {
     // not perturb the kernel's history (the live arrays handed out must not be
     // mutated). Digest with and without the writers attached is identical.
     @Test
-    void attachingSinkLeavesRunByteIdentical(@TempDir Path obsDir) throws IOException {
-        long bare = digestOfRun(false, obsDir.resolve("a"));
-        long observed = digestOfRun(true, obsDir.resolve("b"));
+    void attachingSinkLeavesRunByteIdentical() throws IOException {
+        long bare = digestOfRun(false);
+        long observed = digestOfRun(true);
         assertEquals(bare, observed, "observability sink changed the run");
     }
 
-    @Test
-    void manifestRoundTrips() {
-        RunManifest m = new RunManifest("v3", 7L, WORLD, 2,
-                new int[] {3, 17}, new int[][] {{1, -2, 3}, {-4, 5}},
-                7L, 3, MAX_GENES, TICKS, ConfigHash.compute(ENGINE), CHECKPOINT_EVERY, 5);
-        RunManifest parsed = RunManifest.parse(m.toJson());
-        assertEquals(m.kernel(), parsed.kernel());
-        assertEquals(m.seed(), parsed.seed());
-        assertEquals(m.worldWidth(), parsed.worldWidth());
-        assertEquals(m.founderCount(), parsed.founderCount());
-        assertArrayEquals(m.founderCells(), parsed.founderCells());
-        assertArrayEquals(m.founderGenomes()[0], parsed.founderGenomes()[0]);
-        assertArrayEquals(m.founderGenomes()[1], parsed.founderGenomes()[1]);
-        assertEquals(m.configHash(), parsed.configHash());
-        assertEquals(m.checkpointEvery(), parsed.checkpointEvery());
-        assertEquals(m.mapSampleEvery(), parsed.mapSampleEvery());
-    }
-
-    @Test
-    void replayRefusesOnConfigHashMismatch(@TempDir Path obsDir) throws IOException {
-        recordRun(obsDir);
-        String json = Files.readString(obsDir.resolve("manifest.json"));
-        String tampered = json.replaceAll("\"configHash\": \"[0-9a-f]+\"",
-                "\"configHash\": \"deadbeef\"");
-        Files.writeString(obsDir.resolve("manifest.json"), tampered);
-        assertThrows(IllegalStateException.class, () -> Replayer.open(obsDir));
-    }
-
     private void recordRun(Path obsDir) throws IOException {
-        Files.createDirectories(obsDir);
         Kernel kernel = freshKernel();
-        try (CheckpointWriter ckpt = new CheckpointWriter(obsDir.resolve("ckpt"), CHECKPOINT_EVERY)) {
-            for (int i = 0; i < TICKS; i++) {
-                kernel.tick();
-                ckpt.maybeCheckpoint(kernel, kernel.snapshot());
-            }
+        RunDirectory run = RunDirectory.create(obsDir, kernel, CHECKPOINT_EVERY);
+        for (int i = 0; i < TICKS; i++) {
+            kernel.tick();
+            run.afterTick(kernel);
         }
-        RunManifest manifest = new RunManifest("v3", SEED, WORLD, UNITS,
-                founderCells(), genomes(), SEED, GENES, MAX_GENES, TICKS,
-                ConfigHash.compute(ENGINE), CHECKPOINT_EVERY, 0);
-        Files.writeString(obsDir.resolve("manifest.json"), manifest.toJson());
-        Files.writeString(obsDir.resolve("config.json"), ConfigJson.write(ENGINE));
     }
 
-    private long digestOfRun(boolean observe, Path obsDir) throws IOException {
+    private long digestOfRun(boolean observe) throws IOException {
         Kernel kernel = freshKernel();
         BirthTracker births = new BirthTracker(WORLD * WORLD, UNITS, WORLD, founderCells(), ENGINE);
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
         if (observe) {
-            Files.createDirectories(obsDir);
             eventLog = new EventLogWriter(new BufferedWriter(new StringWriter()),
                     births, WORLD * WORLD, UNITS, founderCells(), ENGINE);
             metrics = new MetricsWriter(new BufferedWriter(new StringWriter()), UNITS, WORLD * WORLD);

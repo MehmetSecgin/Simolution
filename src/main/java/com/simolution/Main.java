@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-import com.simolution.kernel.config.ConfigJson;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.genome.GenomeCompiler;
@@ -16,8 +15,6 @@ import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.BirthLogWriter;
 import com.simolution.sim.BirthTracker;
-import com.simolution.sim.CheckpointWriter;
-import com.simolution.sim.ConfigHash;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.EventLogWriter;
@@ -25,14 +22,13 @@ import com.simolution.sim.GenomeCatalogWriter;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.MapFrameWriter;
 import com.simolution.sim.MetricsWriter;
-import com.simolution.sim.Replayer;
 import com.simolution.sim.RunConfig;
-import com.simolution.sim.RunManifest;
 import com.simolution.sim.RunReport;
 import com.simolution.sim.SnapshotDump;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
 import com.simolution.sim.TimeSeriesReport;
+import com.simolution.sim.run.RunDirectory;
 
 public class Main {
 
@@ -98,7 +94,7 @@ public class Main {
 
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
-        CheckpointWriter checkpoints = null;
+        RunDirectory runDirectory = null;
         Path obsDir = null;
         if (config.observe()) {
             obsDir = obsDir(Path.of(config.outPath()));
@@ -107,15 +103,8 @@ public class Main {
                     birthTracker, maxUnits, genomes.length, founderCells, engine);
             metrics = new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
                     genomes.length, maxUnits);
-            checkpoints = new CheckpointWriter(obsDir.resolve("ckpt"), config.checkpointEvery());
-            int mapSampleEvery = config.mapFrom() >= 0 ? 1
-                    : (config.mapFrames() > 0 ? Math.max(1, config.ticks() / config.mapFrames()) : 1);
-            RunManifest manifest = new RunManifest("v4", config.seed(), worldWidth, genomes.length,
-                    founderCells, genomes, config.seed(), config.genesPerUnit(), maxGenes,
-                    config.ticks(), ConfigHash.compute(engine), config.checkpointEvery(), mapSampleEvery);
-            Files.writeString(obsDir.resolve("manifest.json"), manifest.toJson());
-            Files.writeString(obsDir.resolve("config.json"), ConfigJson.write(engine));
-            System.out.println("observability layer writing to " + obsDir + "/ (manifest, events.jsonl, "
+            runDirectory = RunDirectory.create(obsDir, kernel, config.checkpointEvery());
+            System.out.println("observability layer writing to " + obsDir + "/ (run.json, events.jsonl, "
                     + "metrics.csv, ckpt/ every " + config.checkpointEvery() + " ticks)");
         }
 
@@ -135,7 +124,7 @@ public class Main {
             if (eventLog != null) {
                 eventLog.observe(snapshot);
                 metrics.sample(snapshot);
-                checkpoints.maybeCheckpoint(kernel, snapshot);
+                runDirectory.afterTick(kernel);
             }
             if (trace != null) {
                 trace.log(snapshot, unitsToTrace);
@@ -151,7 +140,6 @@ public class Main {
         if (eventLog != null) {
             eventLog.close();
             metrics.close();
-            checkpoints.close();
             System.out.println("observability artifacts written to " + obsDir
                     + "/ (replay: ./gradlew run --args=\"--replay " + obsDir + " --at <tick>\")");
         }
@@ -212,9 +200,8 @@ public class Main {
         if (obs == null || at == null) {
             throw new IllegalArgumentException("replay needs --replay <obsDir> and --at <tick>");
         }
-        Replayer replayer = Replayer.open(Path.of(obs));
-        KernelSnapshot snapshot = replayer.seekTo(at);
-        String dump = SnapshotDump.render(snapshot, replayer.kernel().liveConnections(), replayer.engine());
+        Kernel kernel = RunDirectory.seek(Path.of(obs), at);
+        String dump = SnapshotDump.render(kernel.snapshot(), kernel.liveConnections(), kernel.config());
         if (snapshotOut == null) {
             System.out.print(dump);
         } else {

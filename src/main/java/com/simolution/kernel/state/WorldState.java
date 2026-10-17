@@ -69,7 +69,7 @@ public final class WorldState {
     public int maxGeneration;
     public double creditedInitialEnergy;
     public double creditedInitialMass;
-    public final double initialResourceTotal;
+    public double initialResourceTotal;
 
     private final List<FieldSpec> resetOnBirth;
     private final List<FieldSpec> zeroOnDeath;
@@ -176,7 +176,7 @@ public final class WorldState {
                 new FieldSpec("cellOccupant", Dim.CELL, saved, explicit, OnDeath.KEEP, cellOccupant),
                 new FieldSpec("outputsPrev", Dim.UNIT_NODE, saved, zeroed, OnDeath.KEEP, outputsPrev),
                 new FieldSpec("delayMemory", Dim.UNIT_NODE, saved, zeroed, OnDeath.KEEP, delayMemory),
-                new FieldSpec("unitChem", Dim.CELL_CHEM, saved, explicit, OnDeath.KEEP, unitChem),
+                new FieldSpec("unitChem", Dim.UNIT_CHEM, saved, explicit, OnDeath.KEEP, unitChem),
                 new FieldSpec("connSrc", Dim.GENE, derived, explicit, OnDeath.KEEP, connSrc),
                 new FieldSpec("connDst", Dim.GENE, derived, explicit, OnDeath.KEEP, connDst),
                 new FieldSpec("connWeight", Dim.GENE, derived, explicit, OnDeath.KEEP, connWeight),
