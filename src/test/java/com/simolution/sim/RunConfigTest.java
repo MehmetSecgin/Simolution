@@ -72,4 +72,10 @@ class RunConfigTest {
         RunConfig uniform = RunConfig.parse(new String[] { "--units", "100", "--world", "100" });
         assertSame(InflowConfig.UNIFORM, uniform.inflow());
     }
+
+    @Test
+    void mapFramesDefaultsOff() {
+        assertEquals(-1, RunConfig.parse(new String[] {"--out", "x.txt"}).mapFrames());
+        assertEquals(0, RunConfig.parse(new String[] {"--out", "x.txt", "--map-frames", "0"}).mapFrames());
+    }
 }

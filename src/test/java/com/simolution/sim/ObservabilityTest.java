@@ -114,12 +114,13 @@ class ObservabilityTest {
 
     private long digestOfRun(boolean observe, Path obsDir) throws IOException {
         Kernel kernel = freshKernel();
+        BirthTracker births = new BirthTracker(WORLD * WORLD, UNITS, WORLD, founderCells());
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
         if (observe) {
             Files.createDirectories(obsDir);
             eventLog = new EventLogWriter(new BufferedWriter(new StringWriter()),
-                    WORLD * WORLD, UNITS, WORLD, founderCells());
+                    births, WORLD * WORLD, UNITS, founderCells());
             metrics = new MetricsWriter(new BufferedWriter(new StringWriter()), UNITS, WORLD * WORLD);
         }
         long digest = 0L;
@@ -127,6 +128,7 @@ class ObservabilityTest {
             kernel.tick();
             KernelSnapshot s = kernel.snapshot();
             if (observe) {
+                births.observe(s);
                 eventLog.observe(s);
                 metrics.sample(s);
             }

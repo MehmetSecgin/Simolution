@@ -13,6 +13,7 @@ import com.simolution.kernel.logging.ConsoleTableLogger;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.BirthLogWriter;
+import com.simolution.sim.BirthTracker;
 import com.simolution.sim.CheckpointWriter;
 import com.simolution.sim.ConfigHash;
 import com.simolution.sim.DynamicsObserver;
@@ -67,7 +68,9 @@ public class Main {
         MapFrameWriter mapWriter = null;
         GenomeCatalogWriter catalogWriter = null;
         BirthLogWriter birthLog = null;
+        BirthTracker birthTracker = null;
         if (config.outPath() != null) {
+            birthTracker = new BirthTracker(maxUnits, genomes.length, worldWidth, founderCells);
             Path out = Path.of(config.outPath());
             if (out.getParent() != null) {
                 Files.createDirectories(out.getParent());
@@ -80,7 +83,7 @@ public class Main {
                     new java.io.OutputStreamWriter(
                             new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".births.csv.gz"))),
                             java.nio.charset.StandardCharsets.UTF_8),
-                    catalogWriter, maxUnits, genomes.length, worldWidth, founderCells);
+                    catalogWriter, birthTracker);
             if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
                 Path framesPath = sibling(out, ".frames.zst");
                 mapWriter = new MapFrameWriter(
@@ -98,7 +101,7 @@ public class Main {
             obsDir = obsDir(Path.of(config.outPath()));
             Files.createDirectories(obsDir);
             eventLog = new EventLogWriter(Files.newBufferedWriter(obsDir.resolve("events.jsonl")),
-                    maxUnits, genomes.length, worldWidth, founderCells);
+                    birthTracker, maxUnits, genomes.length, founderCells);
             metrics = new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
                     genomes.length, maxUnits);
             checkpoints = new CheckpointWriter(obsDir.resolve("ckpt"), config.checkpointEvery());
@@ -118,7 +121,8 @@ public class Main {
             KernelSnapshot snapshot = kernel.snapshot();
             observer.observe(snapshot);
             timeSeries.sample(i, snapshot);
-            if (birthLog != null) {
+            if (birthTracker != null) {
+                birthTracker.observe(snapshot);
                 birthLog.observe(snapshot);
             }
             if (mapWriter != null) {

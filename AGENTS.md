@@ -33,8 +33,8 @@ python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 # genome panel + circuit inspector + colour by genome as the live view, frames + catalog
 # inlined, opens anywhere (even file://). The run writes chunked-zstd <base>.frames.zst
 # (lean row `u <cell> <slot> <genomeId>` — mass + action dropped, report-v14) + a gzipped
-# <base>.catalog.gz (genome dictionary) whenever --out is set
-# (--map-frames N: 0 = EVERY tick [default], N>0 = N target frames, negative = off). Then:
+# <base>.catalog.gz (genome dictionary) when --out is set and frames are requested
+# (--map-frames N: negative/absent = off [default], 0 = every tick, N>0 = N frames). Then:
 python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.html (offline; needs the zstd CLI)
 
 # observability layer (report-v8): optional, decoupled, off by default. Writes

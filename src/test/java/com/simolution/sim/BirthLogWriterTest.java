@@ -25,11 +25,13 @@ class BirthLogWriterTest {
         int world = 8;
         int[] founders = Kernel.scatterFounders(6, world);
         Kernel k = new Kernel(GenomeFactory.random(3L, 6, 8), world, 8, founders);
-        BirthLogWriter w = new BirthLogWriter(births, cat, world * world, 6, world, founders);
+        BirthTracker tracker = new BirthTracker(world * world, 6, world, founders);
+        BirthLogWriter w = new BirthLogWriter(births, cat, tracker);
 
         for (int i = 0; i < 40; i++) {
             k.tick();
             KernelSnapshot s = k.snapshot();
+            tracker.observe(s);
             w.observe(s);
         }
         w.close();

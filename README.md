@@ -74,7 +74,7 @@ Useful flags: `--units N --ticks T --seed S --world W --genes G --max-genes G2`,
 
 ## Watch a run
 
-Every `--out` run streams a compact spatial history (`.frames.zst` + genome `.catalog.gz`). Explore it in the browser:
+An `--out` run with `--map-frames 0` (every tick; `N` for N frames) streams a compact spatial history (`.frames.zst` + genome `.catalog.gz`). Explore it in the browser:
 
 ```sh
 # bake a self-contained, offline viewer (opens anywhere, even file://)

@@ -21,53 +21,28 @@ import com.simolution.kernel.runtime.Noise;
 public final class DynamicsObserver {
 
     private final int unitCount;
-    private final int maxUnits;
     private final CompiledConnection[] connections;
 
-    private final boolean[] lineageSeen;
+    private KernelSnapshot last;
     private int peakPopulation;
-    private int finalPopulation;
-    private int distinctLineagesAlive;
     private long birthsTotal;
     private int maxGeneration;
     private double creditedInitialEnergy;
     private double creditedInitialMass;
-    private double finalMassTotal;
-    private double finalMassMax;
 
-    // per-lineage running aggregates, indexed by lineageId (= the founder slot
-    // index a lineage descends from, always < founder count). Bounded by the
-    // founder count, never by ticks. Scratch is refilled each tick.
-    private final int[] lineagePeak;
-    private final int[] lineageFinal;
-    private final int[] lineageMaxGen;
-    private final int[] lineageFirstTick;
-    private final int[] lineageExtinctTick;
-    private final double[] lineageFinalEnergy;
-    private final int[] lineageAliveScratch;
-    private final int[] lineageGenScratch;
-    private final double[] lineageEnergyScratch;
-
-    private final float[] prevOutputs;
-    private final float[] prevDelay;
+    private float[] prevOutputs;
+    private float[] prevDelay;
+    private float[] olderOutputs;
+    private float[] olderDelay;
     private final double[] accumulators;
     private final boolean[] activeThisTick;
 
     private final int[] firstActivityTick;
-    private final boolean[] dormantAtEnd;
-    private final boolean[] endedAtFixedPoint;
     private final boolean[] reachedNonFinite;
     private final double[] maxAbsOutput;
 
     private final double[] prevEnergy;
     private final int[] deathTick;
-    private final double[] finalEnergy;
-    private final double[] finalMass;
-    private final double[] peakBurn;
-    private final long[] propagationsByUnit;
-    private final int[] ticksActiveByUnit;
-    private final long[] clampByUnit;
-    private final long[] threshFlipsByUnit;
     private final int[] harvestTicksByUnit;
 
     private long ticksWithAnyActivity;
@@ -79,40 +54,24 @@ public final class DynamicsObserver {
     private int ticksObserved;
     private long harvestActiveTicksTotal;
 
-    private double finalEnergyTotal;
     private double finalEnergySink;
-    private double finalReservoir;
     private double initialReservoir;
     private double cumulativeInflow;
 
     public DynamicsObserver(final int unitCount, final int maxUnits, final CompiledConnection[] connections) {
         this.unitCount = unitCount;
-        this.maxUnits = maxUnits;
         this.connections = connections;
-        this.lineageSeen = new boolean[maxUnits];
-
-        this.lineagePeak = new int[unitCount];
-        this.lineageFinal = new int[unitCount];
-        this.lineageMaxGen = new int[unitCount];
-        this.lineageFirstTick = new int[unitCount];
-        Arrays.fill(lineageFirstTick, -1);
-        this.lineageExtinctTick = new int[unitCount];
-        Arrays.fill(lineageExtinctTick, -1);
-        this.lineageFinalEnergy = new double[unitCount];
-        this.lineageAliveScratch = new int[unitCount];
-        this.lineageGenScratch = new int[unitCount];
-        this.lineageEnergyScratch = new double[unitCount];
 
         final int totalNodes = unitCount * NodeLayout.TOTAL;
         this.prevOutputs = new float[totalNodes];
         this.prevDelay = new float[totalNodes];
+        this.olderOutputs = new float[totalNodes];
+        this.olderDelay = new float[totalNodes];
         this.accumulators = new double[totalNodes];
         this.activeThisTick = new boolean[unitCount];
 
         this.firstActivityTick = new int[unitCount];
         Arrays.fill(firstActivityTick, -1);
-        this.dormantAtEnd = new boolean[unitCount];
-        this.endedAtFixedPoint = new boolean[unitCount];
         this.reachedNonFinite = new boolean[unitCount];
         this.maxAbsOutput = new double[unitCount];
 
@@ -120,15 +79,6 @@ public final class DynamicsObserver {
         Arrays.fill(prevEnergy, KernelConfig.INITIAL_ENERGY);
         this.deathTick = new int[unitCount];
         Arrays.fill(deathTick, -1);
-        this.finalEnergy = new double[unitCount];
-        Arrays.fill(finalEnergy, KernelConfig.INITIAL_ENERGY);
-        this.finalMass = new double[unitCount];
-        Arrays.fill(finalMass, KernelConfig.INITIAL_MASS);
-        this.peakBurn = new double[unitCount];
-        this.propagationsByUnit = new long[unitCount];
-        this.ticksActiveByUnit = new int[unitCount];
-        this.clampByUnit = new long[unitCount];
-        this.threshFlipsByUnit = new long[unitCount];
         this.harvestTicksByUnit = new int[unitCount];
     }
 
@@ -140,6 +90,7 @@ public final class DynamicsObserver {
      */
     public void observe(final KernelSnapshot snapshot) {
         ticksObserved++;
+        last = snapshot;
 
         Arrays.fill(accumulators, 0.0);
         Arrays.fill(activeThisTick, false);
@@ -159,7 +110,6 @@ public final class DynamicsObserver {
             if (signal != 0.0) {
                 anyActivity = true;
                 propagationsTotal++;
-                propagationsByUnit[unit]++;
 
                 activeThisTick[unit] = true;
                 if (firstActivityTick[unit] < 0) {
@@ -182,17 +132,11 @@ public final class DynamicsObserver {
             final int clampIdx = base + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.CLAMP;
             if (Math.abs(accumulators[clampIdx]) > 1.0) {
                 clampSaturationEvents++;
-                clampByUnit[unit]++;
             }
 
             final int threshIdx = base + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.THRESH;
             if (snapshot.tick >= 2 && snapshot.outputs[threshIdx] != prevOutputs[threshIdx]) {
                 threshFlipsTotal++;
-                threshFlipsByUnit[unit]++;
-            }
-
-            if (activeThisTick[unit]) {
-                ticksActiveByUnit[unit]++;
             }
 
             final int harvestIdx = base + NodeLayout.ACTION_OFFSET + NodeLayout.Action.HARVEST;
@@ -200,16 +144,6 @@ public final class DynamicsObserver {
                 harvestActiveTicksTotal++;
                 harvestTicksByUnit[unit]++;
             }
-
-            // energy charged this tick = what left the unit; peak is the
-            // hardest single-tick burn over its life
-            final double burn = prevEnergy[unit] - snapshot.energy[unit];
-            if (burn > peakBurn[unit]) {
-                peakBurn[unit] = burn;
-            }
-
-            endedAtFixedPoint[unit] = unitStateUnchanged(snapshot, unit);
-            dormantAtEnd[unit] = !activeThisTick[unit];
 
             for (int node = 0; node < NodeLayout.TOTAL; node++) {
                 final double value = snapshot.outputs[base + node];
@@ -223,62 +157,12 @@ public final class DynamicsObserver {
             if (deathTick[unit] < 0 && snapshot.energy[unit] <= 0.0) {
                 deathTick[unit] = snapshot.tick;
             }
-            finalEnergy[unit] = snapshot.energy[unit];
-            finalMass[unit] = snapshot.mass[unit];
         }
 
-        // population-wide reproduction aggregates over every slot (founders and
-        // born children alike), independent of the founder-scoped per-unit
-        // arrays above. Running, bounded — no per-tick history kept.
-        int population = 0;
-        int distinct = 0;
-        Arrays.fill(lineageSeen, false);
-        Arrays.fill(lineageAliveScratch, 0);
-        Arrays.fill(lineageGenScratch, 0);
-        Arrays.fill(lineageEnergyScratch, 0.0);
-        for (int slot = 0; slot < maxUnits; slot++) {
-            if (snapshot.energy[slot] > 0.0) {
-                population++;
-                final long lineage = snapshot.lineageId[slot];
-                if (lineage >= 0 && lineage < unitCount) {
-                    final int l = (int) lineage;
-                    if (!lineageSeen[l]) {
-                        lineageSeen[l] = true;
-                        distinct++;
-                    }
-                    lineageAliveScratch[l]++;
-                    if (snapshot.generation[slot] > lineageGenScratch[l]) {
-                        lineageGenScratch[l] = snapshot.generation[slot];
-                    }
-                    lineageEnergyScratch[l] += snapshot.energy[slot];
-                }
-            }
-        }
-        for (int l = 0; l < unitCount; l++) {
-            final int alive = lineageAliveScratch[l];
-            if (alive > 0) {
-                if (lineageFirstTick[l] < 0) {
-                    lineageFirstTick[l] = snapshot.tick;
-                }
-                if (alive > lineagePeak[l]) {
-                    lineagePeak[l] = alive;
-                }
-                if (lineageGenScratch[l] > lineageMaxGen[l]) {
-                    lineageMaxGen[l] = lineageGenScratch[l];
-                }
-                lineageFinal[l] = alive;
-                lineageFinalEnergy[l] = lineageEnergyScratch[l];
-            } else if (lineageFirstTick[l] >= 0 && lineageExtinctTick[l] < 0) {
-                lineageExtinctTick[l] = snapshot.tick;
-                lineageFinal[l] = 0;
-                lineageFinalEnergy[l] = 0.0;
-            }
-        }
+        final int population = livingCount(snapshot);
         if (population > peakPopulation) {
             peakPopulation = population;
         }
-        finalPopulation = population;
-        distinctLineagesAlive = distinct;
         birthsTotal = snapshot.birthsTotal;
         maxGeneration = snapshot.maxGeneration;
         creditedInitialEnergy = snapshot.creditedInitialEnergy;
@@ -286,14 +170,16 @@ public final class DynamicsObserver {
 
         foldDigest(snapshot);
 
-        finalEnergyTotal = sum(snapshot.energy);
-        finalMassTotal = snapshot.massTotal;
-        finalMassMax = maxLivingMass(snapshot);
         finalEnergySink = snapshot.energySink;
-        finalReservoir = snapshot.reservoir;
         initialReservoir = snapshot.initialResourceTotal;
         cumulativeInflow = snapshot.cumulativeInflow;
 
+        final float[] recycledOutputs = olderOutputs;
+        olderOutputs = prevOutputs;
+        prevOutputs = recycledOutputs;
+        final float[] recycledDelay = olderDelay;
+        olderDelay = prevDelay;
+        prevDelay = recycledDelay;
         System.arraycopy(snapshot.outputs, 0, prevOutputs, 0, prevOutputs.length);
         System.arraycopy(snapshot.delayMemory, 0, prevDelay, 0, prevDelay.length);
         System.arraycopy(snapshot.energy, 0, prevEnergy, 0, prevEnergy.length);
@@ -305,6 +191,29 @@ public final class DynamicsObserver {
             total += value;
         }
         return total;
+    }
+
+    private static int livingCount(final KernelSnapshot snapshot) {
+        int count = 0;
+        for (final double energy : snapshot.energy) {
+            if (energy > 0.0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private int distinctLineagesAlive(final KernelSnapshot snapshot) {
+        final boolean[] seen = new boolean[unitCount];
+        int distinct = 0;
+        for (int slot = 0; slot < snapshot.energy.length; slot++) {
+            final long lineage = snapshot.lineageId[slot];
+            if (snapshot.energy[slot] > 0.0 && lineage >= 0 && lineage < unitCount && !seen[(int) lineage]) {
+                seen[(int) lineage] = true;
+                distinct++;
+            }
+        }
+        return distinct;
     }
 
     /**
@@ -341,7 +250,7 @@ public final class DynamicsObserver {
             if (idx == randIdx || idx == selfEnergyIdx) {
                 continue;
             }
-            if (snapshot.outputs[idx] != prevOutputs[idx] || snapshot.delayMemory[idx] != prevDelay[idx]) {
+            if (snapshot.outputs[idx] != olderOutputs[idx] || snapshot.delayMemory[idx] != olderDelay[idx]) {
                 return false;
             }
         }
@@ -377,22 +286,28 @@ public final class DynamicsObserver {
         stateDigest = h;
     }
 
-    /**
-     * Per-lineage aggregates (one entry per founder, indexed by lineageId).
-     * Bounded by the founder count; rendered to the .lineage.csv sidecar.
-     */
-    public LineageSummary lineageSummary() {
-        return new LineageSummary(
-                lineagePeak, lineageFinal, lineageMaxGen,
-                lineageFirstTick, lineageExtinctTick, lineageFinalEnergy);
-    }
-
     public DynamicsSummary summarize() {
         final double[] finalAbsAction = new double[unitCount];
+        final boolean[] dormantAtEnd = new boolean[unitCount];
+        final boolean[] endedAtFixedPoint = new boolean[unitCount];
+        final double[] finalEnergy = new double[unitCount];
+        Arrays.fill(finalEnergy, KernelConfig.INITIAL_ENERGY);
         for (int unit = 0; unit < unitCount; unit++) {
             final int actionIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
             finalAbsAction[unit] = Math.abs(prevOutputs[actionIdx]);
+            if (last != null) {
+                dormantAtEnd[unit] = !activeThisTick[unit];
+                endedAtFixedPoint[unit] = unitStateUnchanged(last, unit);
+                finalEnergy[unit] = last.energy[unit];
+            }
         }
+
+        final int finalPopulation = last == null ? 0 : livingCount(last);
+        final int distinctLineagesAlive = last == null ? 0 : distinctLineagesAlive(last);
+        final double finalEnergyTotal = last == null ? 0.0 : sum(last.energy);
+        final double finalMassTotal = last == null ? 0.0 : last.massTotal;
+        final double finalMassMax = last == null ? 0.0 : maxLivingMass(last);
+        final double finalReservoir = last == null ? 0.0 : last.reservoir;
 
         return new DynamicsSummary(
                 ticksObserved,
@@ -409,11 +324,6 @@ public final class DynamicsObserver {
                 finalAbsAction,
                 deathTick,
                 finalEnergy,
-                peakBurn,
-                propagationsByUnit,
-                ticksActiveByUnit,
-                clampByUnit,
-                threshFlipsByUnit,
                 harvestTicksByUnit,
                 finalEnergyTotal,
                 finalEnergySink,
@@ -431,7 +341,6 @@ public final class DynamicsObserver {
                 maxGeneration,
                 creditedInitialMass,
                 finalMassTotal,
-                finalMass,
                 finalMassMax
         );
     }

@@ -82,7 +82,7 @@ public record RunConfig(
 
         boolean demo = units == null && genes == null;
         if (demo) {
-            return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, 0,
+            return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, mapFrames == null ? -1 : mapFrames,
                     observe, checkpointEvery == null ? 2000 : checkpointEvery, InflowConfig.UNIFORM, -1, -1);
         }
         int u = units == null ? 1 : units;
@@ -119,7 +119,7 @@ public record RunConfig(
                 trace,
                 false,
                 outPath,
-                mapFrames == null ? 0 : mapFrames,
+                mapFrames == null ? -1 : mapFrames,
                 observe,
                 checkpointEvery == null ? 2000 : checkpointEvery,
                 inflow,

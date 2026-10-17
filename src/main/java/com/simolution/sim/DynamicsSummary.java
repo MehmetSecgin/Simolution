@@ -15,11 +15,6 @@ public record DynamicsSummary(
         double[] finalAbsAction,
         int[] deathTick,
         double[] finalEnergy,
-        double[] peakBurn,
-        long[] propagationsByUnit,
-        int[] ticksActiveByUnit,
-        long[] clampByUnit,
-        long[] threshFlipsByUnit,
         int[] harvestTicksByUnit,
         double finalEnergyTotal,
         double finalEnergySink,
@@ -37,7 +32,6 @@ public record DynamicsSummary(
         int maxGeneration,
         double creditedInitialMass,
         double finalMassTotal,
-        double[] finalMass,
         double finalMassMax
 ) {
 

@@ -45,16 +45,15 @@ import com.simolution.kernel.runtime.KernelSnapshot;
 public final class EventLogWriter implements Closeable {
 
     private final Writer out;
+    private final BirthTracker births;
     private final int maxUnits;
     private final int founderCount;
-    private final int worldWidth;
     private final StringBuilder line;
 
     private final double[] prevEnergy;
     private final long[] prevLineage;
     private final int[] prevGeneration;
     private final int[] prevPosition;
-    private final int[] prevCellOccupant;
     private final int[] birthTick;
 
     private final int[] lineageCount;
@@ -63,12 +62,12 @@ public final class EventLogWriter implements Closeable {
     private final int[] lineageMaxGen;
     private final boolean[] lineageExtinct;
 
-    public EventLogWriter(final Writer out, final int maxUnits, final int founderCount,
-                          final int worldWidth, final int[] founderCells) throws IOException {
+    public EventLogWriter(final Writer out, final BirthTracker births, final int maxUnits,
+                          final int founderCount, final int[] founderCells) throws IOException {
         this.out = out;
+        this.births = births;
         this.maxUnits = maxUnits;
         this.founderCount = founderCount;
-        this.worldWidth = worldWidth;
         this.line = new StringBuilder(160);
 
         this.prevEnergy = new double[maxUnits];
@@ -77,8 +76,6 @@ public final class EventLogWriter implements Closeable {
         this.prevGeneration = new int[maxUnits];
         this.prevPosition = new int[maxUnits];
         Arrays.fill(prevPosition, -1);
-        this.prevCellOccupant = new int[maxUnits];
-        Arrays.fill(prevCellOccupant, -1);
         this.birthTick = new int[maxUnits];
 
         this.lineageCount = new int[founderCount];
@@ -96,7 +93,6 @@ public final class EventLogWriter implements Closeable {
             prevGeneration[slot] = 0;
             final int cell = founderCells[slot];
             prevPosition[slot] = cell;
-            prevCellOccupant[cell] = slot;
             lineagePrevCount[slot] = 1;
             lineagePeak[slot] = 1;
         }
@@ -111,6 +107,8 @@ public final class EventLogWriter implements Closeable {
 
         Arrays.fill(lineageCount, 0);
 
+        final int birthCount = births.birthCount();
+        int nextBirth = 0;
         for (int slot = 0; slot < maxUnits; slot++) {
             final boolean prevAlive = prevEnergy[slot] > 0.0;
             final boolean curAlive = energy[slot] > 0.0;
@@ -132,8 +130,9 @@ public final class EventLogWriter implements Closeable {
             if ((prevAlive && !curAlive) || idChanged) {
                 emitDeath(tick, slot);
             }
-            if ((!prevAlive && curAlive) || idChanged) {
-                emitBirth(tick, slot, snapshot);
+            if (nextBirth < birthCount && births.birthChild(nextBirth) == slot) {
+                emitBirth(tick, slot, births.birthParent(nextBirth), snapshot);
+                nextBirth++;
             }
         }
 
@@ -154,19 +153,13 @@ public final class EventLogWriter implements Closeable {
         System.arraycopy(generation, 0, prevGeneration, 0, maxUnits);
         System.arraycopy(position, 0, prevPosition, 0, maxUnits);
         System.arraycopy(lineageCount, 0, lineagePrevCount, 0, founderCount);
-        Arrays.fill(prevCellOccupant, -1);
-        for (int slot = 0; slot < maxUnits; slot++) {
-            if (energy[slot] > 0.0) {
-                prevCellOccupant[position[slot]] = slot;
-            }
-        }
     }
 
-    private void emitBirth(final int tick, final int child, final KernelSnapshot s) throws IOException {
+    private void emitBirth(final int tick, final int child, final int parent,
+                           final KernelSnapshot s) throws IOException {
         final int cell = s.position[child];
         final long childLineage = s.lineageId[child];
         final int childGen = s.generation[child];
-        final int parent = findParent(cell, childLineage, childGen, s);
         final int mutations = parent < 0 ? -1 : countMutations(child, parent, s);
         final long parentLineage = parent < 0 ? -1 : s.lineageId[parent];
 
@@ -210,39 +203,6 @@ public final class EventLogWriter implements Closeable {
             .append("}\n");
         out.write(line.toString());
         out.flush();
-    }
-
-    /**
-     * The unique prev-tick occupant of a Moore neighbour of {@code childCell}
-     * whose lineage matches and generation is one less, or -1 if none or more
-     * than one matches (ambiguous → unknown, not guessed).
-     */
-    private int findParent(final int childCell, final long childLineage, final int childGen,
-                           final KernelSnapshot s) {
-        final int w = worldWidth;
-        final int x = childCell % w;
-        final int y = childCell / w;
-        int found = -1;
-        for (int dy = -1; dy <= 1; dy++) {
-            final int ny = (((y + dy) % w) + w) % w;
-            for (int dx = -1; dx <= 1; dx++) {
-                if (dx == 0 && dy == 0) {
-                    continue;
-                }
-                final int nx = (((x + dx) % w) + w) % w;
-                final int p = prevCellOccupant[ny * w + nx];
-                if (p < 0) {
-                    continue;
-                }
-                if (s.lineageId[p] == childLineage && s.generation[p] == childGen - 1) {
-                    if (found >= 0) {
-                        return -1;
-                    }
-                    found = p;
-                }
-            }
-        }
-        return found;
     }
 
     private int countMutations(final int child, final int parent, final KernelSnapshot s) {
