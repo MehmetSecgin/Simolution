@@ -21,6 +21,9 @@ public final class Noise {
      */
     public static final long GOLDEN_GAMMA = 0x9E3779B97F4A7C15L;
 
+    /** The seed RAND, mutation and founder placement key off; the engine seed does not feed them yet. */
+    public static final long LEGACY_RNG_SEED = 0L;
+
     private Noise() {}
 
     /**

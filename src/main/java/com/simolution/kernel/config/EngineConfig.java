@@ -63,6 +63,10 @@ public record EngineConfig(
         return copy(seed, worldWidth, maxGenes, List.copyOf(updated));
     }
 
+    public EngineConfig withChemicals(final List<ChemicalSpec> newChemicals) {
+        return copy(seed, worldWidth, maxGenes, List.copyOf(newChemicals));
+    }
+
     public EngineConfig withSeed(final long newSeed) {
         return copy(newSeed, worldWidth, maxGenes, chemicals);
     }

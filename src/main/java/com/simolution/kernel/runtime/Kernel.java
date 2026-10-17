@@ -1,84 +1,61 @@
 package com.simolution.kernel.runtime;
 
 import java.util.Arrays;
+import java.util.List;
 
-import com.simolution.kernel.config.CompiledInflowField;
 import com.simolution.kernel.config.ChemicalSpec;
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.genome.GeneDecoder;
+import com.simolution.kernel.genome.SlotCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
-import com.simolution.kernel.layout.NodeSpec;
+import com.simolution.kernel.phase.ClearPhase;
+import com.simolution.kernel.phase.DecayPhase;
+import com.simolution.kernel.phase.DiffusionPhase;
+import com.simolution.kernel.phase.EvaluatePhase;
+import com.simolution.kernel.phase.GrowthPhase;
+import com.simolution.kernel.phase.IntakePhase;
+import com.simolution.kernel.phase.CostPhase;
+import com.simolution.kernel.phase.MovementPhase;
+import com.simolution.kernel.phase.Phase;
+import com.simolution.kernel.phase.PhaseRunner;
+import com.simolution.kernel.phase.PropagatePhase;
+import com.simolution.kernel.phase.ReproductionPhase;
+import com.simolution.kernel.phase.SerialRunner;
+import com.simolution.kernel.phase.SwapPhase;
 import com.simolution.kernel.state.WorldState;
 
 public final class Kernel {
 
-    private static final long LEGACY_RNG_SEED = 0L;
-    private static final int MUL_LOCAL = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
-    private static final int HARVEST_LOCAL = NodeLayout.ACTION_OFFSET + NodeLayout.Action.HARVEST;
-
-    private static final NodeSpec.Role[] SENSOR_ROLES = sensorRoles();
-
     private final WorldState state;
     private final int maxGenes;
-    private final int worldWidth;
     private final int unitCount;
-    private int freeSlotCursor;
-
-    private final CompiledInflowField inflow;
-
-    private final double initialEnergy;
-    private final double basalCost;
-    private final double costPerPropagation;
-    private final double harvestCapacityPerConnection;
-    private final double harvestHalfSaturation;
-    private final double harvestMassExponent;
-    private final double cellCapacity;
-    private final double diffusionRate;
-    private final double resourceDecayRate;
-    private final double moveCostBase;
-    private final double moveCostPerMass;
-    private final double moveDeadzone;
-    private final double selfEnergyScale;
-    private final double selfMassScale;
-    private final double initialMass;
-    private final double maintPerMass;
-    private final double growMax;
-    private final double growHalfSaturation;
-    private final double growYield;
-    private final double buildCostBase;
-    private final double buildCostPerGene;
-    private final double mutationRateWeight;
-    private final double mutationRateStruct;
-    private final double indelRateDup;
-    private final double indelRateDel;
-    private final double agingCost;
+    private final List<Phase> phases;
+    private final PhaseRunner runner = new SerialRunner();
 
     /**
      * The substrate is a fixed pool of {@code genomes.length} slots; a slot is
      * alive iff its energy is &gt; 0 (contract v2 §5/§6, death is derived). Each
      * slot owns a fixed region {@code [slot·maxGenes, slot·maxGenes + maxGenes)}
      * of the flat connection arrays and an equal region of the raw {@code genes}
-     * array, both rewritten in place when the slot is reused by a birth — no
+     * array, both rewritten in place when the slot is reused by a birth: no
      * growth, no per-birth heap allocation (contract v2 §12).
      * {@code maxGenes} is the per-slot gene capacity (headroom for genome growth,
      * §16); the live extent is {@code geneCount[slot]}.
      * <p>
-     * Within a slot's region the compile lays out sum-destined connections first
-     * (in gene order) then mul-destined ones (in gene order). MUL needs its two
-     * strongest individual inputs, which the summing accumulator destroys, so it
-     * runs a separate top-2 loop (ADR 0005); the contiguous per-slot ranges let a
-     * dead slot be skipped with one branch (ADR 0006). Both arrays are sized to
-     * the pool's full capacity {@code unitCount · maxGenes} up front (contract v2
-     * §12 footprint note).
+     * Within a slot's region the compile ({@link SlotCompiler}) lays out sum-destined
+     * connections first (in gene order) then mul-destined ones (in gene order). MUL
+     * needs its two strongest individual inputs, which the summing accumulator
+     * destroys, so it runs a separate top-2 loop (ADR 0005); the contiguous per-slot
+     * ranges let a dead slot be skipped with one branch (ADR 0006). Both arrays are
+     * sized to the pool's full capacity {@code unitCount · maxGenes} up front
+     * (contract v2 §12 footprint note).
+     * <p>
+     * The chemical table is any number of chemicals; each decays to the sink
+     * ({@code decayTarget == -1}) or into another chemical. Chemical 0 is the one
+     * units sense and harvest.
      */
     public Kernel(final int[][] initialGenomes, final int[] founderCells, final EngineConfig config) {
-
-        if (config.chemicals().size() != 1 || config.chemicals().get(0).decayTarget() != -1) {
-            throw new IllegalArgumentException(
-                    "kernel supports exactly one chemical that decays to the sink");
-        }
-        final ChemicalSpec chemical = config.chemicals().get(0);
+        validateChemicals(config);
         final int worldWidth = config.worldWidth();
         final int maxGenes = config.maxGenes();
         final int maxUnits = worldWidth * worldWidth;
@@ -93,41 +70,12 @@ public final class Kernel {
                     "founderCells length " + founderCells.length
                     + " must equal founder count " + seededCount);
         }
-        this.worldWidth = worldWidth;
         this.unitCount = maxUnits;
         this.maxGenes = maxGenes;
-        this.inflow = chemical.inflow().compile(worldWidth);
-        this.initialEnergy = config.initialEnergy();
-        this.basalCost = config.basalCost();
-        this.costPerPropagation = config.costPerPropagation();
-        this.harvestCapacityPerConnection = config.harvestCapacityPerConnection();
-        this.harvestHalfSaturation = config.harvestHalfSaturation();
-        this.harvestMassExponent = config.harvestMassExponent();
-        this.cellCapacity = chemical.capacity();
-        this.diffusionRate = chemical.diffusionRate();
-        this.resourceDecayRate = chemical.decayRate();
-        this.moveCostBase = config.moveCostBase();
-        this.moveCostPerMass = config.moveCostPerMass();
-        this.moveDeadzone = config.moveDeadzone();
-        this.selfEnergyScale = config.selfEnergyScale();
-        this.selfMassScale = config.selfMassScale();
-        this.initialMass = config.initialMass();
-        this.maintPerMass = config.maintPerMass();
-        this.growMax = config.growMax();
-        this.growHalfSaturation = config.growHalfSaturation();
-        this.growYield = config.growYield();
-        this.buildCostBase = config.buildCost();
-        this.buildCostPerGene = config.buildCostPerGene();
-        this.mutationRateWeight = config.mutationRateWeight();
-        this.mutationRateStruct = config.mutationRateStruct();
-        this.indelRateDup = config.indelRateDup();
-        this.indelRateDel = config.indelRateDel();
-        this.agingCost = config.agingCost();
 
         this.state = new WorldState(config);
-        this.freeSlotCursor = 0;
-        state.creditedInitialEnergy = initialEnergy * seededCount;
-        state.creditedInitialMass = initialMass * seededCount;
+        state.creditedInitialEnergy = config.initialEnergy() * seededCount;
+        state.creditedInitialMass = config.initialMass() * seededCount;
 
         final int[] genes = state.genes;
         final int[] geneCount = state.geneCount;
@@ -147,8 +95,8 @@ public final class Kernel {
                 }
                 System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
                 geneCount[unit] = genome.length;
-                energy[unit] = initialEnergy;
-                mass[unit] = initialMass;
+                energy[unit] = config.initialEnergy();
+                mass[unit] = config.initialMass();
                 lineageId[unit] = unit;
                 final int cell = founderCells[unit];
                 if (cell < 0 || cell >= maxUnits) {
@@ -162,8 +110,47 @@ public final class Kernel {
                 position[unit] = cell;
                 cellOccupant[cell] = unit;
             }
-            compileSlot(unit);
+            SlotCompiler.compile(state, unit);
         }
+
+        this.phases = List.of(
+                new ClearPhase(state),
+                new PropagatePhase(state),
+                new EvaluatePhase(state, config),
+                new SwapPhase(state),
+                new IntakePhase(state, config),
+                new CostPhase(state, config),
+                new GrowthPhase(state, config),
+                new ReproductionPhase(state, config),
+                new MovementPhase(state, config),
+                new DiffusionPhase(state, config),
+                new DecayPhase(state, config));
+    }
+
+    private static void validateChemicals(final EngineConfig config) {
+        final List<ChemicalSpec> chemicals = config.chemicals();
+        if (chemicals.isEmpty()) {
+            throw new IllegalArgumentException("kernel needs at least one chemical (units sense and harvest chemical 0)");
+        }
+        for (int k = 0; k < chemicals.size(); k++) {
+            final int target = chemicals.get(k).decayTarget();
+            if (target < -1 || target >= chemicals.size()) {
+                throw new IllegalArgumentException(
+                        "chemical " + k + " decayTarget " + target + " is neither -1 (sink) nor a chemical index");
+            }
+            if (target == k) {
+                throw new IllegalArgumentException("chemical " + k + " cannot decay into itself");
+            }
+        }
+    }
+
+    /**
+     * The tick as an ordered list of declared phases, built once at construction
+     * (contract v0 §8, the locked order of the 11-phase pipeline): clear, propagate,
+     * evaluate, swap, intake, cost, growth, reproduction, movement, diffusion, decay.
+     */
+    public List<Phase> phases() {
+        return phases;
     }
 
     /**
@@ -175,7 +162,7 @@ public final class Kernel {
      * <p>
      * A partial Fisher-Yates shuffle over the identity permutation
      * {@code [0, W²)} drives the draws, keyed off the placement RNG
-     * ({@link Noise#placementUniform}, seeded by {@code LEGACY_RNG_SEED}
+     * ({@link Noise#placementUniform}, seeded by {@link Noise#LEGACY_RNG_SEED}
      * like RAND and mutation). This replaces the old slot==cell fill, which
      * packed founders into a contiguous row-major strip at one edge and imposed
      * an artificial density gradient on every run. The scatter is uniform and
@@ -191,7 +178,7 @@ public final class Kernel {
         }
         final int[] founderCell = new int[seededCount];
         for (int i = 0; i < seededCount; i++) {
-            final double u = Noise.placementUniform(LEGACY_RNG_SEED, i);
+            final double u = Noise.placementUniform(Noise.LEGACY_RNG_SEED, i);
             final int j = i + (int) (u * (cellCount - i));
             final int tmp = cell[i];
             cell[i] = cell[j];
@@ -201,893 +188,9 @@ public final class Kernel {
         return founderCell;
     }
 
-    /**
-     * Decode a slot's live genes into its connection region and recompute the
-     * structure-derived per-slot data (ranges, harvest transporter count, MUL
-     * in-degree). Runs once per slot at construction and again at every birth
-     * (contract v2 §6/§12) — off the hot path, never per tick, and allocation
-     * free: it reads the genes through the primitive {@link GeneDecoder}
-     * accessors and writes unit-local source/destination indices and the weight
-     * into the slot's flat region. Two passes place sum-destined connections (in
-     * gene order) then mul-destined ones (in gene order) contiguously without a
-     * scratch buffer.
-     * <p>
-     * A connection whose source is a junk node is not stored: junk outputs are
-     * exactly {@code +0.0}, so such a connection can neither move an accumulator
-     * (adding a signed zero to a sum that starts at {@code +0.0} never changes it)
-     * nor displace a MUL top-two entry (the comparisons are strict) nor count as
-     * active. {@code mulInDegree} still counts every MUL-destined gene, junk
-     * source included, and is computed from the genes before any pruning. A
-     * "transporter" (a stored connection feeding HARVEST) is by construction one
-     * with a meaningful source, the unit's structural uptake investment (contract
-     * v1 §5, ADR 0012).
-     */
-    private void compileSlot(final int unit) {
-        final int[] genes = state.genes;
-        final int[] geneCount = state.geneCount;
-        final short[] connSrc = state.connSrc;
-        final short[] connDst = state.connDst;
-        final double[] connWeight = state.connWeight;
-        final int[] sumStart = state.sumStart;
-        final int[] sumEnd = state.sumEnd;
-        final int[] mulStart = state.mulStart;
-        final int[] mulEnd = state.mulEnd;
-        final int[] harvestConnCount = state.harvestConnCount;
-        final int[] mulInDegree = state.mulInDegree;
-
-        final int base = unit * maxGenes;
-        final int count = geneCount[unit];
-
-        int cursor = base;
-        int harvest = 0;
-        for (int g = 0; g < count; g++) {
-            final int gene = genes[base + g];
-            final int dst = GeneDecoder.destinationLocal(gene);
-            if (dst == MUL_LOCAL) {
-                continue;
-            }
-            final int src = GeneDecoder.sourceLocal(gene);
-            if (!NodeLayout.isMeaningful(src)) {
-                continue;
-            }
-            connSrc[cursor] = (short) src;
-            connDst[cursor] = (short) dst;
-            connWeight[cursor] = GeneDecoder.weight(gene);
-            cursor++;
-            if (dst == HARVEST_LOCAL) {
-                harvest++;
-            }
-        }
-        sumStart[unit] = base;
-        sumEnd[unit] = cursor;
-
-        mulStart[unit] = cursor;
-        int mulDegree = 0;
-        for (int g = 0; g < count; g++) {
-            final int gene = genes[base + g];
-            if (GeneDecoder.destinationLocal(gene) != MUL_LOCAL) {
-                continue;
-            }
-            mulDegree = Math.min(2, mulDegree + 1);
-            final int src = GeneDecoder.sourceLocal(gene);
-            if (!NodeLayout.isMeaningful(src)) {
-                continue;
-            }
-            connSrc[cursor] = (short) src;
-            connDst[cursor] = (short) MUL_LOCAL;
-            connWeight[cursor] = GeneDecoder.weight(gene);
-            cursor++;
-        }
-        mulEnd[unit] = cursor;
-
-        harvestConnCount[unit] = harvest;
-        mulInDegree[unit] = mulDegree;
-    }
-
     public void tick() {
-        // Phase 1
-        clearAccumulators();
-        // Phase 2
-        propagateConnections();
-        // Phase 3
-        evaluateNodes();
-        // Phase 4
-        swapBuffers();
-        // Phase 5
-        settleIntake();
-        // Phase 6
-        settleCost();
-        // Phase 7
-        settleGrowth();
-        // Phase 8
-        settleReproduction();
-        // Phase 9
-        settleMovement();
-        // Phase 10
-        settleDiffusion();
-        // Phase 11
-        settleDecay();
-
+        runner.runTick(phases);
         state.tick++;
-    }
-
-    private void clearAccumulators() {
-        final float[] accumulators = state.accumulators;
-        final float[] mulTop1 = state.mulTop1;
-        final float[] mulTop2 = state.mulTop2;
-
-        Arrays.fill(accumulators, 0.0f);
-        Arrays.fill(mulTop1, 0.0f);
-        Arrays.fill(mulTop2, 0.0f);
-    }
-
-    /**
-     * Per-unit propagation. Dead units (energy &lt;= 0) are skipped entirely —
-     * the one alive-check per unit replaces what would be a branch per
-     * connection, and a dying population literally costs less to simulate.
-     * Counts non-zero propagations per unit; that count is the activity the
-     * energy settle phase charges for (contract v0 §6, fork 1a).
-     */
-    private void propagateConnections() {
-        final double[] energy = state.energy;
-        final float[] outputsPrev = state.outputsPrev;
-        final short[] connSrc = state.connSrc;
-        final short[] connDst = state.connDst;
-        final double[] connWeight = state.connWeight;
-        final int[] sumStart = state.sumStart;
-        final int[] sumEnd = state.sumEnd;
-        final int[] mulStart = state.mulStart;
-        final int[] mulEnd = state.mulEnd;
-        final float[] accumulators = state.accumulators;
-        final float[] mulTop1 = state.mulTop1;
-        final float[] mulTop2 = state.mulTop2;
-        final int[] activeThisTick = state.activeThisTick;
-
-        for (int unit = 0; unit < unitCount; unit++) {
-            if (energy[unit] <= 0.0) {
-                activeThisTick[unit] = 0;
-                continue;
-            }
-
-            final int unitOffset = unit * NodeLayout.TOTAL;
-            int active = 0;
-
-            for (int i = sumStart[unit]; i < sumEnd[unit]; i++) {
-                final float signal = (float) (outputsPrev[unitOffset + connSrc[i]] * connWeight[i]);
-                accumulators[unitOffset + connDst[i]] += signal;
-                if (signal != 0.0f) {
-                    active++;
-                }
-            }
-
-            for (int i = mulStart[unit]; i < mulEnd[unit]; i++) {
-                final float signal = (float) (outputsPrev[unitOffset + connSrc[i]] * connWeight[i]);
-                if (Math.abs(signal) > Math.abs(mulTop1[unit])) {
-                    mulTop2[unit] = mulTop1[unit];
-                    mulTop1[unit] = signal;
-                } else if (Math.abs(signal) > Math.abs(mulTop2[unit])) {
-                    mulTop2[unit] = signal;
-                }
-                if (signal != 0.0f) {
-                    active++;
-                }
-            }
-
-            activeThisTick[unit] = active;
-        }
-    }
-
-    private static NodeSpec.Role[] sensorRoles() {
-        final NodeSpec.Role[] roles = new NodeSpec.Role[NodeLayout.Sensor.MEANINGFUL_COUNT];
-        for (int s = 0; s < roles.length; s++) {
-            roles[s] = NodeLayout.spec(NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE).role();
-        }
-        return roles;
-    }
-
-    private void evaluateNodes() {
-        final double[] energy = state.energy;
-
-        for (int unit = 0; unit < unitCount; unit++) {
-            if (energy[unit] <= 0.0) {
-                freezeDeadUnit(unit);
-            } else {
-                evaluateUnit(unit);
-            }
-        }
-    }
-
-    /**
-     * A dead unit computes nothing (contract v0 §9), but the double buffer
-     * would otherwise surface its state from two ticks ago after the swap.
-     * Carrying the previous outputs forward freezes the corpse at its last
-     * living configuration — inert, unchanging.
-     */
-    private void freezeDeadUnit(final int unit) {
-        final float[] outputsPrev = state.outputsPrev;
-        final float[] outputsNext = state.outputsNext;
-
-        final int base = unit * NodeLayout.TOTAL;
-        System.arraycopy(outputsPrev, base, outputsNext, base, NodeLayout.TOTAL);
-    }
-
-    private void evaluateUnit(final int unit) {
-        final double[] energy = state.energy;
-        final double[] mass = state.mass;
-        final int[] position = state.position;
-        final float[] delayMemory = state.delayMemory;
-        final float[] outputsNext = state.outputsNext;
-        final double[] cellChem = state.cellChem;
-        final int[] mulInDegree = state.mulInDegree;
-        final float[] accumulators = state.accumulators;
-        final float[] mulTop1 = state.mulTop1;
-        final float[] mulTop2 = state.mulTop2;
-
-        final int base = unit * NodeLayout.TOTAL;
-
-        for (int s = 0; s < NodeLayout.Sensor.MEANINGFUL_COUNT; s++) {
-            final int idx = base + NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE;
-            switch (SENSOR_ROLES[s]) {
-                case CONST -> outputsNext[idx] = 1.0f;
-                case RAND -> outputsNext[idx] = (float) Noise.sample(LEGACY_RNG_SEED, unit, state.tick);
-                // a unit senses only the cell it currently occupies (contract v3 §3)
-                case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, cellChem[position[unit]] / cellCapacity);
-                case SELF_ENERGY -> outputsNext[idx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);
-                case SELF_MASS -> outputsNext[idx] = (float) Math.min(1.0, mass[unit] / selfMassScale);
-                default -> throw new IllegalStateException("not a sensor role: " + SENSOR_ROLES[s]);
-            }
-        }
-
-        final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        outputsNext[addIdx] = accumulators[addIdx];
-
-        // MUL by structural in-degree: 0 inputs -> 0; 1 input -> that signal
-        // (the binding slice's own example wires DELAY -> MUL -> ADD, so a
-        // lone input must pass through); 2+ inputs -> product of the two
-        // strongest (slice section 2, ADR 0005)
-        final int mulIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.MUL * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        outputsNext[mulIdx] = switch (mulInDegree[unit]) {
-            case 0 -> 0.0f;
-            case 1 -> mulTop1[unit];
-            default -> mulTop1[unit] * mulTop2[unit];
-        };
-
-        final int clampIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.CLAMP * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        final double clampIn = accumulators[clampIdx];
-        outputsNext[clampIdx] = (float) Math.max(-1.0, Math.min(1.0, clampIn));
-
-        final int delayIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.DELAY * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        outputsNext[delayIdx] = delayMemory[delayIdx];
-        delayMemory[delayIdx] = accumulators[delayIdx];
-
-        final int threshIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.THRESH * NodeLayout.Internal.INSTANCES_PER_TYPE);
-        outputsNext[threshIdx] = accumulators[threshIdx] > 0.0f ? 1.0f : -1.0f;
-
-        for (int a = 0; a < NodeLayout.Action.MEANINGFUL_COUNT; a++) {
-            final int idx = base + NodeLayout.ACTION_OFFSET + a * NodeLayout.Action.INSTANCES_PER_TYPE;
-            outputsNext[idx] = accumulators[idx];
-        }
-    }
-
-    private void swapBuffers() {
-        state.swapOutputs();
-    }
-
-    /**
-     * Phase 5 — energy intake, now <b>cell-local</b> (contract v3 §4, supersedes
-     * v1's shared-reservoir allocation). Slot index == cell index, so each alive
-     * unit draws from its own cell only: {@code intake = min(demand, cellResource)}
-     * with the unchanged saturating {@code demand} (contract v1 §5). Because cells
-     * are exclusive (one unit per cell, contract v3 §2) there is no within-cell
-     * contention — the v1 proportional rationing across competitors disappears;
-     * competition for a cell is settled by who lives there (birth/death), not a
-     * shared-pool factor. The cell is debited by exactly the intake.
-     * <p>
-     * Every cell then admits up to {@code CELL_INFLOW}, capped at
-     * {@code CELL_CAPACITY}; the summed admission is the sole energy the audit
-     * treats as entering the system (cumulativeInflow), so {@code INITIAL_total +
-     * Σ initialCellResource + cumulativeInflow == Σ energy + Σ cellResource + sink}
-     * stays exact (contract v3 §7). Intake runs before cost so a unit can pay this
-     * tick's metabolism with this tick's harvest; harvest output is read from
-     * outputsPrev, the just-swapped current tick. Diffusion (phase 8) relaxes the
-     * field afterward.
-     */
-    private void settleIntake() {
-        final double[] energy = state.energy;
-        final int[] position = state.position;
-        final double[] cellChem = state.cellChem;
-
-        for (int unit = 0; unit < unitCount; unit++) {
-            if (energy[unit] <= 0.0) {
-                continue;
-            }
-            final double demand = harvestDemand(unit);
-            if (demand <= 0.0) {
-                continue;
-            }
-            final int cell = position[unit];
-            final double intake = Math.min(demand, cellChem[cell]);
-            energy[unit] += intake;
-            cellChem[cell] -= intake;
-        }
-
-        for (int cell = 0; cell < unitCount; cell++) {
-            final double cap = inflow.cap(cell, state.tick);
-            final double admitted = Math.min(cap,
-                    Math.max(0.0, cellCapacity - cellChem[cell]));
-            cellChem[cell] += admitted;
-            state.cumulativeInflow += admitted;
-        }
-    }
-
-    /**
-     * Saturating uptake with an <b>emergent</b> ceiling (contract v1 §5, ADR
-     * 0012). Demand is {@code capacity · σ(output)} where:
-     * <ul>
-     *   <li>{@code capacity = CAPACITY_PER_CONNECTION · transporterCount} — the
-     *       intake ceiling, set by the unit's structural investment in harvest
-     *       wiring (counted once at construction) and paid for through ordinary
-     *       per-connection decay. Eating capacity is therefore a heritable,
-     *       evolvable genome trait, not a global constant grant. It is bounded by
-     *       the genome size, so it cannot diverge.</li>
-     *   <li>{@code σ(output) = output / (HALF_SATURATION + output) ∈ [0,1)} — how
-     *       far the cell is currently driving its mouth open. Saturating, so a
-     *       runaway/divergent signal only approaches the ceiling, never exceeds
-     *       it: there is no payoff to exploding a feedback loop into the mouth,
-     *       and the demand total stays bounded (the shared denominator cannot
-     *       overflow).</li>
-     * </ul>
-     * A non-finite output is unreadable garbage, not a harvest action, so it
-     * demands nothing; {@code max(0, …)} also means you cannot un-eat.
-     */
-    private double harvestDemand(final int unit) {
-        final float[] outputsPrev = state.outputsPrev;
-        final int[] harvestConnCount = state.harvestConnCount;
-
-        final int transporters = harvestConnCount[unit];
-        if (transporters == 0) {
-            return 0.0;
-        }
-        final int harvestIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
-                + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
-        final double output = outputsPrev[harvestIdx];
-        if (!Double.isFinite(output) || output <= 0.0) {
-            return 0.0;
-        }
-        final double capacity = harvestCapacityPerConnection * transporters
-                * Math.pow(state.mass[unit], harvestMassExponent);
-        // capacity · output/(HALF+output), rearranged to avoid overflow when
-        // output is a huge (divergent) finite value.
-        return capacity / (1.0 + harvestHalfSaturation / output);
-    }
-
-    /**
-     * Phase 6 — the entropy law (contract v0 §3, §4, §6). Each unit that was
-     * alive this tick pays structural decay (∝ its connection count, charged
-     * regardless of activity) plus activity cost (∝ non-zero propagations).
-     * The charge is clamped to available energy so a unit can never overdraw:
-     * the sink receives exactly what existed, keeping the audit invariant exact.
-     * <p>
-     * A unit alive at tick start computes the full tick and pays for it;
-     * crossing to zero here makes phases 2–3 skip it from the next tick on,
-     * so death takes effect next tick. Because intake (phase 5) ran first, a
-     * unit's net energy change this tick is {@code intake − charge}: a strong
-     * harvester reaches steady state, a poor one still decays to death.
-     * <p>
-     * The charge is the cell's metabolic bill (contract v1 §6/§6a, ADR 0013),
-     * modelled on real maintenance energy (Pirt) rather than a per-gene tax:
-     * <ul>
-     *   <li><b>basal</b> ({@code BASAL_COST}) — the fixed, irreducible cost of
-     *       staying organized (membrane upkeep). Charged to every living unit
-     *       regardless of size or activity; this floor is what makes a dormant
-     *       unit actually die instead of decaying asymptotically.</li>
-     *   <li><b>activity</b> (∝ propagations) — the cost of running/expressing
-     *       machinery: you pay for signal you move, not for wiring you merely
-     *       carry (so silent/junk structure is nearly free, as in biology).</li>
-     *   <li><b>maintenance</b> (∝ energy held) — upkeep proportional to size
-     *       (energy proxies biomass). Makes a hoard above the equilibrium
-     *       {@code E* = (capacity − basal)/LEAK_RATE} unsustainable — it implodes.</li>
-     *   <li><b>aging</b> ({@code damage · AGING_COST}) — senescence: upkeep that
-     *       rises with accumulated wear (contract v2 §7, ADR 0017). {@code damage}
-     *       is the unit's lifetime dissipated energy (incremented below by this
-     *       very charge, so older cells pay more and the cost accelerates —
-     *       Gompertz). Since every cell pays at least {@code BASAL_COST}, damage
-     *       only ever grows while the harvest ceiling is bounded, so no cell is
-     *       immortal; offspring reset {@code damage} to 0 (germline renewal), so
-     *       the lineage outruns entropy only by reproducing. The rate is a uniform
-     *       conversion; the lifespan that results is per-unit and emergent.</li>
-     * </ul>
-     * No term scales with connection count: cost lives on what a unit does and
-     * holds, not on what it has. Charge clamps to available energy so a unit
-     * never overdraws; crossing to zero makes phases 2–3 skip it next tick.
-     */
-    private void settleCost() {
-        final double[] energy = state.energy;
-        final double[] mass = state.mass;
-        final double[] damage = state.damage;
-        final int[] activeThisTick = state.activeThisTick;
-
-        for (int unit = 0; unit < unitCount; unit++) {
-            if (energy[unit] <= 0.0) {
-                continue;
-            }
-            final double activity = activeThisTick[unit] * costPerPropagation;
-            final double maintenance = mass[unit] * maintPerMass;
-            final double aging = damage[unit] * agingCost;
-            final double charge = Math.min(
-                    basalCost + activity + maintenance + aging, energy[unit]);
-            energy[unit] -= charge;
-            state.energySink += charge;
-            damage[unit] += charge;
-            if (energy[unit] <= 0.0) {
-                die(unit);
-            }
-        }
-    }
-
-    /**
-     * Death bookkeeping (contract v0 §9, contract v5 §6). Death stays derived
-     * ({@code energy ≤ 0}, never a stored flag); this only settles its
-     * consequences. A unit's biomass is crystallized energy (contract v5 §1), so
-     * on death it dissipates to the sink — keeping the audit exact — and
-     * {@code mass} is zeroed so {@code Σ mass} tracks the living only. The cell is
-     * freed (contract v3 §5: "death frees a cell", no carve-out for cause).
-     * Called wherever a charge can cross a unit to {@code energy ≤ 0}: the
-     * metabolic bill ({@link #settleCost}) and all-in growth ({@link #settleGrowth}).
-     */
-    private void die(final int unit) {
-        final int[] position = state.position;
-        final int[] cellOccupant = state.cellOccupant;
-
-        state.energySink += state.mass[unit];
-        state.applyDeath(unit);
-        cellOccupant[position[unit]] = -1;
-    }
-
-    /**
-     * Phase 7 — growth (contract v5 §2). Each living unit drives its {@code GROW}
-     * effector to convert spendable energy into structural mass (anabolism). The
-     * commitment is {@code GROW_MAX · σ(output)} with the saturating shape shared
-     * by harvest and the division trigger (a runaway signal only approaches the
-     * ceiling), clamped to available energy. Conversion is lossy: the unit gains
-     * {@code GROW_YIELD} of the commitment as mass and the remainder dissipates to
-     * the sink, so no energy is created — mass is energy in structural form
-     * (contract v5 §1) and the audit (contract v5 §6) stays exact. Growth is an
-     * evolved choice, never automatic: a unit with no positive {@code GROW} drive
-     * grows nothing. A unit that pours its last energy into mass dies here (its
-     * fresh mass then dissipates via {@link #die}) — the kernel does not protect
-     * against suicidal growth wiring; selection does.
-     */
-    private void settleGrowth() {
-        final double[] energy = state.energy;
-        final double[] mass = state.mass;
-        final float[] outputsPrev = state.outputsPrev;
-
-        for (int unit = 0; unit < unitCount; unit++) {
-            if (energy[unit] <= 0.0) {
-                continue;
-            }
-            final int growIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
-                    + (NodeLayout.Action.GROW * NodeLayout.Action.INSTANCES_PER_TYPE);
-            final double output = outputsPrev[growIdx];
-            if (!Double.isFinite(output) || output <= 0.0) {
-                continue;
-            }
-            double commit = growMax
-                    / (1.0 + growHalfSaturation / output);
-            if (commit > energy[unit]) {
-                commit = energy[unit];
-            }
-            energy[unit] -= commit;
-            final double gained = growYield * commit;
-            mass[unit] += gained;
-            state.energySink += commit - gained;
-            if (energy[unit] <= 0.0) {
-                die(unit);
-            }
-        }
-    }
-
-    /**
-     * Phase 8 — reproduction as symmetric binary fission (contract v5 §5,
-     * supersedes the contract-v2 investment/budding model). A unit that wants to
-     * divide ({@code REPRODUCE} output {@code > 0} — a bare trigger now, its
-     * magnitude no longer an investment amount) and can afford the replication
-     * work splits its body in two: the child receives <i>half</i> the parent's
-     * energy and <i>half</i> its mass, and the parent keeps the other half. There
-     * is no viability gate (contract v5 §5) — an undersized daughter simply cannot
-     * pay its maintenance against its sublinear harvest and dies on its own, and a
-     * unit that fires {@code REPRODUCE} blindly wastes {@code buildCost} and halves
-     * itself toward corpses, so the size-control checkpoint is left to evolve via
-     * {@code SELF_MASS} rather than coded here.
-     * <p>
-     * The act of copying still costs {@code buildCost = BUILD_COST +
-     * BUILD_COST_PER_GENE · childGeneCount} (contract v4 §3), charged to the sink
-     * before the split; the child genome is built first so its post-indel length
-     * is known to price it. A parent that cannot afford {@code buildCost} does not
-     * divide (an energy constraint, not a denied birth); the cheap pre-filter
-     * {@code energy ≤ BUILD_COST} skips parents too poor for even an empty child
-     * without claiming a slot. Because the parent always retains
-     * {@code (energy − buildCost)/2 > 0}, fission is never terminal — the parent
-     * cannot die dividing (no semelparity), so this phase frees no cell (unlike
-     * the contract-v2 model, where an all-in commit could). Placement is spatial
-     * (contract v3 §5): the lowest-indexed free Moore neighbour, or no birth if
-     * none is free. Parents scan in ascending slot order with the child installed
-     * immediately, so the genealogy + geography stay deterministic.
-     */
-    private void settleReproduction() {
-        final int[] geneCount = state.geneCount;
-        final double[] energy = state.energy;
-        final double[] mass = state.mass;
-        final double[] damage = state.damage;
-        final int[] generation = state.generation;
-        final int[] position = state.position;
-
-        freeSlotCursor = 0;
-        for (int parent = 0; parent < unitCount; parent++) {
-            if (energy[parent] <= buildCostBase) {
-                continue;
-            }
-            if (!wantsToDivide(parent)) {
-                continue;
-            }
-            final int childCell = freeMooreNeighbour(position[parent]);
-            if (childCell < 0) {
-                continue;
-            }
-            final int childSlot = nextFreeSlot();
-            if (childSlot < 0) {
-                continue;
-            }
-            buildChildGenome(childSlot, parent);
-            final double buildCost = buildCostBase
-                    + buildCostPerGene * geneCount[childSlot];
-            if (energy[parent] <= buildCost) {
-                continue;
-            }
-            energy[parent] -= buildCost;
-            state.energySink += buildCost;
-            damage[parent] += buildCost;
-            final double childEnergy = energy[parent] * 0.5;
-            final double childMass = mass[parent] * 0.5;
-            energy[parent] = childEnergy;
-            mass[parent] = childMass;
-            finishChild(childSlot, childCell, parent, childEnergy, childMass);
-            state.birthsTotal++;
-            if (generation[childSlot] > state.maxGeneration) {
-                state.maxGeneration = generation[childSlot];
-            }
-        }
-    }
-
-    /**
-     * Whether a unit drives its {@code REPRODUCE} effector to divide this tick
-     * (contract v5 §5). Fission has no investment amount, so this is a bare
-     * trigger: a finite, positive output means "divide now"; a non-finite output
-     * is garbage, not an action. Affordability (reserving {@code buildCost}) is
-     * applied by the caller.
-     */
-    private boolean wantsToDivide(final int unit) {
-        final float[] outputsPrev = state.outputsPrev;
-
-        final int reproduceIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
-                + (NodeLayout.Action.REPRODUCE * NodeLayout.Action.INSTANCES_PER_TYPE);
-        final double output = outputsPrev[reproduceIdx];
-        return Double.isFinite(output) && output > 0.0;
-    }
-
-    /**
-     * The lowest-indexed free (unoccupied) cell among a cell's 8 Moore neighbours
-     * on the toroidal lattice (contract v3 §5), or -1 if every neighbour is
-     * occupied. Freeness is read from {@code cellOccupant} (cell-indexed), not
-     * slot energy, since slot and cell are decoupled (ADR 0020). Deterministic
-     * (fixed scan order, min index), so a birth lands in the same cell on every
-     * run of the same seed. On a tiny torus (W &le; 2) opposite offsets wrap onto
-     * the same neighbour — harmless, the min dedupes them; at W = 1 the only
-     * neighbour is the cell itself (the parent's), so a lone-cell world cannot
-     * reproduce.
-     */
-    private int freeMooreNeighbour(final int cell) {
-        final int[] cellOccupant = state.cellOccupant;
-
-        final int w = worldWidth;
-        final int x = cell % w;
-        final int y = cell / w;
-        int best = -1;
-        for (int dy = -1; dy <= 1; dy++) {
-            final int ny = (((y + dy) % w) + w) % w;
-            for (int dx = -1; dx <= 1; dx++) {
-                if (dx == 0 && dy == 0) {
-                    continue;
-                }
-                final int nx = (((x + dx) % w) + w) % w;
-                final int ncell = ny * w + nx;
-                if (cellOccupant[ncell] < 0 && (best < 0 || ncell < best)) {
-                    best = ncell;
-                }
-            }
-        }
-        return best;
-    }
-
-    /**
-     * Lowest free (energy &le; 0) slot at or beyond the monotone cursor, or -1 if
-     * none remain (contract v2 §11). A slot is a unit's permanent storage identity
-     * (ADR 0020); births claim a fresh one. Because {@code #living = #occupied
-     * cells ≤ W·W = #slots}, a free Moore-neighbour cell (the placement constraint)
-     * guarantees a free slot exists, so this never returns -1 in practice. The
-     * cursor only advances, so the per-tick scan is O(maxUnits) total, not per
-     * birth; it is reset at the start of each settle-reproduction.
-     */
-    private int nextFreeSlot() {
-        final double[] energy = state.energy;
-
-        for (int slot = freeSlotCursor; slot < unitCount; slot++) {
-            if (energy[slot] <= 0.0) {
-                freeSlotCursor = slot + 1;
-                return slot;
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * Phase 10 — resource diffusion (contract v3 §4/§6). A mass-conserving explicit
-     * discrete Laplacian over the 4 von-Neumann neighbours on the torus:
-     * {@code next = here + DIFFUSION_RATE · (Σ neighbours − 4·here)}. Double-buffered
-     * (whole field read, next written, then swapped) so the update is
-     * order-independent and deterministic. Conserves mass exactly on the torus —
-     * every flux leaving a cell enters its neighbour — and is never clamped, so it
-     * creates and destroys nothing; only inflow (phase 5) is capped. One O(cells)
-     * pass per tick, no allocation.
-     */
-    /**
-     * Phase 11 — resource decay (contract v7.1/v8). Standing resource is not
-     * permanent: each tick every cell dissipates a fixed fraction
-     * {@code RESOURCE_DECAY_RATE} of its field to the energy sink, so unconsumed
-     * resource fades instead of accumulating forever. This is what makes the inflow
-     * pattern matter — a cell with no inflow source relaxes to 0, and a moving
-     * source leaves a fading trail. Conservative: the decayed amount goes to
-     * {@code energySink} (the audit's dissipation term), so the closed-system
-     * balance (contract v5 §6) is untouched — only resource leaves the field.
-     */
-    private void settleDecay() {
-        final double[] cellChem = state.cellChem;
-
-        final double rate = resourceDecayRate;
-        if (rate <= 0.0) {
-            return;
-        }
-        for (int cell = 0; cell < unitCount; cell++) {
-            final double lost = cellChem[cell] * rate;
-            cellChem[cell] -= lost;
-            state.energySink += lost;
-        }
-    }
-
-    private void settleDiffusion() {
-        final double[] cellChem = state.cellChem;
-        final double[] cellChemNext = state.cellChemNext;
-
-        final int w = worldWidth;
-        final double d = diffusionRate;
-        for (int y = 0; y < w; y++) {
-            final int row = y * w;
-            final int up = (((y - 1) % w) + w) % w * w;
-            final int down = ((y + 1) % w) * w;
-            for (int x = 0; x < w; x++) {
-                final int left = (((x - 1) % w) + w) % w;
-                final int right = (x + 1) % w;
-                final double here = cellChem[row + x];
-                final double neighbours = cellChem[row + left]
-                        + cellChem[row + right]
-                        + cellChem[up + x]
-                        + cellChem[down + x];
-                cellChemNext[row + x] = here + d * (neighbours - 4.0 * here);
-            }
-        }
-        state.swapChem();
-    }
-
-    /**
-     * Phase 9 — motility (contract v3 §9, ADR 0020; mass-scaled cost contract
-     * v5 §3). Each living unit reads its four MOVE effectors (from outputsPrev,
-     * the swapped current tick) and takes at most one Moore step: {@code dx} from
-     * {@code MOVE_E − MOVE_W}, {@code dy} from {@code MOVE_N − MOVE_S} (N = −y, up),
-     * each thresholded by {@code MOVE_DEADZONE} so a quiet circuit stays put.
-     * Diagonals are emergent (both axes firing). A step is taken only into a free
-     * cell ({@code cellOccupant < 0}); a blocked or zero step does nothing and
-     * costs nothing. An actual step charges {@code MOVE_COST_BASE +
-     * MOVE_COST_PER_MASS · mass} to the sink (and damage — motility is
-     * dissipation): a heavier body is sluggish, paying more per step. The afford
-     * check ({@code energy > moveCost}) is applied only once a step is actually
-     * about to happen and means a step never kills, so no cell is freed here.
-     * Units are scanned in ascending slot order with occupancy updated
-     * immediately, so two units targeting one free cell resolve by lowest slot,
-     * and a cell vacated this tick can be entered this tick — all deterministic.
-     * The slot never changes, so the connection store is untouched and nothing is
-     * allocated.
-     */
-    private void settleMovement() {
-        final double[] energy = state.energy;
-        final double[] mass = state.mass;
-        final double[] damage = state.damage;
-        final int[] position = state.position;
-        final int[] cellOccupant = state.cellOccupant;
-        final float[] outputsPrev = state.outputsPrev;
-
-        final int w = worldWidth;
-        final double theta = moveDeadzone;
-        for (int unit = 0; unit < unitCount; unit++) {
-            if (energy[unit] <= 0.0) {
-                continue;
-            }
-            final int actionBase = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET;
-            final double h = outputsPrev[actionBase + NodeLayout.Action.MOVE_E]
-                    - outputsPrev[actionBase + NodeLayout.Action.MOVE_W];
-            final double v = outputsPrev[actionBase + NodeLayout.Action.MOVE_N]
-                    - outputsPrev[actionBase + NodeLayout.Action.MOVE_S];
-            int dx = 0;
-            if (h > theta) {
-                dx = 1;
-            } else if (h < -theta) {
-                dx = -1;
-            }
-            int dy = 0;
-            if (v > theta) {
-                dy = -1;
-            } else if (v < -theta) {
-                dy = 1;
-            }
-            if (dx == 0 && dy == 0) {
-                continue;
-            }
-            final int cell = position[unit];
-            final int nx = (((cell % w) + dx) % w + w) % w;
-            final int ny = (((cell / w) + dy) % w + w) % w;
-            final int target = ny * w + nx;
-            if (cellOccupant[target] >= 0) {
-                continue;
-            }
-            final double moveCost = moveCostBase
-                    + moveCostPerMass * mass[unit];
-            if (energy[unit] <= moveCost) {
-                continue;
-            }
-            cellOccupant[cell] = -1;
-            position[unit] = target;
-            cellOccupant[target] = unit;
-            energy[unit] -= moveCost;
-            state.energySink += moveCost;
-            damage[unit] += moveCost;
-        }
-    }
-
-    /**
-     * Build a child's genome into a free slot from its parent's (contract v4 §2):
-     * copy the parent's live genes, apply the three mutation operators
-     * ({@link #mutate} — point mutation, then deletion, then tandem duplication),
-     * and recompile the slot's connection region ({@link #compileSlot} is
-     * length-aware, so variable length flows through with no storage rework,
-     * contract v2 §12). After this, {@code geneCount[child]} is the child's
-     * post-indel length, which {@link #settleReproduction} needs to price the
-     * per-gene build cost (contract v4 §3) before charging the parent. Runs at a
-     * birth attempt only — never per tick. If the parent then cannot afford the
-     * build, the slot is simply left dead (energy untouched): its now-stale genes
-     * are inert and unreferenced until a later birth reclaims the slot.
-     */
-    private void buildChildGenome(final int child, final int parent) {
-        final int[] genes = state.genes;
-        final int[] geneCount = state.geneCount;
-
-        final int count = geneCount[parent];
-        System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
-        geneCount[child] = count;
-        mutate(child);
-        compileSlot(child);
-    }
-
-    /**
-     * Finish installing a child whose genome {@link #buildChildGenome} has
-     * already written and compiled (contract v2 §6). Node state (outputs, delay
-     * memory) is zeroed so the child starts inert and first acts next tick;
-     * energy, mass (each half the parent's — symmetric fission, contract v5 §5),
-     * {@code damage} (reset to 0 — germline renewal, contract v2 §7),
-     * {@code lineageId} (inherited unchanged — the root ancestor), {@code
-     * generation} (parent's + 1), and cell are set. The child takes storage slot
-     * {@code child} and cell {@code childCell} (a free Moore neighbour, §5); slot
-     * and cell are independent (ADR 0020). Called only after the parent has been
-     * charged, so an unaffordable build never installs a living unit.
-     */
-    private void finishChild(final int child, final int childCell, final int parent,
-            final double childEnergy, final double childMass) {
-        state.resetForBirth(child);
-        state.energy[child] = childEnergy;
-        state.mass[child] = childMass;
-        state.lineageId[child] = state.lineageId[parent];
-        state.generation[child] = state.generation[parent] + 1;
-        state.position[child] = childCell;
-        state.cellOccupant[childCell] = child;
-    }
-
-    /**
-     * Mutate a freshly-copied child genome in place — the three heritable
-     * operators of contract v4 §2, applied in the fixed order determinism
-     * depends on:
-     * <ol>
-     *   <li><b>Point mutation</b> (contract v2 §9 / ADR 0021): each of the 32
-     *       bits of each <i>inherited</i> gene flips at its class-split rate —
-     *       weight bits 0–15 at {@code MUTATION_RATE_WEIGHT}, structure bits
-     *       16–31 at the lower {@code MUTATION_RATE_STRUCT}, protecting topology
-     *       while keeping weight search fast.</li>
-     *   <li><b>Deletion</b>: each gene position is dropped with probability
-     *       {@code INDEL_RATE_DEL}; survivors compact toward index 0 (no holes),
-     *       shrinking {@code geneCount}.</li>
-     *   <li><b>Tandem duplication</b>: each <i>survivor</i> spawns, with
-     *       probability {@code INDEL_RATE_DUP}, a faithful copy appended at the
-     *       end — the gene-level analogue of unequal crossing-over (Ohno).
-     *       Divergence of the copy is deferred to point mutation in later
-     *       generations, so there is no separate "randomise the copy" step. A
-     *       duplication that would exceed {@code maxGenes} is dropped (the soft
-     *       cap, §1); the floor is 0 genes (an empty genome is legal and inert).</li>
-     * </ol>
-     * Mutation-safe by construction — every 32-bit value decodes to a legal gene,
-     * and copy/delete cannot forge an illegal one — so no operator can be rejected.
-     *
-     * <p><b>Determinism (contract v4 §4).</b> A single monotone {@code opIndex}
-     * walks every decision in exactly the order above — all point-mutation bit
-     * draws, then all deletion draws, then all duplication draws — each keyed
-     * {@code (seed, childSlot, birthTick, opIndex)} via
-     * {@link Noise#mutationUniform}. The counter never repeats within a birth and
-     * at most one birth claims a slot per tick, so every draw has a unique key:
-     * same seed → same genome, and report-v8 replay reproduces it exactly. The
-     * duplication draw is consumed for every survivor even when the cap drops its
-     * effect, so a binding cap never desynchronises the counter. This monotone
-     * single-counter key is contract v4 §4 verbatim; it replaces the v2 per-bit
-     * {@code geneIndex} key, which the index shifts of indels would have broken.
-     */
-    private void mutate(final int child) {
-        final int[] genes = state.genes;
-        final int[] geneCount = state.geneCount;
-
-        final int base = child * maxGenes;
-        int count = geneCount[child];
-        final long prefix = Noise.mutationPrefix(LEGACY_RNG_SEED, child, state.tick);
-        int opIndex = 0;
-
-        for (int g = 0; g < count; g++) {
-            int gene = genes[base + g];
-            for (int bit = 0; bit < 32; bit++) {
-                final double rate = bit < 16
-                        ? mutationRateWeight
-                        : mutationRateStruct;
-                if (Noise.mutationUniformFromPrefix(prefix, opIndex++)
-                        < rate) {
-                    gene ^= (1 << bit);
-                }
-            }
-            genes[base + g] = gene;
-        }
-
-        int survivors = 0;
-        for (int g = 0; g < count; g++) {
-            final boolean delete = Noise.mutationUniformFromPrefix(prefix, opIndex++)
-                    < indelRateDel;
-            if (!delete) {
-                genes[base + survivors++] = genes[base + g];
-            }
-        }
-        count = survivors;
-
-        for (int g = 0; g < survivors; g++) {
-            final boolean duplicate = Noise.mutationUniformFromPrefix(prefix, opIndex++)
-                    < indelRateDup;
-            if (duplicate && count < maxGenes) {
-                genes[base + count++] = genes[base + g];
-            }
-        }
-
-        geneCount[child] = count;
     }
 
     /**
@@ -1167,13 +270,11 @@ public final class Kernel {
      * {@code harvestConnCount}, {@code mulInDegree}) is rebuilt by
      * {@link #loadState} from the genes, and the founding constants
      * ({@code creditedInitialEnergy}, {@code initialResourceTotal}) are recomputed
-     * by the constructor from the manifest. {@code cellOccupant} <b>is</b> written:
-     * it is not rederivable from living positions, because a parent that spends
-     * down to exactly 0 energy in reproduction (phase 7) dies without freeing its
-     * cell (only phase-6 settle-cost frees on death), so a cell can stay occupied
-     * by a corpse. Per-tick scratch
+     * by the constructor from the manifest. {@code cellOccupant} <b>is</b> written
+     * rather than rederived from living positions, so a restore never depends on
+     * that invariant. Per-tick scratch
      * ({@code accumulators}, {@code mulTop*}, {@code activeThisTick},
-     * {@code outputsNext}, {@code freeSlotCursor}) is intentionally omitted — it is
+     * {@code outputsNext}) is intentionally omitted — it is
      * cleared/overwritten before it is read each tick, so it cannot influence the
      * future. No RNG state is stored: {@link Noise} is a pure function of
      * {@code (seed, slot, tick)}, and {@code tick} is in the dump — this is exactly
@@ -1214,7 +315,9 @@ public final class Kernel {
             out.writeInt(position[slot]);
         }
         for (int cell = 0; cell < unitCount; cell++) {
-            out.writeDouble(cellChem[cell]);
+            for (int k = 0; k < state.chemCount; k++) {
+                out.writeDouble(cellChem[k * unitCount + cell]);
+            }
             out.writeInt(cellOccupant[cell]);
         }
         for (int i = 0; i < outputsPrev.length; i++) {
@@ -1279,7 +382,9 @@ public final class Kernel {
             position[slot] = in.readInt();
         }
         for (int cell = 0; cell < unitCount; cell++) {
-            cellChem[cell] = in.readDouble();
+            for (int k = 0; k < state.chemCount; k++) {
+                cellChem[k * unitCount + cell] = in.readDouble();
+            }
             cellOccupant[cell] = in.readInt();
         }
         for (int i = 0; i < outputsPrev.length; i++) {
@@ -1294,10 +399,9 @@ public final class Kernel {
         state.birthsTotal = in.readLong();
         state.maxGeneration = in.readInt();
 
-        this.freeSlotCursor = 0;
         Arrays.fill(activeThisTick, 0);
         for (int slot = 0; slot < unitCount; slot++) {
-            compileSlot(slot);
+            SlotCompiler.compile(state, slot);
         }
     }
 }

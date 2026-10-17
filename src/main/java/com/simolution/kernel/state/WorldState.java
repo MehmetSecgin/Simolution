@@ -212,6 +212,22 @@ public final class WorldState {
     }
 
     /**
+     * Death bookkeeping (contract v0 §9, contract v5 §6). Death stays derived
+     * ({@code energy ≤ 0}, never a stored flag); this only settles its
+     * consequences. A unit's biomass is crystallized energy (contract v5 §1), so
+     * on death it dissipates to the sink, keeping the audit exact, and
+     * {@code mass} is zeroed so {@code Σ mass} tracks the living only. The cell is
+     * freed (contract v3 §5: "death frees a cell", no carve-out for cause).
+     * Called wherever a charge can cross a unit to {@code energy ≤ 0}: the
+     * metabolic bill and all-in growth.
+     */
+    public void die(final int slot) {
+        energySink += mass[slot];
+        applyDeath(slot);
+        cellOccupant[position[slot]] = -1;
+    }
+
+    /**
      * Entries per slot of a field that is zeroed per slot. Only {@link Dim#UNIT} and
      * {@link Dim#UNIT_NODE} have a per-slot extent here, so any other shape declared
      * with a zeroing policy is a declaration error.
