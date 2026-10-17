@@ -71,20 +71,6 @@ public final class CheckpointCodec {
     }
 
     public static Kernel read(final InputStream in, final int threads) throws IOException {
-        return read(in, null, threads);
-    }
-
-    /**
-     * Restores the checkpoint under {@code override} instead of the config it was written with.
-     * Refused unless the override keeps every shape-defining value ({@link EngineConfig#branchCompatible}).
-     */
-    public static Kernel readBranch(final InputStream in, final EngineConfig override, final int threads)
-            throws IOException {
-        return read(in, override, threads);
-    }
-
-    private static Kernel read(final InputStream in, final EngineConfig override, final int threads)
-            throws IOException {
         final DataInputStream data = new DataInputStream(new BufferedInputStream(in));
         try {
             final byte[] magic = new byte[MAGIC.length];
@@ -108,11 +94,7 @@ public final class CheckpointCodec {
                 throw new IllegalStateException("checkpoint node layout differs from this engine's node layout");
             }
             final long expectedDigest = data.readLong();
-            if (override != null && !written.branchCompatible(override)) {
-                throw new IllegalStateException(
-                        "branch config changes the state shape (world width, max genes or chemical count)");
-            }
-            final Kernel kernel = new Kernel(new int[0][], new int[0], override == null ? written : override, threads);
+            final Kernel kernel = new Kernel(new int[0][], new int[0], written, threads);
             try {
                 readState(data, kernel.state());
                 if (kernel.stateDigest() != expectedDigest) {

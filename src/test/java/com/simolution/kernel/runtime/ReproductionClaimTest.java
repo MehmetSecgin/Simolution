@@ -27,9 +27,11 @@ class ReproductionClaimTest {
 
     private static EngineConfig config(final int world, final int maxGenes, final double buildCost,
             final double buildCostPerGene, final double mutationRate, final double indelRate) {
-        return EngineConfig.defaults(0L, world, maxGenes)
-                .withReproduction(new Reproduction(buildCost, buildCostPerGene))
-                .withMutation(new Mutation(mutationRate, mutationRate, indelRate, indelRate));
+        final EngineConfig base = EngineConfig.defaults(0L, world, maxGenes);
+        return new EngineConfig(base.seed(), base.world(), base.chemicals(), base.founder(), base.metabolism(),
+                base.harvest(), base.motility(), base.growth(), base.sensing(),
+                new Reproduction(buildCost, buildCostPerGene),
+                new Mutation(mutationRate, mutationRate, indelRate, indelRate));
     }
 
     private static void tickUntilFirstBirth(final Kernel kernel) {

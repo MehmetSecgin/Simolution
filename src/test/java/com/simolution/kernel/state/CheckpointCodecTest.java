@@ -2,11 +2,9 @@ package com.simolution.kernel.state;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -146,37 +144,6 @@ class CheckpointCodecTest {
         final IllegalStateException e = refused(bytes);
 
         assertTrue(e.getMessage().contains("layout"), e.getMessage());
-    }
-
-    @Test
-    void branchRefusesShapeChange() throws IOException {
-        final byte[] bytes = write(newKernel());
-
-        final IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> CheckpointCodec.readBranch(new ByteArrayInputStream(bytes), CONFIG.withWorldWidth(40), 1));
-
-        assertTrue(e.getMessage().contains("shape"), e.getMessage());
-    }
-
-    @Test
-    void branchAllowsRateChange() throws IOException {
-        final Kernel original = newKernel();
-        original.step(100);
-        final byte[] bytes = write(original);
-
-        final Kernel branched = CheckpointCodec.readBranch(new ByteArrayInputStream(bytes), withBasalCost(0.6), 1);
-        final Kernel unbranched = read(bytes);
-
-        assertEquals(0.6, branched.config().metabolism().basalCost());
-        assertSavedStateEquals(original, unbranched);
-        branched.step(100);
-        unbranched.step(100);
-        assertFalse(Arrays.equals(branched.state().energy, unbranched.state().energy),
-                "a changed basal cost must change the trajectory");
-    }
-
-    private static EngineConfig withBasalCost(final double basalCost) {
-        return CONFIG.withMetabolism(CONFIG.metabolism().withBasalCost(basalCost));
     }
 
     private static int indexOf(final byte[] haystack, final byte[] needle) {

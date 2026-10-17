@@ -83,25 +83,6 @@ public record EngineConfig(
         return withChemicals(updated);
     }
 
-    public EngineConfig withMetabolism(final Metabolism newMetabolism) {
-        return new EngineConfig(seed, world, chemicals, founder, newMetabolism, harvest, motility, growth,
-                sensing, reproduction, mutation);
-    }
-
-    public EngineConfig withReproduction(final Reproduction newReproduction) {
-        return new EngineConfig(seed, world, chemicals, founder, metabolism, harvest, motility, growth,
-                sensing, newReproduction, mutation);
-    }
-
-    public EngineConfig withMutation(final Mutation newMutation) {
-        return new EngineConfig(seed, world, chemicals, founder, metabolism, harvest, motility, growth,
-                sensing, reproduction, newMutation);
-    }
-
-    public boolean branchCompatible(final EngineConfig other) {
-        return world.equals(other.world) && chemicals.size() == other.chemicals.size();
-    }
-
     private EngineConfig withWorld(final World newWorld) {
         return new EngineConfig(seed, newWorld, chemicals, founder, metabolism, harvest, motility, growth,
                 sensing, reproduction, mutation);

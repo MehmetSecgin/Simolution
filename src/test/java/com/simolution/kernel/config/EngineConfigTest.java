@@ -1,7 +1,6 @@
 package com.simolution.kernel.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,15 +38,6 @@ class EngineConfigTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
 
         assertTrue(e.getMessage().contains("growYield"), e.getMessage());
-    }
-
-    @Test
-    void branchCompatibility() {
-        EngineConfig base = EngineConfig.defaults(1L, 100, 64);
-
-        assertFalse(base.branchCompatible(EngineConfig.defaults(1L, 120, 64)));
-        assertTrue(base.branchCompatible(EngineConfig.defaults(1L, 100, 64).withSeed(9L)));
-        assertTrue(base.branchCompatible(base.withMetabolism(base.metabolism().withBasalCost(0.9))));
     }
 
     private static void assertRejected(final String field, final String value, final String messagePart) {
