@@ -1,6 +1,9 @@
 package com.simolution.kernel.runtime;
 
+import com.simolution.kernel.state.WorldState;
+
 public final class KernelSnapshot {
+    public final WorldState state;
     public final int tick;
     public final float[] outputs;
     public final float[] delayMemory;
@@ -24,36 +27,33 @@ public final class KernelSnapshot {
     public final double[] mass;
     public final double massTotal;
     public final double creditedInitialMass;
+    public final int[] activeThisTick;
 
-    public KernelSnapshot(int tick, float[] outputs, float[] delayMemory, double[] energy,
-                          double[] damage, double energySink, double reservoir, double[] resourceField,
-                          int worldWidth, int[] position, double initialResourceTotal, double cumulativeInflow,
-                          long[] lineageId, int[] generation, long birthsTotal,
-                          int maxGeneration, double creditedInitialEnergy,
-                          int[] genes, int[] geneCount, int maxGenes,
-                          double[] mass, double massTotal, double creditedInitialMass) {
-        this.tick = tick;
-        this.outputs = outputs;
-        this.delayMemory = delayMemory;
-        this.energy = energy;
-        this.damage = damage;
-        this.energySink = energySink;
+    public KernelSnapshot(WorldState state, double reservoir, double massTotal) {
+        this.state = state;
+        this.tick = state.tick;
+        this.outputs = state.outputsPrev;
+        this.delayMemory = state.delayMemory;
+        this.energy = state.energy;
+        this.damage = state.damage;
+        this.energySink = state.energySink;
         this.reservoir = reservoir;
-        this.resourceField = resourceField;
-        this.worldWidth = worldWidth;
-        this.position = position;
-        this.initialResourceTotal = initialResourceTotal;
-        this.cumulativeInflow = cumulativeInflow;
-        this.lineageId = lineageId;
-        this.generation = generation;
-        this.birthsTotal = birthsTotal;
-        this.maxGeneration = maxGeneration;
-        this.creditedInitialEnergy = creditedInitialEnergy;
-        this.genes = genes;
-        this.geneCount = geneCount;
-        this.maxGenes = maxGenes;
-        this.mass = mass;
+        this.resourceField = state.cellChem;
+        this.worldWidth = state.worldWidth;
+        this.position = state.position;
+        this.initialResourceTotal = state.initialResourceTotal;
+        this.cumulativeInflow = state.cumulativeInflow;
+        this.lineageId = state.lineageId;
+        this.generation = state.generation;
+        this.birthsTotal = state.birthsTotal;
+        this.maxGeneration = state.maxGeneration;
+        this.creditedInitialEnergy = state.creditedInitialEnergy;
+        this.genes = state.genes;
+        this.geneCount = state.geneCount;
+        this.maxGenes = state.maxGenes;
+        this.mass = state.mass;
         this.massTotal = massTotal;
-        this.creditedInitialMass = creditedInitialMass;
+        this.creditedInitialMass = state.creditedInitialMass;
+        this.activeThisTick = state.activeThisTick;
     }
 }

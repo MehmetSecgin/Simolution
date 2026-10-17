@@ -9,6 +9,7 @@ import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.layout.NodeSpec;
+import com.simolution.kernel.state.WorldState;
 
 public final class Kernel {
 
@@ -16,52 +17,11 @@ public final class Kernel {
 
     private static final NodeSpec.Role[] SENSOR_ROLES = sensorRoles();
 
-    private float[] outputsPrev;
-    private float[] outputsNext;
-    private final float[] accumulators;
-    private final float[] delayMemory;
-
-    private final CompiledConnection[] connections;
-    private final int[] sumStart;
-    private final int[] sumEnd;
-    private final int[] mulStart;
-    private final int[] mulEnd;
-
-    private final int[] genes;
-    private final int[] geneCount;
+    private final WorldState state;
     private final int maxGenes;
-
-    private final float[] mulTop1;
-    private final float[] mulTop2;
-    private final int[] mulInDegree;
-
-    private final double[] energy;
-    private final double[] mass;
-    private final double[] damage;
-    private final int[] harvestConnCount;
-    private final int[] activeThisTick;
-    private double energySink;
-
-    private final long[] lineageId;
-    private final int[] generation;
-    private long birthsTotal;
-    private int maxGeneration;
-    private final double creditedInitialEnergy;
-    private final double creditedInitialMass;
-
-    private double[] resourceField;
-    private double[] resourceFieldNext;
-    private final double initialResourceTotal;
-    private double cumulativeInflow;
-
     private final int worldWidth;
     private final int unitCount;
     private int freeSlotCursor;
-
-    private final int[] position;
-    private final int[] cellOccupant;
-
-    private int tick = 0;
 
     private final CompiledInflowField inflow;
 
@@ -72,7 +32,6 @@ public final class Kernel {
     private final double harvestHalfSaturation;
     private final double harvestMassExponent;
     private final double cellCapacity;
-    private final double cellInitial;
     private final double diffusionRate;
     private final double resourceDecayRate;
     private final double moveCostBase;
@@ -143,7 +102,6 @@ public final class Kernel {
         this.harvestHalfSaturation = config.harvestHalfSaturation();
         this.harvestMassExponent = config.harvestMassExponent();
         this.cellCapacity = chemical.capacity();
-        this.cellInitial = chemical.initial();
         this.diffusionRate = chemical.diffusionRate();
         this.resourceDecayRate = chemical.decayRate();
         this.moveCostBase = config.moveCostBase();
@@ -164,53 +122,18 @@ public final class Kernel {
         this.indelRateDel = config.indelRateDel();
         this.agingCost = config.agingCost();
 
-        final int totalNodes = maxUnits * NodeLayout.TOTAL;
-
-        this.outputsPrev = new float[totalNodes];
-        this.outputsNext = new float[totalNodes];
-        this.accumulators = new float[totalNodes];
-        this.delayMemory = new float[totalNodes];
-
-        this.mulTop1 = new float[maxUnits];
-        this.mulTop2 = new float[maxUnits];
-        this.mulInDegree = new int[maxUnits];
-
-        // empty slots start dead (energy 0, contract v2 §5): they are skipped
-        // by every phase exactly as corpses are, and a birth may claim them.
-        this.energy = new double[maxUnits];
-        this.mass = new double[maxUnits];
-        this.damage = new double[maxUnits];
-        this.harvestConnCount = new int[maxUnits];
-        this.activeThisTick = new int[maxUnits];
-
-        this.lineageId = new long[maxUnits];
-        Arrays.fill(lineageId, -1L);
-        this.generation = new int[maxUnits];
-        this.birthsTotal = 0L;
-        this.maxGeneration = 0;
-        this.creditedInitialEnergy = initialEnergy * seededCount;
-        this.creditedInitialMass = initialMass * seededCount;
-
-        this.resourceField = new double[maxUnits];
-        this.resourceFieldNext = new double[maxUnits];
-        Arrays.fill(resourceField, cellInitial);
-        this.initialResourceTotal = cellInitial * maxUnits;
-        this.cumulativeInflow = 0.0;
-
-        this.position = new int[maxUnits];
-        Arrays.fill(position, -1);
-        this.cellOccupant = new int[maxUnits];
-        Arrays.fill(cellOccupant, -1);
+        this.state = new WorldState(config);
         this.freeSlotCursor = 0;
+        state.creditedInitialEnergy = initialEnergy * seededCount;
+        state.creditedInitialMass = initialMass * seededCount;
 
-        final int capacity = maxUnits * maxGenes;
-        this.connections = new CompiledConnection[capacity];
-        this.genes = new int[capacity];
-        this.geneCount = new int[maxUnits];
-        this.sumStart = new int[maxUnits];
-        this.sumEnd = new int[maxUnits];
-        this.mulStart = new int[maxUnits];
-        this.mulEnd = new int[maxUnits];
+        final int[] genes = state.genes;
+        final int[] geneCount = state.geneCount;
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final long[] lineageId = state.lineageId;
+        final int[] position = state.position;
+        final int[] cellOccupant = state.cellOccupant;
 
         for (int unit = 0; unit < maxUnits; unit++) {
             if (unit < seededCount) {
@@ -287,6 +210,16 @@ public final class Kernel {
      * bit-identical across the storage rework.
      */
     private void compileSlot(final int unit) {
+        final int[] genes = state.genes;
+        final int[] geneCount = state.geneCount;
+        final CompiledConnection[] connections = state.connections;
+        final int[] sumStart = state.sumStart;
+        final int[] sumEnd = state.sumEnd;
+        final int[] mulStart = state.mulStart;
+        final int[] mulEnd = state.mulEnd;
+        final int[] harvestConnCount = state.harvestConnCount;
+        final int[] mulInDegree = state.mulInDegree;
+
         final int base = unit * maxGenes;
         final int unitOffset = unit * NodeLayout.TOTAL;
         final int count = geneCount[unit];
@@ -367,10 +300,14 @@ public final class Kernel {
         // Phase 11
         settleDecay();
 
-        tick++;
+        state.tick++;
     }
 
     private void clearAccumulators() {
+        final float[] accumulators = state.accumulators;
+        final float[] mulTop1 = state.mulTop1;
+        final float[] mulTop2 = state.mulTop2;
+
         Arrays.fill(accumulators, 0.0f);
         Arrays.fill(mulTop1, 0.0f);
         Arrays.fill(mulTop2, 0.0f);
@@ -384,6 +321,18 @@ public final class Kernel {
      * energy settle phase charges for (contract v0 §6, fork 1a).
      */
     private void propagateConnections() {
+        final double[] energy = state.energy;
+        final float[] outputsPrev = state.outputsPrev;
+        final CompiledConnection[] connections = state.connections;
+        final int[] sumStart = state.sumStart;
+        final int[] sumEnd = state.sumEnd;
+        final int[] mulStart = state.mulStart;
+        final int[] mulEnd = state.mulEnd;
+        final float[] accumulators = state.accumulators;
+        final float[] mulTop1 = state.mulTop1;
+        final float[] mulTop2 = state.mulTop2;
+        final int[] activeThisTick = state.activeThisTick;
+
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 activeThisTick[unit] = 0;
@@ -428,6 +377,8 @@ public final class Kernel {
     }
 
     private void evaluateNodes() {
+        final double[] energy = state.energy;
+
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 freezeDeadUnit(unit);
@@ -444,20 +395,34 @@ public final class Kernel {
      * living configuration — inert, unchanging.
      */
     private void freezeDeadUnit(final int unit) {
+        final float[] outputsPrev = state.outputsPrev;
+        final float[] outputsNext = state.outputsNext;
+
         final int base = unit * NodeLayout.TOTAL;
         System.arraycopy(outputsPrev, base, outputsNext, base, NodeLayout.TOTAL);
     }
 
     private void evaluateUnit(final int unit) {
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final int[] position = state.position;
+        final float[] delayMemory = state.delayMemory;
+        final float[] outputsNext = state.outputsNext;
+        final double[] cellChem = state.cellChem;
+        final int[] mulInDegree = state.mulInDegree;
+        final float[] accumulators = state.accumulators;
+        final float[] mulTop1 = state.mulTop1;
+        final float[] mulTop2 = state.mulTop2;
+
         final int base = unit * NodeLayout.TOTAL;
 
         for (int s = 0; s < NodeLayout.Sensor.MEANINGFUL_COUNT; s++) {
             final int idx = base + NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE;
             switch (SENSOR_ROLES[s]) {
                 case CONST -> outputsNext[idx] = 1.0f;
-                case RAND -> outputsNext[idx] = (float) Noise.sample(LEGACY_RNG_SEED, unit, tick);
+                case RAND -> outputsNext[idx] = (float) Noise.sample(LEGACY_RNG_SEED, unit, state.tick);
                 // a unit senses only the cell it currently occupies (contract v3 §3)
-                case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, resourceField[position[unit]] / cellCapacity);
+                case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, cellChem[position[unit]] / cellCapacity);
                 case SELF_ENERGY -> outputsNext[idx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);
                 case SELF_MASS -> outputsNext[idx] = (float) Math.min(1.0, mass[unit] / selfMassScale);
                 default -> throw new IllegalStateException("not a sensor role: " + SENSOR_ROLES[s]);
@@ -496,9 +461,10 @@ public final class Kernel {
     }
 
     private void swapBuffers() {
-        final float[] tmp = outputsPrev;
-        outputsPrev = outputsNext;
-        outputsNext = tmp;
+        final float[] outputsPrev = state.outputsPrev;
+        final float[] outputsNext = state.outputsNext;
+
+        state.swapOutputs();
     }
 
     /**
@@ -521,6 +487,10 @@ public final class Kernel {
      * field afterward.
      */
     private void settleIntake() {
+        final double[] energy = state.energy;
+        final int[] position = state.position;
+        final double[] cellChem = state.cellChem;
+
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 continue;
@@ -530,17 +500,17 @@ public final class Kernel {
                 continue;
             }
             final int cell = position[unit];
-            final double intake = Math.min(demand, resourceField[cell]);
+            final double intake = Math.min(demand, cellChem[cell]);
             energy[unit] += intake;
-            resourceField[cell] -= intake;
+            cellChem[cell] -= intake;
         }
 
         for (int cell = 0; cell < unitCount; cell++) {
-            final double cap = inflow.cap(cell, tick);
+            final double cap = inflow.cap(cell, state.tick);
             final double admitted = Math.min(cap,
-                    Math.max(0.0, cellCapacity - resourceField[cell]));
-            resourceField[cell] += admitted;
-            cumulativeInflow += admitted;
+                    Math.max(0.0, cellCapacity - cellChem[cell]));
+            cellChem[cell] += admitted;
+            state.cumulativeInflow += admitted;
         }
     }
 
@@ -565,6 +535,9 @@ public final class Kernel {
      * demands nothing; {@code max(0, …)} also means you cannot un-eat.
      */
     private double harvestDemand(final int unit) {
+        final float[] outputsPrev = state.outputsPrev;
+        final int[] harvestConnCount = state.harvestConnCount;
+
         final int transporters = harvestConnCount[unit];
         if (transporters == 0) {
             return 0.0;
@@ -576,7 +549,7 @@ public final class Kernel {
             return 0.0;
         }
         final double capacity = harvestCapacityPerConnection * transporters
-                * Math.pow(mass[unit], harvestMassExponent);
+                * Math.pow(state.mass[unit], harvestMassExponent);
         // capacity · output/(HALF+output), rearranged to avoid overflow when
         // output is a huge (divergent) finite value.
         return capacity / (1.0 + harvestHalfSaturation / output);
@@ -623,6 +596,11 @@ public final class Kernel {
      * never overdraws; crossing to zero makes phases 2–3 skip it next tick.
      */
     private void settleCost() {
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final double[] damage = state.damage;
+        final int[] activeThisTick = state.activeThisTick;
+
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 continue;
@@ -633,7 +611,7 @@ public final class Kernel {
             final double charge = Math.min(
                     basalCost + activity + maintenance + aging, energy[unit]);
             energy[unit] -= charge;
-            energySink += charge;
+            state.energySink += charge;
             damage[unit] += charge;
             if (energy[unit] <= 0.0) {
                 die(unit);
@@ -652,8 +630,11 @@ public final class Kernel {
      * metabolic bill ({@link #settleCost}) and all-in growth ({@link #settleGrowth}).
      */
     private void die(final int unit) {
-        energySink += mass[unit];
-        mass[unit] = 0.0;
+        final int[] position = state.position;
+        final int[] cellOccupant = state.cellOccupant;
+
+        state.energySink += state.mass[unit];
+        state.applyDeath(unit);
         cellOccupant[position[unit]] = -1;
     }
 
@@ -672,6 +653,10 @@ public final class Kernel {
      * against suicidal growth wiring; selection does.
      */
     private void settleGrowth() {
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final float[] outputsPrev = state.outputsPrev;
+
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 continue;
@@ -690,7 +675,7 @@ public final class Kernel {
             energy[unit] -= commit;
             final double gained = growYield * commit;
             mass[unit] += gained;
-            energySink += commit - gained;
+            state.energySink += commit - gained;
             if (energy[unit] <= 0.0) {
                 die(unit);
             }
@@ -725,6 +710,13 @@ public final class Kernel {
      * immediately, so the genealogy + geography stay deterministic.
      */
     private void settleReproduction() {
+        final int[] geneCount = state.geneCount;
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final double[] damage = state.damage;
+        final int[] generation = state.generation;
+        final int[] position = state.position;
+
         freeSlotCursor = 0;
         for (int parent = 0; parent < unitCount; parent++) {
             if (energy[parent] <= buildCostBase) {
@@ -748,16 +740,16 @@ public final class Kernel {
                 continue;
             }
             energy[parent] -= buildCost;
-            energySink += buildCost;
+            state.energySink += buildCost;
             damage[parent] += buildCost;
             final double childEnergy = energy[parent] * 0.5;
             final double childMass = mass[parent] * 0.5;
             energy[parent] = childEnergy;
             mass[parent] = childMass;
             finishChild(childSlot, childCell, parent, childEnergy, childMass);
-            birthsTotal++;
-            if (generation[childSlot] > maxGeneration) {
-                maxGeneration = generation[childSlot];
+            state.birthsTotal++;
+            if (generation[childSlot] > state.maxGeneration) {
+                state.maxGeneration = generation[childSlot];
             }
         }
     }
@@ -770,6 +762,8 @@ public final class Kernel {
      * applied by the caller.
      */
     private boolean wantsToDivide(final int unit) {
+        final float[] outputsPrev = state.outputsPrev;
+
         final int reproduceIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
                 + (NodeLayout.Action.REPRODUCE * NodeLayout.Action.INSTANCES_PER_TYPE);
         final double output = outputsPrev[reproduceIdx];
@@ -788,6 +782,8 @@ public final class Kernel {
      * reproduce.
      */
     private int freeMooreNeighbour(final int cell) {
+        final int[] cellOccupant = state.cellOccupant;
+
         final int w = worldWidth;
         final int x = cell % w;
         final int y = cell / w;
@@ -818,6 +814,8 @@ public final class Kernel {
      * birth; it is reset at the start of each settle-reproduction.
      */
     private int nextFreeSlot() {
+        final double[] energy = state.energy;
+
         for (int slot = freeSlotCursor; slot < unitCount; slot++) {
             if (energy[slot] <= 0.0) {
                 freeSlotCursor = slot + 1;
@@ -848,18 +846,23 @@ public final class Kernel {
      * balance (contract v5 §6) is untouched — only resource leaves the field.
      */
     private void settleDecay() {
+        final double[] cellChem = state.cellChem;
+
         final double rate = resourceDecayRate;
         if (rate <= 0.0) {
             return;
         }
         for (int cell = 0; cell < unitCount; cell++) {
-            final double lost = resourceField[cell] * rate;
-            resourceField[cell] -= lost;
-            energySink += lost;
+            final double lost = cellChem[cell] * rate;
+            cellChem[cell] -= lost;
+            state.energySink += lost;
         }
     }
 
     private void settleDiffusion() {
+        final double[] cellChem = state.cellChem;
+        final double[] cellChemNext = state.cellChemNext;
+
         final int w = worldWidth;
         final double d = diffusionRate;
         for (int y = 0; y < w; y++) {
@@ -869,17 +872,15 @@ public final class Kernel {
             for (int x = 0; x < w; x++) {
                 final int left = (((x - 1) % w) + w) % w;
                 final int right = (x + 1) % w;
-                final double here = resourceField[row + x];
-                final double neighbours = resourceField[row + left]
-                        + resourceField[row + right]
-                        + resourceField[up + x]
-                        + resourceField[down + x];
-                resourceFieldNext[row + x] = here + d * (neighbours - 4.0 * here);
+                final double here = cellChem[row + x];
+                final double neighbours = cellChem[row + left]
+                        + cellChem[row + right]
+                        + cellChem[up + x]
+                        + cellChem[down + x];
+                cellChemNext[row + x] = here + d * (neighbours - 4.0 * here);
             }
         }
-        final double[] tmp = resourceField;
-        resourceField = resourceFieldNext;
-        resourceFieldNext = tmp;
+        state.swapChem();
     }
 
     /**
@@ -902,6 +903,13 @@ public final class Kernel {
      * allocated.
      */
     private void settleMovement() {
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final double[] damage = state.damage;
+        final int[] position = state.position;
+        final int[] cellOccupant = state.cellOccupant;
+        final float[] outputsPrev = state.outputsPrev;
+
         final int w = worldWidth;
         final double theta = moveDeadzone;
         for (int unit = 0; unit < unitCount; unit++) {
@@ -944,7 +952,7 @@ public final class Kernel {
             position[unit] = target;
             cellOccupant[target] = unit;
             energy[unit] -= moveCost;
-            energySink += moveCost;
+            state.energySink += moveCost;
             damage[unit] += moveCost;
         }
     }
@@ -963,6 +971,9 @@ public final class Kernel {
      * are inert and unreferenced until a later birth reclaims the slot.
      */
     private void buildChildGenome(final int child, final int parent) {
+        final int[] genes = state.genes;
+        final int[] geneCount = state.geneCount;
+
         final int count = geneCount[parent];
         System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
         geneCount[child] = count;
@@ -984,21 +995,14 @@ public final class Kernel {
      */
     private void finishChild(final int child, final int childCell, final int parent,
             final double childEnergy, final double childMass) {
-        final int nodeBase = child * NodeLayout.TOTAL;
-        for (int n = 0; n < NodeLayout.TOTAL; n++) {
-            outputsPrev[nodeBase + n] = 0.0f;
-            outputsNext[nodeBase + n] = 0.0f;
-            delayMemory[nodeBase + n] = 0.0f;
-        }
-        activeThisTick[child] = 0;
-
-        energy[child] = childEnergy;
-        mass[child] = childMass;
-        damage[child] = 0.0;
-        lineageId[child] = lineageId[parent];
-        generation[child] = generation[parent] + 1;
-        position[child] = childCell;
-        cellOccupant[childCell] = child;
+        final WorldState state = this.state;
+        state.resetForBirth(child);
+        state.energy[child] = childEnergy;
+        state.mass[child] = childMass;
+        state.lineageId[child] = state.lineageId[parent];
+        state.generation[child] = state.generation[parent] + 1;
+        state.position[child] = childCell;
+        state.cellOccupant[childCell] = child;
     }
 
     /**
@@ -1038,6 +1042,9 @@ public final class Kernel {
      * {@code geneIndex} key, which the index shifts of indels would have broken.
      */
     private void mutate(final int child) {
+        final int[] genes = state.genes;
+        final int[] geneCount = state.geneCount;
+
         final int base = child * maxGenes;
         int count = geneCount[child];
         int opIndex = 0;
@@ -1048,7 +1055,7 @@ public final class Kernel {
                 final double rate = bit < 16
                         ? mutationRateWeight
                         : mutationRateStruct;
-                if (Noise.mutationUniform(LEGACY_RNG_SEED, child, tick, opIndex++)
+                if (Noise.mutationUniform(LEGACY_RNG_SEED, child, state.tick, opIndex++)
                         < rate) {
                     gene ^= (1 << bit);
                 }
@@ -1058,7 +1065,7 @@ public final class Kernel {
 
         int survivors = 0;
         for (int g = 0; g < count; g++) {
-            final boolean delete = Noise.mutationUniform(LEGACY_RNG_SEED, child, tick, opIndex++)
+            final boolean delete = Noise.mutationUniform(LEGACY_RNG_SEED, child, state.tick, opIndex++)
                     < indelRateDel;
             if (!delete) {
                 genes[base + survivors++] = genes[base + g];
@@ -1067,7 +1074,7 @@ public final class Kernel {
         count = survivors;
 
         for (int g = 0; g < survivors; g++) {
-            final boolean duplicate = Noise.mutationUniform(LEGACY_RNG_SEED, child, tick, opIndex++)
+            final boolean duplicate = Noise.mutationUniform(LEGACY_RNG_SEED, child, state.tick, opIndex++)
                     < indelRateDup;
             if (duplicate && count < maxGenes) {
                 genes[base + count++] = genes[base + g];
@@ -1085,6 +1092,13 @@ public final class Kernel {
      * inspected. End-of-run export only — allocates, never called per tick.
      */
     public CompiledConnection[] liveConnections() {
+        final double[] energy = state.energy;
+        final CompiledConnection[] connections = state.connections;
+        final int[] sumStart = state.sumStart;
+        final int[] sumEnd = state.sumEnd;
+        final int[] mulStart = state.mulStart;
+        final int[] mulEnd = state.mulEnd;
+
         int count = 0;
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] > 0.0) {
@@ -1115,6 +1129,13 @@ public final class Kernel {
      * Allocates; not a per-tick path.
      */
     public CompiledConnection[] connectionsOf(final int slot) {
+        final double[] energy = state.energy;
+        final CompiledConnection[] connections = state.connections;
+        final int[] sumStart = state.sumStart;
+        final int[] sumEnd = state.sumEnd;
+        final int[] mulStart = state.mulStart;
+        final int[] mulEnd = state.mulEnd;
+
         if (energy[slot] <= 0.0) {
             return new CompiledConnection[0];
         }
@@ -1132,17 +1153,14 @@ public final class Kernel {
 
     public KernelSnapshot snapshot() {
         double resourceTotal = 0.0;
-        for (final double r : resourceField) {
+        for (final double r : state.cellChem) {
             resourceTotal += r;
         }
         double massTotal = 0.0;
-        for (final double m : mass) {
+        for (final double m : state.mass) {
             massTotal += m;
         }
-        return new KernelSnapshot(tick, outputsPrev, delayMemory, energy, damage, energySink,
-                resourceTotal, resourceField, worldWidth, position, initialResourceTotal, cumulativeInflow,
-                lineageId, generation, birthsTotal, maxGeneration, creditedInitialEnergy,
-                genes, geneCount, maxGenes, mass, massTotal, creditedInitialMass);
+        return new KernelSnapshot(state, resourceTotal, massTotal);
     }
 
     /**
@@ -1168,7 +1186,20 @@ public final class Kernel {
      * reader): {@link java.io.DataOutputStream} big-endian, length-framed.
      */
     public void saveState(final java.io.DataOutput out) throws java.io.IOException {
-        out.writeInt(tick);
+        final int[] genes = state.genes;
+        final int[] geneCount = state.geneCount;
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final double[] damage = state.damage;
+        final long[] lineageId = state.lineageId;
+        final int[] generation = state.generation;
+        final int[] position = state.position;
+        final int[] cellOccupant = state.cellOccupant;
+        final float[] delayMemory = state.delayMemory;
+        final float[] outputsPrev = state.outputsPrev;
+        final double[] cellChem = state.cellChem;
+
+        out.writeInt(state.tick);
         out.writeInt(unitCount);
         out.writeInt(maxGenes);
         for (int slot = 0; slot < unitCount; slot++) {
@@ -1186,7 +1217,7 @@ public final class Kernel {
             out.writeInt(position[slot]);
         }
         for (int cell = 0; cell < unitCount; cell++) {
-            out.writeDouble(resourceField[cell]);
+            out.writeDouble(cellChem[cell]);
             out.writeInt(cellOccupant[cell]);
         }
         for (int i = 0; i < outputsPrev.length; i++) {
@@ -1195,10 +1226,10 @@ public final class Kernel {
         for (int i = 0; i < delayMemory.length; i++) {
             out.writeFloat(delayMemory[i]);
         }
-        out.writeDouble(energySink);
-        out.writeDouble(cumulativeInflow);
-        out.writeLong(birthsTotal);
-        out.writeInt(maxGeneration);
+        out.writeDouble(state.energySink);
+        out.writeDouble(state.cumulativeInflow);
+        out.writeLong(state.birthsTotal);
+        out.writeInt(state.maxGeneration);
     }
 
     /**
@@ -1212,7 +1243,22 @@ public final class Kernel {
      * canonical run from tick 0 (asserted by the replay-exactness test).
      */
     public void loadState(final java.io.DataInput in) throws java.io.IOException {
-        this.tick = in.readInt();
+        final int[] genes = state.genes;
+        final int[] geneCount = state.geneCount;
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final double[] damage = state.damage;
+        final long[] lineageId = state.lineageId;
+        final int[] generation = state.generation;
+        final int[] position = state.position;
+        final int[] cellOccupant = state.cellOccupant;
+        final float[] delayMemory = state.delayMemory;
+        final float[] outputsPrev = state.outputsPrev;
+        final float[] outputsNext = state.outputsNext;
+        final double[] cellChem = state.cellChem;
+        final int[] activeThisTick = state.activeThisTick;
+
+        state.tick = in.readInt();
         final int savedUnits = in.readInt();
         final int savedMaxGenes = in.readInt();
         if (savedUnits != unitCount || savedMaxGenes != maxGenes) {
@@ -1236,7 +1282,7 @@ public final class Kernel {
             position[slot] = in.readInt();
         }
         for (int cell = 0; cell < unitCount; cell++) {
-            resourceField[cell] = in.readDouble();
+            cellChem[cell] = in.readDouble();
             cellOccupant[cell] = in.readInt();
         }
         for (int i = 0; i < outputsPrev.length; i++) {
@@ -1246,10 +1292,10 @@ public final class Kernel {
         for (int i = 0; i < delayMemory.length; i++) {
             delayMemory[i] = in.readFloat();
         }
-        this.energySink = in.readDouble();
-        this.cumulativeInflow = in.readDouble();
-        this.birthsTotal = in.readLong();
-        this.maxGeneration = in.readInt();
+        state.energySink = in.readDouble();
+        state.cumulativeInflow = in.readDouble();
+        state.birthsTotal = in.readLong();
+        state.maxGeneration = in.readInt();
 
         this.freeSlotCursor = 0;
         Arrays.fill(activeThisTick, 0);
