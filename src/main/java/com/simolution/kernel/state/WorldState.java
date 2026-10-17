@@ -68,7 +68,6 @@ public final class WorldState {
     public final double[] birthCost;
     public final int[] birthParent;
     public final int[] birthChild;
-    public final int[] birthChildCell;
     public final int[] chunkFreeSlots;
     public final int[] chunkWinners;
     public final double[] sinkPartial;
@@ -146,7 +145,6 @@ public final class WorldState {
         this.birthCost = new double[slots];
         this.birthParent = new int[slots];
         this.birthChild = new int[slots];
-        this.birthChildCell = new int[slots];
         this.chunkFreeSlots = new int[Chunks.count(slots)];
         this.chunkWinners = new int[Chunks.count(slots)];
         this.sinkPartial = new double[Chunks.count(slots)];
@@ -223,7 +221,6 @@ public final class WorldState {
                 new FieldSpec("birthCost", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthCost),
                 new FieldSpec("birthParent", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthParent),
                 new FieldSpec("birthChild", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthChild),
-                new FieldSpec("birthChildCell", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthChildCell),
                 new FieldSpec("outputsNext", Dim.UNIT_NODE, scratch, zeroed, OnDeath.KEEP, outputsNext),
                 new FieldSpec("cellChemNext", Dim.CELL_CHEM, scratch, explicit, OnDeath.KEEP, cellChemNext),
                 new FieldSpec("chunkFreeSlots", Dim.CHUNK, scratch, explicit, OnDeath.KEEP, chunkFreeSlots),

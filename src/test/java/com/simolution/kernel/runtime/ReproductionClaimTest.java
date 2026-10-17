@@ -59,7 +59,7 @@ class ReproductionClaimTest {
         assertEquals(1, s.birthCount, "one birth published this tick");
         assertEquals(0, s.birthParent[0], "the published parent is the winner");
         assertEquals(child, s.birthChild[0], "the published child is the installed slot");
-        assertEquals(7, s.birthChildCell[0], "the published cell is the contested cell");
+        assertEquals(7, s.position[s.birthChild[0]], "the published child sits in the contested cell");
     }
 
     @Test
@@ -132,7 +132,6 @@ class ReproductionClaimTest {
                 final int child = s.birthChild[i];
                 assertEquals(s.lineageId[parent], s.lineageId[child], "child inherits the parent's lineage");
                 assertEquals(s.generation[parent] + 1, s.generation[child], "child is one generation deeper");
-                assertEquals(s.birthChildCell[i], s.position[child], "child sits in the published cell");
                 assertTrue(s.energy[child] > 0.0, "a listed child is alive");
             }
             listed += s.birthCount;

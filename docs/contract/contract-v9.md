@@ -67,7 +67,7 @@ What changes is the order of the steps and who wins a contested resource.
    child's connections, and sets `lineageId` (inherited), `generation` (parent + 1), position and
    occupancy.
 5. **Publish.** The tick's births are appended to the **birth list** (`birthParent`,
-   `birthChild`, `birthChildCell`, `birthCount`), ascending in parent slot and in child slot.
+   `birthChild`, `birthCount`), ascending in parent slot and in child slot.
    It is a plain array, rebuilt every tick; observers read it and write nothing.
 
 A parent divides at most once per tick. The parent's own slot, energy and cell are untouched by

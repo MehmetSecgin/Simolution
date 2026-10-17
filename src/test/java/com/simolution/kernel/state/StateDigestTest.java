@@ -47,7 +47,7 @@ class StateDigestTest {
             k.step(50);
 
             // assert
-            assertEquals(k.stateDigest(), StateDigest.of(k, other));
+            assertEquals(k.stateDigest(), new StateDigest(k.state()).compute(other));
         }
     }
 

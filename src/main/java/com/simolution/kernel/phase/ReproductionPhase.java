@@ -55,7 +55,7 @@ import com.simolution.kernel.state.WorldState;
  *       slot take free slots in ascending slot order, as the serial cursor did. It copies,
  *       mutates and compiles the child genome, charges the parent the build cost of the
  *       resulting length (kept in {@code birthCost[parent]}), splits, installs the child, and
- *       writes {@code birthParent[k]} and {@code birthChildCell[k]}. Winners of rank
+ *       writes {@code birthParent[k]}. Winners of rank
  *       {@code ≥ birthCount} find no free slot and pay nothing.</li>
  * </ol>
  * Installs never collide: each writes its own parent slot, its own child slot (dead at phase
@@ -64,8 +64,7 @@ import com.simolution.kernel.state.WorldState;
  * the sink in exactly the order the serial resolve did, and updates {@code birthsTotal} and
  * {@code maxGeneration}.
  * <p>
- * The birth list ({@code birthParent}, {@code birthChild}, {@code birthChildCell},
- * {@code birthCount}) is ascending in parent and child slot alike. Entries of {@code birthChild}
+ * The birth list ({@code birthParent}, {@code birthChild}, {@code birthCount}) is ascending in parent and child slot alike. Entries of {@code birthChild}
  * at or past {@code birthCount} hold leftover free slots and mean nothing.
  * <p>
  * Shape is {@link Shape#CLAIM}.
@@ -234,7 +233,6 @@ public final class ReproductionPhase implements Phase {
             finishChild(child, cell, parent, childEnergy, childMass);
 
             state.birthParent[rank] = parent;
-            state.birthChildCell[rank] = cell;
             rank++;
         }
     }

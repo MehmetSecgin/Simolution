@@ -6,7 +6,6 @@ import com.simolution.kernel.phase.Chunks;
 import com.simolution.kernel.phase.Phase;
 import com.simolution.kernel.phase.PhaseRunner;
 import com.simolution.kernel.phase.Shape;
-import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.Noise;
 import com.simolution.kernel.state.FieldSpec.Persist;
 
@@ -47,11 +46,6 @@ public final class StateDigest implements Phase {
             }
         }
         this.chunkHash = new long[Chunks.count(longest)];
-    }
-
-    /** One-shot digest of {@code kernel}'s current state on {@code runner}; the kernel's own call is {@link Kernel#stateDigest()}. */
-    public static long of(final Kernel kernel, final PhaseRunner runner) {
-        return new StateDigest(kernel.state()).compute(runner);
     }
 
     public long compute(final PhaseRunner runner) {

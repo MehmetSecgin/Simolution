@@ -14,9 +14,9 @@ public record FieldSpec(String name, Dim dim, Persist persist, OnBirth onBirth, 
      * Shape of the array: per slot, per cell, per slot node ({@code slot * NodeLayout.TOTAL + node}),
      * per chemical and cell ({@code k * cells + cell}), per chemical and slot
      * ({@code k * slots + slot}), per slot gene region ({@code slot * maxGenes + g}), per
-     * work chunk ({@link com.simolution.kernel.phase.Chunks}), or a single value.
+     * work chunk ({@link com.simolution.kernel.phase.Chunks}).
      */
-    public enum Dim { UNIT, CELL, UNIT_NODE, CELL_CHEM, UNIT_CHEM, GENE, CHUNK, SCALAR }
+    public enum Dim { UNIT, CELL, UNIT_NODE, CELL_CHEM, UNIT_CHEM, GENE, CHUNK }
 
     /**
      * {@code SAVED} is written to checkpoints, {@code DERIVED} is rebuilt from the genes

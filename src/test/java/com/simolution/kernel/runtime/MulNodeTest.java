@@ -104,7 +104,7 @@ class MulNodeTest {
 
         // assert
         assertEquals(2, kernel.snapshot().state.mulInDegree[0]);
-        assertEquals(1, kernel.connectionsOf(0).length);
+        assertEquals(1, kernel.state().mulEnd[0] - kernel.state().sumStart[0]);
         assertEquals(0.0, kernel.snapshot().outputs[MUL_IDX], 0.0);
     }
 
@@ -119,7 +119,7 @@ class MulNodeTest {
 
         // assert
         assertEquals(1, kernel.snapshot().state.mulInDegree[0]);
-        assertEquals(0, kernel.connectionsOf(0).length);
+        assertEquals(0, kernel.state().mulEnd[0] - kernel.state().sumStart[0]);
         assertEquals(0.0, kernel.snapshot().outputs[MUL_IDX], 0.0);
     }
 

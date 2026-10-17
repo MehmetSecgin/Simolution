@@ -33,6 +33,13 @@ public final class Kernel implements AutoCloseable {
     private final EngineConfig config;
     private final WorldState state;
     private final int unitCount;
+    /**
+     * The tick as an ordered list of declared phases, built once at construction
+     * (contract v0 §8, the locked pipeline order, twelve entries): clear, propagate,
+     * evaluate, swap, intake, inflow, cost, growth, reproduction, movement, diffusion, decay.
+     * Intake is two entries, intake (per unit) then inflow (per cell), so each entry has
+     * one {@link com.simolution.kernel.phase.Shape}.
+     */
     private final List<Phase> phases;
     private final ParallelRunner runner;
     private final StateDigest digest;
@@ -140,17 +147,6 @@ public final class Kernel implements AutoCloseable {
     }
 
     /**
-     * The tick as an ordered list of declared phases, built once at construction
-     * (contract v0 §8, the locked pipeline order, twelve entries): clear, propagate,
-     * evaluate, swap, intake, inflow, cost, growth, reproduction, movement, diffusion, decay.
-     * Intake is two entries, intake (per unit) then inflow (per cell), so each entry has
-     * one {@link com.simolution.kernel.phase.Shape}.
-     */
-    public List<Phase> phases() {
-        return phases;
-    }
-
-    /**
      * Founder placement policy (ADR 0022): deterministically scatter
      * {@code seededCount} founders over distinct cells of a
      * {@code worldWidth × worldWidth} lattice. Returns, for each founder slot
@@ -236,25 +232,6 @@ public final class Kernel implements AutoCloseable {
             for (int i = sumStart[unit]; i < mulEnd[unit]; i++) {
                 out[cursor++] = connectionAt(unit, i);
             }
-        }
-        return out;
-    }
-
-    /**
-     * The compiled connections of a single slot (sum range then mul range, the
-     * same per-unit ordering {@link #liveConnections} uses), or an empty array if
-     * the slot is dead. The evolved circuit of one unit at the current tick.
-     * Junk-source connections are not stored and so are absent. Allocates; not a
-     * per-tick path.
-     */
-    public CompiledConnection[] connectionsOf(final int slot) {
-        if (state.energy[slot] <= 0.0) {
-            return new CompiledConnection[0];
-        }
-        final int from = state.sumStart[slot];
-        final CompiledConnection[] out = new CompiledConnection[state.mulEnd[slot] - from];
-        for (int i = from; i < state.mulEnd[slot]; i++) {
-            out[i - from] = connectionAt(slot, i);
         }
         return out;
     }

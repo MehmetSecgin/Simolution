@@ -72,24 +72,6 @@ class ChemicalPhaseTest {
     }
 
     @Test
-    void kernelDeclaresThePhasesInOrderWithTheirShapes() {
-        // arrange
-        final Kernel kernel = emptyKernel(EngineConfig.defaults(0L, WORLD_WIDTH, 4).chemicals());
-
-        // act
-        final List<Phase> phases = kernel.phases();
-
-        // assert
-        assertEquals(List.of("clear", "propagate", "evaluate", "swap", "intake", "inflow", "cost", "growth",
-                "reproduction", "movement", "diffusion", "decay"),
-                phases.stream().map(Phase::name).toList());
-        assertEquals(List.of(Shape.PER_UNIT, Shape.PER_UNIT, Shape.PER_UNIT, Shape.SERIAL, Shape.PER_UNIT,
-                Shape.PER_CELL, Shape.PER_UNIT, Shape.PER_UNIT, Shape.CLAIM, Shape.CLAIM, Shape.PER_CELL,
-                Shape.PER_CELL),
-                phases.stream().map(Phase::shape).toList());
-    }
-
-    @Test
     void chemicalDecayTargetMustBeASinkOrAnotherChemical() {
         // arrange
         final ChemicalSpec selfTarget = new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 0);

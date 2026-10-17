@@ -52,23 +52,15 @@ public final class Noise {
     }
 
     /**
-     * Deterministic pseudo-random double in {@code [0, 1)} for mutation
-     * decisions, keyed by the birth event {@code (seed, parentSlot, birthTick)}
-     * and a per-stream {@code index} (contract v2 §9; parent-keyed since engine v6
-     * design §5.6, so the child genome is known before its slot is). Domain-separated from
-     * {@link #sample} — which hashes (unit, tick) for the RAND sensor — by its own stream tag
-     * ({@link #STREAM_MUTATION}), so a child's mutation stream never collides with any
-     * unit's sensor noise. Same key → same flips,
+     * Mutation decisions draw deterministic pseudo-random doubles in {@code [0, 1)} keyed by the
+     * birth event {@code (seed, parentSlot, birthTick)} and a per-stream {@code index} (contract v2 §9;
+     * parent-keyed since engine v6 design §5.6, so the child genome is known before its slot is).
+     * Domain-separated from {@link #sample} by the stream tag {@link #STREAM_MUTATION}, so a
+     * child's mutation stream never collides with any unit's sensor noise. Same key, same flips,
      * always, so a run's entire genealogy is reproducible.
-     */
-    public static double mutationUniform(long seed, int parentSlot, int birthTick, int index) {
-        return mutationUniformFromPrefix(mutationPrefix(seed, parentSlot, birthTick), index);
-    }
-
-    /**
-     * The first two mixes of {@link #mutationUniform}, which depend only on the
-     * birth event {@code (seed, parentSlot, birthTick)}. A birth draws many
-     * values, so it computes this once and finishes each draw with
+     * <p>
+     * This is the first two mixes of that key, which depend only on the birth event. A birth draws
+     * many values, so it computes this once and finishes each draw with
      * {@link #mutationUniformFromPrefix}.
      */
     public static long mutationPrefix(long seed, int parentSlot, int birthTick) {
@@ -76,7 +68,7 @@ public final class Noise {
         return mix(h + GOLDEN_GAMMA * (birthTick + 1L));
     }
 
-    /** The last mix of {@link #mutationUniform}, given the birth's {@link #mutationPrefix}. */
+    /** The last mix of a mutation draw, given the birth's {@link #mutationPrefix}. */
     public static double mutationUniformFromPrefix(long prefix, int index) {
         final long h = mix(prefix + GOLDEN_GAMMA * (index + 1L));
         return (h >>> 11) * 0x1.0p-53;
@@ -106,7 +98,7 @@ public final class Noise {
      * Deterministic pseudo-random double in {@code [0, 1)} for founder
      * placement (ADR 0022): the scatter that assigns each founder its starting
      * cell. Keyed by {@code (seed, index)} where index walks the Fisher-Yates
-     * draws. Domain-separated from {@link #sample} and {@link #mutationUniform}
+     * draws. Domain-separated from {@link #sample} and the mutation draws
      * by {@link #STREAM_PLACEMENT}, so a placement draw never collides
      * with sensor noise or a mutation flip. Same key → same layout, always.
      */
