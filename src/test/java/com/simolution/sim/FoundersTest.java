@@ -1,6 +1,5 @@
 package com.simolution.sim;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
@@ -17,16 +16,5 @@ class FoundersTest {
 
         // assert
         assertEquals(24, founders.engine().world().maxGenes());
-    }
-
-    @Test
-    void demoHasOneFeedbackGenome() {
-        // arrange + act
-        Founders founders = Founders.create(RunConfig.parse(new String[0]));
-
-        // assert
-        assertEquals(1, founders.genomes().length);
-        assertEquals(4, founders.genomes()[0].length);
-        assertArrayEquals(GenomeFactory.demo(), founders.genomes()[0]);
     }
 }

@@ -63,13 +63,14 @@ class RunConfigTest {
     }
 
     @Test
-    void demoKeepsMapFramesButIgnoresTheWindow() {
+    void noArgumentsRunOneFounderForTheDefaultTicks() {
         // act
-        RunConfig config = RunConfig.parse(new String[] {"--map-frames", "4", "--map-from", "1", "--map-to", "2"});
+        RunConfig config = RunConfig.parse(new String[0]);
 
         // assert
-        assertEquals(new MapSampling.Spread(4), config.mapSampling());
-        assertEquals(new GenomeSource.Demo(), config.genomes());
+        assertEquals(1, config.founderCount());
+        assertEquals(RunConfig.DEFAULT_TICKS, config.ticks());
+        assertEquals(RunConfig.DEFAULT_GENES, config.genesPerFounder());
     }
 
     @Test

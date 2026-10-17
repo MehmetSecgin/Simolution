@@ -18,7 +18,6 @@ Next: sensors that read beyond the own cell, several resources with separate har
 ## Commands
 
 ```sh
-./gradlew run     # demo: 4-gene feedback genome, 10 ticks, trace + report
 ./gradlew test    # JUnit 5; spec-conformance, determinism matrix, resume equivalence, strict-math lint
 ./gradlew build   # full verification
 
@@ -137,9 +136,9 @@ com.simolution
     └── logging
         └── ConsoleTableLogger renders snapshots as a per-tick trace table
 com.simolution.sim            run harness + observer (laws stay in kernel, interpretation here)
-├── RunConfig / RunOptions    CLI parse into grouped records (`GenomeSource`, `Observation`, `MapSampling`, `EngineConfig`); `ArgCursor` reads flags and fails with "<flag> needs a value"; `InflowSpecParser` reads the `--inflow` DSL
+├── RunConfig / RunOptions    CLI parse into grouped records (`Observation`, `MapSampling`, `EngineConfig`); `ArgCursor` reads flags and fails with "<flag> needs a value"; `InflowSpecParser` reads the `--inflow` DSL
 ├── Founders                  the founder genomes, cells and engine config of a run; `newKernel(threads)`
-├── GenomeFactory             seeded random genomes and the 4-gene demo genome; stateless hash like RAND noise
+├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
 ├── SimulationRun / RunResult the tick loop: tick, snapshot, every `TickObserver` in order; final digest and elapsed time
 ├── RunArtifacts / RunPaths   opens the `--out` sidecars and the `--observe` run directory, lists their observers; `RunPaths` names every sidecar beside the report
 ├── RunConsole                report and timing lines on stdout

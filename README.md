@@ -64,7 +64,6 @@ Reproduction and movement are **claim** phases: every unit proposes in parallel 
 Requires **JDK 26** (`.sdkmanrc` pins `26.0.1.0+8-open`).
 
 ```sh
-./gradlew run     # demo: a 4-gene feedback genome, 10 ticks, trace + report
 ./gradlew test    # JUnit 5 + spec-conformance tests against an independent reference model
 ./gradlew build   # full verification
 

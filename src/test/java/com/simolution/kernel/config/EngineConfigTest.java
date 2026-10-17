@@ -118,7 +118,7 @@ class EngineConfigTest {
     }
 
     @Test
-    void acceptsTheDemoShape() {
+    void acceptsOneCellAndZeroGenes() {
         EngineConfig.defaults(0L, 1, 0);
     }
 }

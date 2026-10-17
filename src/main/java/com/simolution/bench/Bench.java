@@ -7,7 +7,6 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.Founders;
-import com.simolution.sim.GenomeSource;
 import com.simolution.sim.MapSampling;
 import com.simolution.sim.Observation;
 import com.simolution.sim.RunConfig;
@@ -42,7 +41,7 @@ public final class Bench {
     }
 
     static RunConfig config(final int world, final int founders, final int ticks, final int threads) {
-        return new RunConfig(founders, ticks, new GenomeSource.Random(GENES_PER_FOUNDER), false, null,
+        return new RunConfig(founders, ticks, GENES_PER_FOUNDER, false, null,
                 MapSampling.OFF, Observation.OFF, EngineConfig.defaults(SEED, world, MAX_GENES), threads, false);
     }
 

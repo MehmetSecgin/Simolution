@@ -7,6 +7,7 @@ import com.simolution.kernel.config.EngineConfig;
 public final class RunReport {
 
     public static final String SCHEMA = "report-v15";
+    private static final String GENOME_SOURCE = "random";
 
     private RunReport() {}
 
@@ -33,8 +34,8 @@ public final class RunReport {
         line(out, "world-width", worldWidth);
         line(out, "grid-cells", worldWidth * worldWidth);
         line(out, "ticks", config.ticks());
-        line(out, "genome-source", genomeSourceName(config.genomes()));
-        line(out, "genes-per-unit", config.genomes().genesPerFounder());
+        line(out, "genome-source", GENOME_SOURCE);
+        line(out, "genes-per-unit", config.genesPerFounder());
         line(out, "max-genes", engine.world().maxGenes());
     }
 
@@ -94,12 +95,5 @@ public final class RunReport {
 
     private static void line(final StringBuilder out, final String key, final Object value) {
         out.append(key).append(": ").append(value).append('\n');
-    }
-
-    private static String genomeSourceName(final GenomeSource genomes) {
-        return switch (genomes) {
-            case GenomeSource.Demo _ -> "builtin-demo";
-            case GenomeSource.Random _ -> "random";
-        };
     }
 }

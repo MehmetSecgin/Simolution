@@ -58,10 +58,6 @@ final class RunOptions {
         }
     }
 
-    boolean isDemo() {
-        return founders == null && genes == null;
-    }
-
     int threadCount() {
         return threads == null ? RunConfig.allCores() : threads;
     }
@@ -70,10 +66,6 @@ final class RunOptions {
         if (mapFrom != null && mapFrom >= 0) {
             return new MapSampling.Window(mapFrom, mapTo);
         }
-        return mapFramesSampling();
-    }
-
-    MapSampling mapFramesSampling() {
         if (mapFrames == null || mapFrames < 0) {
             return MapSampling.OFF;
         }

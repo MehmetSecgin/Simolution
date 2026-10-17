@@ -9,10 +9,7 @@ public record Founders(int[][] genomes, int[] cells, EngineConfig engine) {
 
     public static Founders create(RunConfig config) {
         long seed = config.engine().seed();
-        int[][] genomes = switch (config.genomes()) {
-            case GenomeSource.Demo _ -> new int[][] {GenomeFactory.demo()};
-            case GenomeSource.Random random -> GenomeFactory.random(seed, config.founderCount(), random.genesPerFounder());
-        };
+        int[][] genomes = GenomeFactory.random(seed, config.founderCount(), config.genesPerFounder());
         int longest = config.engine().world().maxGenes();
         for (int[] genome : genomes) {
             longest = Math.max(longest, genome.length);

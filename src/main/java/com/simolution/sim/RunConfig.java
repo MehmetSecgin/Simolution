@@ -14,7 +14,7 @@ import com.simolution.kernel.config.InflowConfig;
 public record RunConfig(
         int founderCount,
         int ticks,
-        GenomeSource genomes,
+        int genesPerFounder,
         boolean trace,
         Path reportPath,
         MapSampling mapSampling,
@@ -24,7 +24,6 @@ public record RunConfig(
         boolean digestEveryTick
 ) {
 
-    static final int DEMO_TICKS = 10;
     static final int DEFAULT_TICKS = 1000;
     static final int DEFAULT_FOUNDERS = 1;
     static final int DEFAULT_GENES = 32;
@@ -32,9 +31,6 @@ public record RunConfig(
     static final int DEFAULT_CYCLE_PERIOD = 2000;
     static final double DEFAULT_CYCLE_PEAK = 6.0;
 
-    private static final int DEMO_FOUNDERS = 1;
-    private static final int DEMO_WORLD_WIDTH = 1;
-    private static final int DEMO_MAX_GENES = 0;
     private static final long DEFAULT_SEED = 0L;
     private static final int CELLS_PER_FOUNDER = 4;
 
@@ -45,16 +41,7 @@ public record RunConfig(
     public static RunConfig parse(final String[] args) {
         final RunOptions options = RunOptions.read(args);
         options.validate();
-        return options.isDemo() ? demo(options) : population(options);
-    }
-
-    private static RunConfig demo(final RunOptions options) {
-        final EngineConfig engine = options.configPath == null
-                ? EngineConfig.defaults(requireNonNullElse(options.seed, DEFAULT_SEED), DEMO_WORLD_WIDTH, DEMO_MAX_GENES)
-                : applyOverrides(loadConfig(options.configPath), options.seed, null, null);
-        return new RunConfig(DEMO_FOUNDERS, requireNonNullElse(options.ticks, DEMO_TICKS), new GenomeSource.Demo(),
-                true, options.reportPath, options.mapFramesSampling(), observation(options), engine,
-                options.threadCount(), options.digestEveryTick);
+        return population(options);
     }
 
     private static RunConfig population(final RunOptions options) {
@@ -63,7 +50,7 @@ public record RunConfig(
         final EngineConfig engine = populationEngine(options, founders, genes);
         requireFoundersFit(engine.world().worldWidth(), founders);
         return new RunConfig(founders, requireNonNullElse(options.ticks, DEFAULT_TICKS),
-                new GenomeSource.Random(genes), options.trace, options.reportPath, options.mapSampling(),
+                genes, options.trace, options.reportPath, options.mapSampling(),
                 observation(options), withInflow(engine, options), options.threadCount(), options.digestEveryTick);
     }
 

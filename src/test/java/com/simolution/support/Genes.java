@@ -3,11 +3,15 @@ package com.simolution.support;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.layout.NodeLayout;
-import com.simolution.sim.GenomeFactory;
 
 public final class Genes {
 
-    public static final int[] FEEDBACK_LOOP = GenomeFactory.demo();
+    public static final int[] FEEDBACK_LOOP = {
+            sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.ADD, 2048),
+            internalToInternal(NodeLayout.Internal.ADD, NodeLayout.Internal.DELAY, 512),
+            internalToInternal(NodeLayout.Internal.DELAY, NodeLayout.Internal.ADD, 512),
+            internalToAction(NodeLayout.Internal.ADD, NodeLayout.Action.Y, 512)
+    };
 
     private Genes() {}
 
