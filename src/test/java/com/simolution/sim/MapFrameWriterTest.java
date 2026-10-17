@@ -27,7 +27,7 @@ class MapFrameWriterTest {
     @Test
     void windowModeEmitsEveryTickOnlyInsideTheWindow() throws Exception {
         // arrange
-        FrameHarness harness = smallWorld().ticks(8).sampling(new MapSampling.Window(3, 5));
+        final FrameHarness harness = smallWorld().ticks(8).sampling(new MapSampling.Window(3, 5));
 
         // act
         harness.run();
@@ -40,7 +40,7 @@ class MapFrameWriterTest {
     @Test
     void noWindowEveryTickByDefault() throws Exception {
         // arrange
-        FrameHarness harness = smallWorld().ticks(10).sampling(MapSampling.EVERY_TICK);
+        final FrameHarness harness = smallWorld().ticks(10).sampling(MapSampling.EVERY_TICK);
 
         // act
         harness.run();
@@ -53,7 +53,7 @@ class MapFrameWriterTest {
     @Test
     void positiveTargetFramesDownsamples() throws Exception {
         // arrange
-        FrameHarness harness = smallWorld().ticks(10).sampling(new MapSampling.Spread(5));
+        final FrameHarness harness = smallWorld().ticks(10).sampling(new MapSampling.Spread(5));
 
         // act
         harness.run();
@@ -66,7 +66,7 @@ class MapFrameWriterTest {
     @Test
     void genomesGoToTheCatalogNotTheFrame() throws Exception {
         // arrange
-        FrameHarness harness = smallWorld().ticks(6).sampling(new MapSampling.Window(1, 5));
+        final FrameHarness harness = smallWorld().ticks(6).sampling(new MapSampling.Window(1, 5));
 
         // act
         harness.run();
@@ -84,7 +84,7 @@ class MapFrameWriterTest {
     @Test
     void noMassOrActionOrNodeOutputsInFrame() throws Exception {
         // arrange
-        FrameHarness harness = FrameHarness.forWorld(6).founders(7L, 9, 12)
+        final FrameHarness harness = FrameHarness.forWorld(6).founders(7L, 9, 12)
                 .ticks(5).sampling(new MapSampling.Window(1, 4));
 
         // act
@@ -101,7 +101,7 @@ class MapFrameWriterTest {
     @Test
     void chunkIndexOffsetsPointAtChunkStarts() throws Exception {
         // arrange
-        FrameHarness harness = smallWorld().ticks(5).sampling(new MapSampling.Window(1, 4));
+        final FrameHarness harness = smallWorld().ticks(5).sampling(new MapSampling.Window(1, 4));
 
         // act
         harness.run();
@@ -119,13 +119,14 @@ class MapFrameWriterTest {
     @Test
     void resourceFieldIsRunLengthEncoded() throws Exception {
         // arrange
-        FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1));
+        final FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1));
 
         // act
         harness.run();
 
         // assert
-        String resourceLine = harness.framesText().lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
+        final String resourceLine =
+                harness.framesText().lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
         assertTrue(Pattern.compile("[0-9]x[0-9]+").matcher(resourceLine).find(),
                 "resource field is DxN run-length tokens, not dense digits");
     }
@@ -133,17 +134,18 @@ class MapFrameWriterTest {
     @Test
     void secondChemicalDoesNotWidenTheResourceField() throws Exception {
         // arrange
-        ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1))
+        final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        final FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1))
                 .configure(config -> config.withChemicals(List.of(first, second)));
 
         // act
         harness.run();
 
         // assert
-        String resourceLine = harness.framesText().lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
-        int cells = Pattern.compile("[0-9]x([0-9]+)").matcher(resourceLine).results()
+        final String resourceLine =
+                harness.framesText().lines().filter(l -> l.startsWith("r")).findFirst().orElseThrow();
+        final int cells = Pattern.compile("[0-9]x([0-9]+)").matcher(resourceLine).results()
                 .mapToInt(m -> Integer.parseInt(m.group(1))).sum();
         assertEquals(WORLD * WORLD, cells);
     }

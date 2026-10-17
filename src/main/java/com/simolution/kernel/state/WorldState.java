@@ -152,7 +152,7 @@ public final class WorldState {
 
         final List<FieldSpec> reset = new ArrayList<>();
         final List<FieldSpec> zero = new ArrayList<>();
-        for (final FieldSpec spec : fields()) {
+        for (FieldSpec spec : fields()) {
             if (spec.onBirth() == OnBirth.RESET_ZERO) {
                 zeroStride(spec);
                 reset.add(spec);

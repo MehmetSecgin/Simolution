@@ -30,14 +30,14 @@ class IndelTest {
     @DisplayName("contract-v4 §1: no operator pushes a genome outside [0, maxGenes]")
     void geneCountStaysWithinCapAndFloor() {
         // arrange
-        Kernel kernel = evolvingKernel();
+        final Kernel kernel = evolvingKernel();
 
         for (int t = 0; t < TICKS; t++) {
             // act
             kernel.tick();
 
             // assert
-            int[] geneCount = kernel.snapshot().geneCount;
+            final int[] geneCount = kernel.snapshot().geneCount;
             for (int slot = 0; slot < geneCount.length; slot++) {
                 assertTrue(geneCount[slot] >= 0 && geneCount[slot] <= MAX_GENES,
                         "slot " + slot + " geneCount " + geneCount[slot]
@@ -50,14 +50,14 @@ class IndelTest {
     @DisplayName("contract-v4 §2: duplication grows length and deletion shrinks it, both visible over many births")
     void duplicationGrowsAndDeletionShrinksLength() {
         // arrange
-        Kernel kernel = evolvingKernel();
+        final Kernel kernel = evolvingKernel();
         boolean sawGrowth = false;
         boolean sawShrink = false;
 
         // act
         for (int t = 0; t < TICKS; t++) {
             kernel.tick();
-            KernelSnapshot snapshot = kernel.snapshot();
+            final KernelSnapshot snapshot = kernel.snapshot();
             for (int slot = 0; slot < snapshot.geneCount.length; slot++) {
                 if (snapshot.energy[slot] <= 0.0) {
                     continue;
@@ -76,7 +76,7 @@ class IndelTest {
     @DisplayName("contract-v4 §1: the floor is 0 genes, an empty genome is inert and dies of basal cost")
     void emptyGenomeIsInertAndMortal() {
         // arrange
-        Kernel kernel = Worlds.kernel(EngineConfig.defaults(0L, 1, 8), new int[0]);
+        final Kernel kernel = Worlds.kernel(EngineConfig.defaults(0L, 1, 8), new int[0]);
         double previous = DEFAULTS.founder().initialEnergy();
         boolean died = false;
 
@@ -85,7 +85,7 @@ class IndelTest {
             kernel.tick();
 
             // assert
-            double now = kernel.snapshot().energy[0];
+            final double now = kernel.snapshot().energy[0];
             assertTrue(now <= previous + 1.0e-12,
                     "an inert empty genome can never gain energy (no harvest) at tick " + (t + 1));
             previous = now;
@@ -98,7 +98,7 @@ class IndelTest {
     @DisplayName("contract-v4 §5: the per-gene build cost flows to the sink, so the audit stays exact")
     void energyConservedWithPerGeneBuildCost() {
         // arrange
-        Kernel kernel = evolvingKernel();
+        final Kernel kernel = evolvingKernel();
 
         for (int t = 0; t < TICKS; t++) {
             // act
@@ -112,8 +112,8 @@ class IndelTest {
     @Test
     void sameSeedProducesIdenticalGenomes() {
         // arrange
-        Kernel a = evolvingKernel();
-        Kernel b = evolvingKernel();
+        final Kernel a = evolvingKernel();
+        final Kernel b = evolvingKernel();
 
         // act
         for (int t = 0; t < TICKS; t++) {
@@ -122,8 +122,8 @@ class IndelTest {
         }
 
         // assert
-        KernelSnapshot sa = a.snapshot();
-        KernelSnapshot sb = b.snapshot();
+        final KernelSnapshot sa = a.snapshot();
+        final KernelSnapshot sb = b.snapshot();
         assertArrayEquals(sa.geneCount, sb.geneCount, "geneCount diverged for the same seed");
         assertArrayEquals(sa.genes, sb.genes, "genes diverged for the same seed");
         assertEquals(sa.energySink, sb.energySink, 0.0, "energySink diverged for the same seed");

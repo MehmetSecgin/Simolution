@@ -42,7 +42,7 @@ public final class GenomeCompiler {
         final CompiledConnection[] result = new CompiledConnection[totalConnections];
 
         int cursor = 0;
-        for (final CompiledConnection[] unitConnections : perUnit) {
+        for (CompiledConnection[] unitConnections : perUnit) {
             System.arraycopy(unitConnections, 0, result, cursor, unitConnections.length);
             cursor += unitConnections.length;
         }

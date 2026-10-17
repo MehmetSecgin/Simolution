@@ -41,9 +41,9 @@ class EnergyTest {
     @DisplayName("contract-v5 §6: initial energy + initial resource + initial mass + inflow == units + total field + mass + sink")
     void openSystemConservesEnergyExactly() {
         // arrange
-        int[][] genomes = GenomeFactory.random(11L, POPULATION, 32);
-        Kernel kernel = Worlds.kernel(POPULATION_WORLD_WIDTH, genomes);
-        double initialCredit = DEFAULTS.founder().initialEnergy() * POPULATION
+        final int[][] genomes = GenomeFactory.random(11L, POPULATION, 32);
+        final Kernel kernel = Worlds.kernel(POPULATION_WORLD_WIDTH, genomes);
+        final double initialCredit = DEFAULTS.founder().initialEnergy() * POPULATION
                 + DEFAULTS.chemicals().get(0).initial() * POPULATION_WORLD_WIDTH * POPULATION_WORLD_WIDTH
                 + DEFAULTS.founder().initialMass() * POPULATION;
 
@@ -59,7 +59,7 @@ class EnergyTest {
     @Test
     void totalEnergyMonotonicallyDecreases() {
         // arrange
-        Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
+        final Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
         double previous = DEFAULTS.founder().initialEnergy();
 
         for (int i = 0; i < 100; i++) {
@@ -67,7 +67,7 @@ class EnergyTest {
             kernel.tick();
 
             // assert
-            double now = EnergyAudit.totalEnergy(kernel.snapshot());
+            final double now = EnergyAudit.totalEnergy(kernel.snapshot());
             assertTrue(now <= previous, "energy must not increase at tick " + (i + 1));
             previous = now;
         }
@@ -76,17 +76,18 @@ class EnergyTest {
     @Test
     void unitDiesAndStaysDeadAndInert() {
         // arrange
-        Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
+        final Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
 
         // act
-        int ticksToDeath = Ticks.until(kernel, TICKS_TO_OUTLAST_STARVATION, () -> kernel.snapshot().energy[0] <= 0.0);
-        float[] frozenOutputs = kernel.snapshot().outputs.clone();
+        final int ticksToDeath =
+                Ticks.until(kernel, TICKS_TO_OUTLAST_STARVATION, () -> kernel.snapshot().energy[0] <= 0.0);
+        final float[] frozenOutputs = kernel.snapshot().outputs.clone();
 
         // assert
         assertTrue(ticksToDeath > 0, "busy unit must die within its energy budget");
         for (int i = ticksToDeath; i < TICKS_TO_OUTLAST_STARVATION; i++) {
             kernel.tick();
-            KernelSnapshot snapshot = kernel.snapshot();
+            final KernelSnapshot snapshot = kernel.snapshot();
             assertEquals(0.0, snapshot.energy[0], 0.0);
             for (int n = 0; n < NodeLayout.TOTAL; n++) {
                 assertEquals(frozenOutputs[n], snapshot.outputs[n], 0.0,
@@ -99,13 +100,13 @@ class EnergyTest {
     @DisplayName("contract-v1 §6: basal cost and mass maintenance apply even with zero connections")
     void idleUnitPaysBasalAndMaintenance() {
         // arrange
-        Kernel kernel = Worlds.kernel(1, new int[0]);
+        final Kernel kernel = Worlds.kernel(1, new int[0]);
 
         // act
         kernel.tick();
 
         // assert
-        double expected = DEFAULTS.founder().initialEnergy()
+        final double expected = DEFAULTS.founder().initialEnergy()
                 - DEFAULTS.metabolism().basalCost()
                 - DEFAULTS.founder().initialMass() * DEFAULTS.metabolism().maintenancePerMass();
         assertEquals(expected, kernel.snapshot().energy[0], 1.0e-9, "basal + mass maintenance");
@@ -115,10 +116,11 @@ class EnergyTest {
     @DisplayName("the fixed basal floor drives even a connectionless unit across zero")
     void idleUnitEventuallyDies() {
         // arrange
-        Kernel kernel = Worlds.kernel(1, new int[0]);
+        final Kernel kernel = Worlds.kernel(1, new int[0]);
 
         // act
-        int ticksToDeath = Ticks.until(kernel, TICKS_TO_OUTLAST_IDLE_DRAIN, () -> kernel.snapshot().energy[0] <= 0.0);
+        final int ticksToDeath =
+                Ticks.until(kernel, TICKS_TO_OUTLAST_IDLE_DRAIN, () -> kernel.snapshot().energy[0] <= 0.0);
 
         // assert
         assertTrue(ticksToDeath > 0, "no costless persistence: an idle unit must eventually die");
@@ -128,8 +130,8 @@ class EnergyTest {
     @DisplayName("saturating uptake caps per-tick intake at capacityPerConnection * transporters * mass^alpha")
     void intakeNeverExceedsTheTransporterCeiling() {
         // arrange
-        Kernel kernel = Worlds.kernel(1, DELAY_BOMB);
-        double ceiling = DEFAULTS.harvest().capacityPerConnection() * DELAY_BOMB_TRANSPORTERS
+        final Kernel kernel = Worlds.kernel(1, DELAY_BOMB);
+        final double ceiling = DEFAULTS.harvest().capacityPerConnection() * DELAY_BOMB_TRANSPORTERS
                 * Math.pow(DEFAULTS.founder().initialMass(), DEFAULTS.harvest().massExponent());
 
         // act
@@ -137,7 +139,7 @@ class EnergyTest {
         double maxGain = 0.0;
         for (int i = 0; i < 4000; i++) {
             kernel.tick();
-            double energy = kernel.snapshot().energy[0];
+            final double energy = kernel.snapshot().energy[0];
             maxGain = Math.max(maxGain, energy - previousEnergy);
             previousEnergy = energy;
         }
@@ -151,10 +153,10 @@ class EnergyTest {
     @DisplayName("the diverging harvester overflows to a non-finite signal, intake stops, maintenance kills it")
     void divergentHarvesterEventuallyDies() {
         // arrange
-        Kernel kernel = Worlds.kernel(1, DELAY_BOMB);
+        final Kernel kernel = Worlds.kernel(1, DELAY_BOMB);
 
         // act
-        int ticksToDeath = Ticks.until(kernel, 4000, () -> kernel.snapshot().energy[0] <= 0.0);
+        final int ticksToDeath = Ticks.until(kernel, 4000, () -> kernel.snapshot().energy[0] <= 0.0);
 
         // assert
         assertTrue(ticksToDeath > 0, "the diverger implodes: its signal overflows, intake stops, maintenance kills it");
@@ -164,14 +166,14 @@ class EnergyTest {
     @DisplayName("contract-v7.1: energy never negative, sink never exceeds what entered the open system")
     void deductionClampsToAvailableNeverOverdraws() {
         // arrange
-        Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
+        final Kernel kernel = Worlds.kernel(1, BUSY_GENOME);
 
         for (int i = 0; i < 5000; i++) {
             // act
             kernel.tick();
 
             // assert
-            KernelSnapshot snapshot = kernel.snapshot();
+            final KernelSnapshot snapshot = kernel.snapshot();
             assertTrue(snapshot.energy[0] >= 0.0, "energy must never be negative");
             assertTrue(snapshot.energySink <= EnergyAudit.credited(snapshot) + 1.0e-9,
                     "sink must never exceed what entered the system");
@@ -181,8 +183,8 @@ class EnergyTest {
     @Test
     void deadUnitsDoNotAffectLivingUnitTrajectory() {
         // arrange
-        Kernel alone = Worlds.kernel(1, BUSY_GENOME);
-        Kernel paired = Worlds.kernel(2, BUSY_GENOME, BUSY_GENOME);
+        final Kernel alone = Worlds.kernel(1, BUSY_GENOME);
+        final Kernel paired = Worlds.kernel(2, BUSY_GENOME, BUSY_GENOME);
 
         for (int i = 0; i < 200; i++) {
             // act
@@ -190,8 +192,8 @@ class EnergyTest {
             paired.tick();
 
             // assert
-            float[] aloneOut = alone.snapshot().outputs;
-            float[] pairedOut = paired.snapshot().outputs;
+            final float[] aloneOut = alone.snapshot().outputs;
+            final float[] pairedOut = paired.snapshot().outputs;
             for (int n = 0; n < NodeLayout.TOTAL; n++) {
                 assertEquals(aloneOut[n], pairedOut[n], 0.0,
                         "unit 0 trajectory must not depend on unit 1 at tick " + (i + 1));

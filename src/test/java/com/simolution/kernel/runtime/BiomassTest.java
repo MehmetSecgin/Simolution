@@ -27,8 +27,8 @@ class BiomassTest {
     @DisplayName("contract-v5 §6: mass is crystallized energy, so the audit including mass stays exact")
     void massEntersTheAuditAndEnergyStaysConserved() {
         // arrange
-        int worldWidth = 50;
-        Kernel kernel = Worlds.randomKernel(13L, 200, 8, EngineConfig.defaults(0L, worldWidth, 16));
+        final int worldWidth = 50;
+        final Kernel kernel = Worlds.randomKernel(13L, 200, 8, EngineConfig.defaults(0L, worldWidth, 16));
 
         for (int t = 0; t < 2000; t++) {
             // act
@@ -43,12 +43,12 @@ class BiomassTest {
     @DisplayName("contract-v5 §5: symmetric binary fission, parent and child each end with half the mass")
     void fissionHalvesMassAndEnergy() {
         // arrange
-        Kernel kernel = Worlds.kernelAt(EngineConfig.defaults(0L, 3, 8),
+        final Kernel kernel = Worlds.kernelAt(EngineConfig.defaults(0L, 3, 8),
                 new int[][] {{Genes.constTo(NodeLayout.Action.REPRODUCE, ALWAYS_ON_RAW)}}, 4);
 
         // act
-        int ticksToBirth = Ticks.until(kernel, 10, () -> kernel.snapshot().birthsTotal >= 1);
-        KernelSnapshot snapshot = kernel.snapshot();
+        final int ticksToBirth = Ticks.until(kernel, 10, () -> kernel.snapshot().birthsTotal >= 1);
+        final KernelSnapshot snapshot = kernel.snapshot();
 
         // assert
         assertTrue(ticksToBirth > 0, "a CONST->REPRODUCE unit must divide");
@@ -71,13 +71,13 @@ class BiomassTest {
     @DisplayName("contract-v5 §2: GROW converts energy into mass, lossily")
     void growConvertsEnergyIntoMass() {
         // arrange
-        Kernel kernel = growerKernel();
+        final Kernel kernel = growerKernel();
 
         // act
         kernel.step(5);
 
         // assert
-        KernelSnapshot snapshot = kernel.snapshot();
+        final KernelSnapshot snapshot = kernel.snapshot();
         assertTrue(snapshot.mass[0] > DEFAULTS.founder().initialMass(),
                 "GROW must raise mass above the founder value, got " + snapshot.mass[0]);
         assertTrue(snapshot.energy[0] < DEFAULTS.founder().initialEnergy(),
@@ -88,7 +88,7 @@ class BiomassTest {
     @DisplayName("contract-v5 §7: SELF_MASS is min(1, mass at tick start / scale), read before this tick's growth")
     void selfMassSensorReflectsMass() {
         // arrange
-        Kernel kernel = growerKernel();
+        final Kernel kernel = growerKernel();
         double previousMass = DEFAULTS.founder().initialMass();
 
         for (int t = 0; t < 6; t++) {
@@ -96,8 +96,8 @@ class BiomassTest {
             kernel.tick();
 
             // assert
-            KernelSnapshot snapshot = kernel.snapshot();
-            double expected = Math.min(1.0, previousMass / DEFAULTS.sensing().selfMassScale());
+            final KernelSnapshot snapshot = kernel.snapshot();
+            final double expected = Math.min(1.0, previousMass / DEFAULTS.sensing().selfMassScale());
             assertEquals(expected, snapshot.outputs[SELF_MASS_IDX], 1.0e-6,
                     "SELF_MASS must equal min(1, mass_at_tick_start/scale) at tick " + snapshot.tick);
             previousMass = snapshot.mass[0];

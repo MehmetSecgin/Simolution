@@ -6,11 +6,11 @@ public final class GeneBuilder {
 
     private GeneBuilder() {}
 
-    public static SourceStage fromSensor(int sensorTypeId) {
+    public static SourceStage fromSensor(final int sensorTypeId) {
         return new SourceStage(Kind.SENSOR, sensorTypeId);
     }
 
-    public static SourceStage fromInternal(int internalTypeId) {
+    public static SourceStage fromInternal(final int internalTypeId) {
         return new SourceStage(Kind.INTERNAL, internalTypeId);
     }
 
@@ -32,11 +32,11 @@ public final class GeneBuilder {
             int sourceId
     ) {
 
-        public DestinationStage toInternal(int internalTypeId) {
+        public DestinationStage toInternal(final int internalTypeId) {
             return new DestinationStage(this, Kind.INTERNAL, internalTypeId);
         }
 
-        public DestinationStage toAction(int actionTypeId) {
+        public DestinationStage toAction(final int actionTypeId) {
             return new DestinationStage(this, Kind.ACTION, actionTypeId);
         }
     }
@@ -47,7 +47,7 @@ public final class GeneBuilder {
             int destinationId
     ) {
 
-        public WeightStage weightRaw(short weightRaw) {
+        public WeightStage weightRaw(final short weightRaw) {
             return new WeightStage(this, weightRaw);
         }
     }

@@ -28,7 +28,7 @@ class WorldStateTest {
     void fieldsCoverEveryArray() throws IllegalAccessException {
         final WorldState state = newState();
         final List<FieldSpec> specs = state.fields();
-        for (final Field field : WorldState.class.getDeclaredFields()) {
+        for (Field field : WorldState.class.getDeclaredFields()) {
             if (!field.getType().isArray()) {
                 continue;
             }
@@ -43,7 +43,7 @@ class WorldStateTest {
     @Test
     void savedFieldsHaveStableOrder() {
         final List<String> saved = new ArrayList<>();
-        for (final FieldSpec spec : newState().fields()) {
+        for (FieldSpec spec : newState().fields()) {
             if (spec.persist() == Persist.SAVED) {
                 saved.add(spec.name());
             }

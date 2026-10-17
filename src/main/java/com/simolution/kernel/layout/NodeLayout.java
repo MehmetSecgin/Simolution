@@ -88,7 +88,7 @@ public final class NodeLayout {
 
     private static void fill(final NodeSpec[] specs, final Kind kind, final int offset) {
         int i = offset;
-        for (final NodeSpec spec : CATALOG.nodes(kind)) {
+        for (NodeSpec spec : CATALOG.nodes(kind)) {
             specs[i++] = spec;
         }
     }

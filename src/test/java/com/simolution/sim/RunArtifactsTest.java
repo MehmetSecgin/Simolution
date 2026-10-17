@@ -28,10 +28,10 @@ class RunArtifactsTest {
     @Test
     void throwDuringRunStillLeavesReadableSideFiles() throws Exception {
         // arrange
-        RunPaths paths = new RunPaths(dir.resolve("run.txt"));
-        RunConfig config = RunConfig.parse(new String[] {"--units", "20", "--ticks", "5", "--seed", "1",
+        final RunPaths paths = new RunPaths(dir.resolve("run.txt"));
+        final RunConfig config = RunConfig.parse(new String[] {"--units", "20", "--ticks", "5", "--seed", "1",
                 "--world", "10", "--map-frames", "0", "--observe", "--out", paths.report().toString()});
-        Founders founders = Founders.create(config);
+        final Founders founders = Founders.create(config);
 
         // act
         assertThrows(IllegalStateException.class, () -> {
@@ -39,7 +39,7 @@ class RunArtifactsTest {
                     RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
                 for (int i = 0; i < 5; i++) {
                     kernel.tick();
-                    KernelSnapshot snapshot = kernel.snapshot();
+                    final KernelSnapshot snapshot = kernel.snapshot();
                     for (TickObserver observer : artifacts.observers()) {
                         observer.observe(snapshot);
                     }
@@ -57,10 +57,10 @@ class RunArtifactsTest {
     @Test
     void closeRunsEveryCloseableAndRethrowsTheFirstFailureWithTheRestSuppressed() {
         // arrange
-        List<String> closed = new ArrayList<>();
-        IllegalStateException framesFailure = new IllegalStateException("frames close failed");
-        IOException birthsFailure = new IOException("disk full");
-        List<Closeable> inOpenOrder = List.of(
+        final List<String> closed = new ArrayList<>();
+        final IllegalStateException framesFailure = new IllegalStateException("frames close failed");
+        final IOException birthsFailure = new IOException("disk full");
+        final List<Closeable> inOpenOrder = List.of(
                 () -> closed.add("catalog"),
                 () -> {
                     closed.add("births");
@@ -72,7 +72,7 @@ class RunArtifactsTest {
                 });
 
         // act
-        IllegalStateException thrown = assertThrows(IllegalStateException.class,
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class,
                 () -> RunArtifacts.closeInReverseOrder(inOpenOrder));
 
         // assert
@@ -84,11 +84,11 @@ class RunArtifactsTest {
     @Test
     void failedOpenFinishesTheStreamsItAlreadyOpened() throws Exception {
         // arrange
-        RunPaths paths = new RunPaths(dir.resolve("run.txt"));
+        final RunPaths paths = new RunPaths(dir.resolve("run.txt"));
         Files.createDirectories(paths.framesIdx());
-        RunConfig config = RunConfig.parse(new String[] {"--units", "20", "--ticks", "5", "--seed", "1",
+        final RunConfig config = RunConfig.parse(new String[] {"--units", "20", "--ticks", "5", "--seed", "1",
                 "--world", "10", "--map-frames", "0", "--out", paths.report().toString()});
-        Founders founders = Founders.create(config);
+        final Founders founders = Founders.create(config);
 
         // act
         try (Kernel kernel = founders.newKernel(1)) {
@@ -99,7 +99,7 @@ class RunArtifactsTest {
         assertTrue(gunzip(paths.births()).startsWith("tick,child_slot"));
     }
 
-    private static String gunzip(Path file) throws IOException {
+    private static String gunzip(final Path file) throws IOException {
         try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(file))) {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }

@@ -33,7 +33,7 @@ public final class KernelSnapshot {
     public final double creditedInitialMass;
     public final int[] activeThisTick;
 
-    public KernelSnapshot(WorldState state) {
+    public KernelSnapshot(final WorldState state) {
         this.state = state;
         this.tick = state.tick;
         this.outputs = state.outputsPrev;

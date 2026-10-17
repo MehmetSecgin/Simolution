@@ -18,11 +18,11 @@ class RunConfigTest {
 
     @Test
     void inflowFlagBuildsNonUniformConfig() {
-        RunConfig cfg = RunConfig.parse(new String[] {
+        final RunConfig cfg = RunConfig.parse(new String[] {
                 "--units", "100", "--world", "100", "--inflow", "noise seed=1 peak=5"
         });
         assertEquals(1, cfg.engine().chemicals().get(0).inflow().sources().size());
-        RunConfig uniform = RunConfig.parse(new String[] {"--units", "100", "--world", "100"});
+        final RunConfig uniform = RunConfig.parse(new String[] {"--units", "100", "--world", "100"});
         assertEquals(InflowConfig.uniform(1.0), uniform.engine().chemicals().get(0).inflow());
     }
 
@@ -36,7 +36,7 @@ class RunConfigTest {
     @Test
     void mapWindowWinsOverMapFrames() {
         // act
-        RunConfig config = RunConfig.parse(new String[] {"--units", "4", "--map-frames", "5",
+        final RunConfig config = RunConfig.parse(new String[] {"--units", "4", "--map-frames", "5",
                 "--map-from", "3", "--map-to", "9"});
 
         // assert
@@ -46,7 +46,7 @@ class RunConfigTest {
     @Test
     void negativeMapFromFallsBackToMapFrames() {
         // act
-        RunConfig config = RunConfig.parse(new String[] {"--units", "4", "--map-frames", "5",
+        final RunConfig config = RunConfig.parse(new String[] {"--units", "4", "--map-frames", "5",
                 "--map-from", "-2", "--map-to", "9"});
 
         // assert
@@ -65,7 +65,7 @@ class RunConfigTest {
     @Test
     void noArgumentsRunOneFounderForTheDefaultTicks() {
         // act
-        RunConfig config = RunConfig.parse(new String[0]);
+        final RunConfig config = RunConfig.parse(new String[0]);
 
         // assert
         assertEquals(1, config.founderCount());

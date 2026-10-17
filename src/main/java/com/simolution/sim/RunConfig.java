@@ -102,7 +102,7 @@ public record RunConfig(
     private static EngineConfig loadConfig(final String path) {
         try {
             return ConfigJson.read(Files.readString(Path.of(path)));
-        } catch (final IOException e) {
+        } catch (IOException e) {
             throw new UncheckedIOException("cannot read config " + path, e);
         }
     }

@@ -136,7 +136,7 @@ public sealed interface InflowSource permits
         @Override
         public double capAt(final int x, final int y, final int tick, final int worldWidth) {
             final int cell = y * worldWidth + x;
-            for (final int c : cells) {
+            for (int c : cells) {
                 if (c == cell) {
                     return pulse(peak, tick, periodTicks, phaseTicks);
                 }

@@ -67,11 +67,11 @@ public final class RunDirectoryWriter {
         try {
             final byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
             final StringBuilder hex = new StringBuilder(digest.length * 2);
-            for (final byte b : digest) {
+            for (byte b : digest) {
                 hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
             }
             return hex.toString();
-        } catch (final NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }

@@ -12,8 +12,8 @@ class EngineConfigTest {
 
     @Test
     void roundTripsThroughJson() {
-        EngineConfig defaults = EngineConfig.defaults(42L, 100, 64);
-        EngineConfig fielded = defaults.withResourceInflow(InflowConfig.field(0.2, InflowConfig.Combine.ADD,
+        final EngineConfig defaults = EngineConfig.defaults(42L, 100, 64);
+        final EngineConfig fielded = defaults.withResourceInflow(InflowConfig.field(0.2, InflowConfig.Combine.ADD,
                 new InflowSource.Noise(11L, 0.06, 0.5, 3.0, 8.0, 5000),
                 new InflowSource.Disk(0.7, 0.3, 6, 5.0, 1000, 0, InflowSource.Motion.ORBIT, 0.1, 0.0, 4000),
                 new InflowSource.Points(new int[] {1, 5, 9}, 4.0, 0, 0)));
@@ -24,19 +24,20 @@ class EngineConfigTest {
 
     @Test
     void rejectsUnknownKey() {
-        String json = ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replace("\"basalCost\"", "\"basalCostt\"");
+        final String json =
+                ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replace("\"basalCost\"", "\"basalCostt\"");
 
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
+        final IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
 
         assertTrue(e.getMessage().contains("basalCostt"), e.getMessage());
     }
 
     @Test
     void rejectsMissingKey() {
-        String json =
+        final String json =
                 ConfigJson.write(EngineConfig.defaults(1L, 10, 8)).replaceAll("\\s*\"growYield\"[^\\n]*\\n", "\n");
 
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
+        final IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ConfigJson.read(json));
 
         assertTrue(e.getMessage().contains("growYield"), e.getMessage());
     }

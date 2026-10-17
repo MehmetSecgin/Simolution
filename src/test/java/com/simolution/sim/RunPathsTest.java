@@ -11,11 +11,11 @@ class RunPathsTest {
     @Test
     void siblingsShareTheReportBase() {
         // arrange
-        RunPaths paths = new RunPaths(Path.of("runs/a.txt"));
+        final RunPaths paths = new RunPaths(Path.of("runs/a.txt"));
 
         // act
-        Path catalog = paths.catalog();
-        Path obsDir = paths.obsDir();
+        final Path catalog = paths.catalog();
+        final Path obsDir = paths.obsDir();
 
         // assert
         assertEquals(Path.of("runs/a.catalog.gz"), catalog);
@@ -25,10 +25,10 @@ class RunPathsTest {
     @Test
     void reportWithoutDotOrParent() {
         // arrange
-        RunPaths paths = new RunPaths(Path.of("a"));
+        final RunPaths paths = new RunPaths(Path.of("a"));
 
         // act
-        Path births = paths.births();
+        final Path births = paths.births();
 
         // assert
         assertEquals(Path.of("a.births.csv.gz"), births);

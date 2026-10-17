@@ -16,9 +16,9 @@ public final class GenomeFactory {
 
     private GenomeFactory() {}
 
-    public static int[][] random(long seed, int founderCount, int genesPerFounder) {
-        long genomeSeed = seed ^ GENOME_SALT;
-        int[][] genomes = new int[founderCount][genesPerFounder];
+    public static int[][] random(final long seed, final int founderCount, final int genesPerFounder) {
+        final long genomeSeed = seed ^ GENOME_SALT;
+        final int[][] genomes = new int[founderCount][genesPerFounder];
 
         for (int unit = 0; unit < founderCount; unit++) {
             for (int gene = 0; gene < genesPerFounder; gene++) {

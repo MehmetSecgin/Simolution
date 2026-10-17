@@ -145,7 +145,7 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
 
     private void release() {
         generation++;
-        for (final Thread worker : workers) {
+        for (Thread worker : workers) {
             LockSupport.unpark(worker);
         }
     }
@@ -173,7 +173,7 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
                 final int from = c * Chunks.SIZE;
                 runChunk(phase, pass, from, Math.min(n, from + Chunks.SIZE), c);
             }
-        } catch (final Throwable t) {
+        } catch (Throwable t) {
             failure = t;
             nextChunk.set(count);
         }
@@ -211,10 +211,10 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
         }
         closing = true;
         release();
-        for (final Thread worker : workers) {
+        for (Thread worker : workers) {
             try {
                 worker.join();
-            } catch (final InterruptedException e) {
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             }

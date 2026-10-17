@@ -59,7 +59,7 @@ class ParallelRunnerTest {
 
     @Test
     void everyChunkRunsOnceWithFixedBounds() {
-        for (final int threads : new int[] {1, 3, 8}) {
+        for (int threads : new int[] {1, 3, 8}) {
             // arrange
             final Recording phase = new Recording(-1);
 
@@ -136,7 +136,7 @@ class ParallelRunnerTest {
 
     private static long allocated(final com.sun.management.ThreadMXBean bean, final long[] ids) {
         long total = 0L;
-        for (final long id : ids) {
+        for (long id : ids) {
             total += bean.getThreadAllocatedBytes(id);
         }
         return total;

@@ -15,13 +15,13 @@ class DynamicsObserverTest {
 
     private static final int WORLD = 64;
 
-    private static Kernel kernelOf(int[][] genomes) {
+    private static Kernel kernelOf(final int[][] genomes) {
         return Worlds.kernel(WORLD, genomes);
     }
 
-    private static DynamicsSummary runAndSummarize(int[][] genomes, int ticks) {
+    private static DynamicsSummary runAndSummarize(final int[][] genomes, final int ticks) {
         try (Kernel kernel = kernelOf(genomes)) {
-            DynamicsObserver observer = new DynamicsObserver();
+            final DynamicsObserver observer = new DynamicsObserver();
             for (int i = 0; i < ticks; i++) {
                 kernel.tick();
                 observer.observe(kernel.snapshot());
@@ -33,7 +33,7 @@ class DynamicsObserverTest {
     @Test
     void emptyGenomeUnitNeverPropagates() {
         // act
-        DynamicsSummary summary = runAndSummarize(new int[][] {{}}, 10);
+        final DynamicsSummary summary = runAndSummarize(new int[][] {{}}, 10);
 
         // assert
         assertEquals(0, summary.activity().ticksWithAnyActivity());
@@ -43,7 +43,7 @@ class DynamicsObserverTest {
     @Test
     void feedbackGenomePropagatesFromTheThirdTick() {
         // act
-        DynamicsSummary summary = runAndSummarize(new int[][] {FEEDBACK_GENOME}, 50);
+        final DynamicsSummary summary = runAndSummarize(new int[][] {FEEDBACK_GENOME}, 50);
 
         // assert
         assertTrue(summary.activity().ticksWithAnyActivity() > 0);
@@ -54,15 +54,15 @@ class DynamicsObserverTest {
     @Test
     void countsEveryLivingUnitIncludingDescendants() {
         // arrange
-        int[][] genomes = GenomeFactory.random(5L, 200, 16);
+        final int[][] genomes = GenomeFactory.random(5L, 200, 16);
         long expectedPropagations = 0;
         long expectedActiveTicks = 0;
         long peak = 0;
-        DynamicsSummary summary;
+        final DynamicsSummary summary;
 
         // act
         try (Kernel kernel = kernelOf(genomes)) {
-            DynamicsObserver observer = new DynamicsObserver();
+            final DynamicsObserver observer = new DynamicsObserver();
             for (int i = 0; i < 300; i++) {
                 kernel.tick();
                 long tickTotal = 0;
@@ -91,9 +91,9 @@ class DynamicsObserverTest {
     @Test
     void summaryCarriesTheGivenDigest() {
         // act
-        DynamicsSummary summary;
+        final DynamicsSummary summary;
         try (Kernel kernel = kernelOf(new int[][] {FEEDBACK_GENOME})) {
-            DynamicsObserver observer = new DynamicsObserver();
+            final DynamicsObserver observer = new DynamicsObserver();
             kernel.tick();
             observer.observe(kernel.snapshot());
             summary = observer.summarize(0x1234L);

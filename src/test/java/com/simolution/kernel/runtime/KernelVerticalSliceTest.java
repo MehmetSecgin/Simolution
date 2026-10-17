@@ -23,18 +23,18 @@ class KernelVerticalSliceTest {
     @Test
     void matchesSpecReferenceModelForTenTicks() {
         // arrange
-        int[] genome = {
+        final int[] genome = {
                 Genes.sensorToInternal(NodeLayout.Sensor.CONST, NodeLayout.Internal.ADD, W_CONST_TO_ADD),
                 Genes.internalToInternal(NodeLayout.Internal.ADD, NodeLayout.Internal.DELAY, W_ADD_TO_DELAY),
                 Genes.internalToInternal(NodeLayout.Internal.DELAY, NodeLayout.Internal.ADD, W_DELAY_TO_ADD),
                 Genes.internalToAction(NodeLayout.Internal.ADD, NodeLayout.Action.Y, W_ADD_TO_ACTION)
         };
-        Kernel kernel = Worlds.kernel(1, genome);
+        final Kernel kernel = Worlds.kernel(1, genome);
 
-        double wConstToAdd = Genes.weight(W_CONST_TO_ADD);
-        double wAddToDelay = Genes.weight(W_ADD_TO_DELAY);
-        double wDelayToAdd = Genes.weight(W_DELAY_TO_ADD);
-        double wAddToAction = Genes.weight(W_ADD_TO_ACTION);
+        final double wConstToAdd = Genes.weight(W_CONST_TO_ADD);
+        final double wAddToDelay = Genes.weight(W_ADD_TO_DELAY);
+        final double wDelayToAdd = Genes.weight(W_DELAY_TO_ADD);
+        final double wAddToAction = Genes.weight(W_ADD_TO_ACTION);
 
         float constPrev = 0.0f;
         float addPrev = 0.0f;
@@ -44,17 +44,17 @@ class KernelVerticalSliceTest {
         for (int tick = 1; tick <= 10; tick++) {
             // act
             kernel.tick();
-            KernelSnapshot snapshot = kernel.snapshot();
+            final KernelSnapshot snapshot = kernel.snapshot();
 
-            float addAccumulator = (float) (constPrev * wConstToAdd) + (float) (delayPrev * wDelayToAdd);
-            float delayAccumulator = (float) (addPrev * wAddToDelay);
-            float actionAccumulator = (float) (addPrev * wAddToAction);
+            final float addAccumulator = (float) (constPrev * wConstToAdd) + (float) (delayPrev * wDelayToAdd);
+            final float delayAccumulator = (float) (addPrev * wAddToDelay);
+            final float actionAccumulator = (float) (addPrev * wAddToAction);
 
-            float constNext = 1.0f;
-            float addNext = addAccumulator;
-            float delayNext = delayMemory;
+            final float constNext = 1.0f;
+            final float addNext = addAccumulator;
+            final float delayNext = delayMemory;
             delayMemory = delayAccumulator;
-            float actionNext = actionAccumulator;
+            final float actionNext = actionAccumulator;
 
             // assert
             assertEquals(tick, snapshot.tick);
@@ -73,9 +73,9 @@ class KernelVerticalSliceTest {
     @Test
     void isDeterministicAcrossRuns() {
         // arrange
-        int[] genome = {Genes.sensorToInternal(NodeLayout.Sensor.RAND, NodeLayout.Internal.CLAMP, 16384)};
-        Kernel first = Worlds.kernel(1, genome);
-        Kernel second = Worlds.kernel(1, genome);
+        final int[] genome = {Genes.sensorToInternal(NodeLayout.Sensor.RAND, NodeLayout.Internal.CLAMP, 16384)};
+        final Kernel first = Worlds.kernel(1, genome);
+        final Kernel second = Worlds.kernel(1, genome);
 
         for (int tick = 0; tick < 50; tick++) {
             // act
@@ -83,8 +83,8 @@ class KernelVerticalSliceTest {
             second.tick();
 
             // assert
-            float[] firstOutputs = first.snapshot().outputs;
-            float[] secondOutputs = second.snapshot().outputs;
+            final float[] firstOutputs = first.snapshot().outputs;
+            final float[] secondOutputs = second.snapshot().outputs;
             for (int node = 0; node < firstOutputs.length; node++) {
                 assertEquals(firstOutputs[node], secondOutputs[node], 0.0);
             }

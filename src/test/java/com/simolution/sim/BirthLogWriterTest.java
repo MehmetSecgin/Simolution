@@ -20,36 +20,36 @@ class BirthLogWriterTest {
     @DisplayName("report-v13: one CSV row per birth, genome ids shared with the catalog, lineage and generation kernel-exact")
     void headerThenBirthRowsWithSharedCatalogIds() throws Exception {
         // arrange
-        StringWriter births = new StringWriter();
-        StringWriter catalog = new StringWriter();
-        GenomeCatalogWriter cat = new GenomeCatalogWriter(catalog);
-        Kernel k = Worlds.randomKernel(3L, 6, 8, EngineConfig.defaults(0L, 8, 8));
-        BirthLogWriter w = new BirthLogWriter(births, cat);
+        final StringWriter births = new StringWriter();
+        final StringWriter catalog = new StringWriter();
+        final GenomeCatalogWriter cat = new GenomeCatalogWriter(catalog);
+        final Kernel k = Worlds.randomKernel(3L, 6, 8, EngineConfig.defaults(0L, 8, 8));
+        final BirthLogWriter w = new BirthLogWriter(births, cat);
 
         // act
         for (int i = 0; i < 40; i++) {
             k.tick();
-            KernelSnapshot s = k.snapshot();
+            final KernelSnapshot s = k.snapshot();
             w.observe(s);
         }
         w.close();
         cat.close();
 
         // assert
-        List<String> lines = births.toString().lines().toList();
+        final List<String> lines = births.toString().lines().toList();
         assertEquals("tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated",
                 lines.get(0), "header columns");
 
-        List<String> rows = lines.stream().skip(1).toList();
+        final List<String> rows = lines.stream().skip(1).toList();
         assertTrue(rows.size() > 0, "the run reproduces, so births are recorded");
         for (String row : rows) {
-            String[] f = row.split(",");
+            final String[] f = row.split(",");
             assertEquals(8, f.length, "each birth row has 8 columns");
-            int gen = Integer.parseInt(f[3]);
+            final int gen = Integer.parseInt(f[3]);
             assertTrue(gen >= 1, "a born child is at least generation 1");
-            int childGid = Integer.parseInt(f[5]);
+            final int childGid = Integer.parseInt(f[5]);
             assertTrue(childGid >= 0, "child genome id resolved into the catalog");
-            int mutated = Integer.parseInt(f[7]);
+            final int mutated = Integer.parseInt(f[7]);
             assertTrue(mutated == 0 || mutated == 1 || mutated == -1, "mutated is 0/1/-1");
         }
         assertTrue(catalog.toString().lines().anyMatch(l -> l.startsWith("g ")),

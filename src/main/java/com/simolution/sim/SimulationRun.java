@@ -16,7 +16,7 @@ public final class SimulationRun {
         for (int i = 0; i < ticks; i++) {
             kernel.tick();
             final KernelSnapshot snapshot = kernel.snapshot();
-            for (final TickObserver observer : observers) {
+            for (TickObserver observer : observers) {
                 observer.observe(snapshot);
             }
         }

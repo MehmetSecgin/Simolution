@@ -12,17 +12,17 @@ class GeneLayoutTest {
     @Test
     void packThenReadReturnsEveryField() {
         // arrange
-        Random random = new Random(7);
+        final Random random = new Random(7);
 
         for (int i = 0; i < 10_000; i++) {
-            boolean sourceInternal = random.nextBoolean();
-            int sourceId = random.nextInt();
-            boolean destinationAction = random.nextBoolean();
-            int destinationId = random.nextInt();
-            short weightRaw = (short) random.nextInt();
+            final boolean sourceInternal = random.nextBoolean();
+            final int sourceId = random.nextInt();
+            final boolean destinationAction = random.nextBoolean();
+            final int destinationId = random.nextInt();
+            final short weightRaw = (short) random.nextInt();
 
             // act
-            int gene = GeneBuilder.pack(sourceInternal, sourceId, destinationAction, destinationId, weightRaw);
+            final int gene = GeneBuilder.pack(sourceInternal, sourceId, destinationAction, destinationId, weightRaw);
 
             // assert
             assertEquals(sourceInternal, GeneLayout.sourceIsInternal(gene));
@@ -36,10 +36,10 @@ class GeneLayoutTest {
     @Test
     void minRawWeightDecodesJustBeyondMinusFour() {
         // arrange
-        int gene = GeneBuilder.pack(false, 0, false, 0, Short.MIN_VALUE);
+        final int gene = GeneBuilder.pack(false, 0, false, 0, Short.MIN_VALUE);
 
         // act
-        double weight = GeneDecoder.weight(gene);
+        final double weight = GeneDecoder.weight(gene);
 
         // assert
         assertEquals(-32768 * GeneDecoder.WEIGHT_PER_RAW_UNIT, weight, 0.0);

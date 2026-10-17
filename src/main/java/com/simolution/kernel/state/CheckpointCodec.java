@@ -62,7 +62,7 @@ public final class CheckpointCodec {
         data.writeDouble(state.creditedInitialEnergy);
         data.writeDouble(state.creditedInitialMass);
         data.writeDouble(state.initialResourceTotal);
-        for (final FieldSpec spec : state.fields()) {
+        for (FieldSpec spec : state.fields()) {
             if (spec.persist() == Persist.SAVED) {
                 writeArray(data, spec);
             }
@@ -100,12 +100,12 @@ public final class CheckpointCodec {
                 if (kernel.stateDigest() != expectedDigest) {
                     throw new IllegalStateException("corrupt checkpoint: state digest mismatch");
                 }
-            } catch (final IOException | RuntimeException e) {
+            } catch (IOException | RuntimeException e) {
                 kernel.close();
                 throw e;
             }
             return kernel;
-        } catch (final EOFException e) {
+        } catch (EOFException e) {
             throw new IllegalStateException("checkpoint truncated", e);
         }
     }
@@ -119,7 +119,7 @@ public final class CheckpointCodec {
         state.creditedInitialEnergy = data.readDouble();
         state.creditedInitialMass = data.readDouble();
         state.initialResourceTotal = data.readDouble();
-        for (final FieldSpec spec : state.fields()) {
+        for (FieldSpec spec : state.fields()) {
             if (spec.persist() == Persist.SAVED) {
                 readArray(data, spec);
             }
@@ -149,25 +149,25 @@ public final class CheckpointCodec {
         switch (spec.array()) {
             case int[] a -> {
                 out.writeInt(a.length);
-                for (final int v : a) {
+                for (int v : a) {
                     out.writeInt(v);
                 }
             }
             case long[] a -> {
                 out.writeInt(a.length);
-                for (final long v : a) {
+                for (long v : a) {
                     out.writeLong(v);
                 }
             }
             case float[] a -> {
                 out.writeInt(a.length);
-                for (final float v : a) {
+                for (float v : a) {
                     out.writeFloat(v);
                 }
             }
             case double[] a -> {
                 out.writeInt(a.length);
-                for (final double v : a) {
+                for (double v : a) {
                     out.writeDouble(v);
                 }
             }

@@ -25,7 +25,7 @@ class WorldStateScalarsTest {
 
     private static List<Field> scalarFields() {
         final List<Field> scalars = new ArrayList<>();
-        for (final Field field : WorldState.class.getDeclaredFields()) {
+        for (Field field : WorldState.class.getDeclaredFields()) {
             final int modifiers = field.getModifiers();
             if (!Modifier.isStatic(modifiers) && !Modifier.isFinal(modifiers) && !field.getType().isArray()) {
                 scalars.add(field);
@@ -48,7 +48,7 @@ class WorldStateScalarsTest {
 
     @Test
     void everyPersistentScalarReachesTheDigestAndTheCheckpoint() throws Exception {
-        for (final Field field : scalarFields()) {
+        for (Field field : scalarFields()) {
             if (SCRATCH_SCALARS.contains(field.getName())) {
                 continue;
             }
@@ -71,7 +71,7 @@ class WorldStateScalarsTest {
 
     @Test
     void scratchScalarsStayOutOfTheDigest() throws Exception {
-        for (final Field field : scalarFields()) {
+        for (Field field : scalarFields()) {
             if (!SCRATCH_SCALARS.contains(field.getName())) {
                 continue;
             }

@@ -40,7 +40,7 @@ public final class StateDigest implements Phase {
     public StateDigest(final WorldState state) {
         this.state = state;
         int longest = 0;
-        for (final FieldSpec spec : state.fields()) {
+        for (FieldSpec spec : state.fields()) {
             if (spec.persist() == Persist.SAVED) {
                 longest = Math.max(longest, lengthOf(spec.array()));
             }
@@ -58,7 +58,7 @@ public final class StateDigest implements Phase {
         h = Noise.mix(h ^ Double.doubleToRawLongBits(state.creditedInitialEnergy));
         h = Noise.mix(h ^ Double.doubleToRawLongBits(state.creditedInitialMass));
         h = Noise.mix(h ^ Double.doubleToRawLongBits(state.initialResourceTotal));
-        for (final FieldSpec spec : state.fields()) {
+        for (FieldSpec spec : state.fields()) {
             if (spec.persist() != Persist.SAVED) {
                 continue;
             }

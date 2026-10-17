@@ -11,15 +11,15 @@ public record Founders(
         EngineConfig engine
 ) {
 
-    public static Founders create(RunConfig config) {
-        long seed = config.engine().seed();
-        int[][] genomes = GenomeFactory.random(seed, config.founderCount(), config.genesPerFounder());
+    public static Founders create(final RunConfig config) {
+        final long seed = config.engine().seed();
+        final int[][] genomes = GenomeFactory.random(seed, config.founderCount(), config.genesPerFounder());
         int longest = config.engine().world().maxGenes();
         for (int[] genome : genomes) {
             longest = Math.max(longest, genome.length);
         }
-        EngineConfig engine = config.engine().withMaxGenes(longest);
-        int[] cells = Kernel.scatterFounders(seed, genomes.length, engine.world().worldWidth());
+        final EngineConfig engine = config.engine().withMaxGenes(longest);
+        final int[] cells = Kernel.scatterFounders(seed, genomes.length, engine.world().worldWidth());
         return new Founders(genomes, cells, engine);
     }
 
@@ -31,7 +31,7 @@ public record Founders(
         return engine.world().worldWidth() * engine.world().worldWidth();
     }
 
-    public Kernel newKernel(int threads) {
+    public Kernel newKernel(final int threads) {
         return new Kernel(genomes, cells, engine, threads);
     }
 }

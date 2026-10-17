@@ -14,12 +14,13 @@ import com.simolution.support.Worlds;
 
 class RunReportTest {
 
-    private static String runAndRender(RunConfig config) {
-        int[][] genomes = GenomeFactory.random(config.engine().seed(), config.founderCount(), config.genesPerFounder());
-        CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        StructuralStats structure = StructuralAnalyzer.analyze(connections, config.founderCount());
+    private static String runAndRender(final RunConfig config) {
+        final int[][] genomes =
+                GenomeFactory.random(config.engine().seed(), config.founderCount(), config.genesPerFounder());
+        final CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
+        final StructuralStats structure = StructuralAnalyzer.analyze(connections, config.founderCount());
         try (Kernel kernel = Worlds.kernel(config.engine(), genomes)) {
-            DynamicsObserver observer = new DynamicsObserver();
+            final DynamicsObserver observer = new DynamicsObserver();
             for (int i = 0; i < config.ticks(); i++) {
                 kernel.tick();
                 observer.observe(kernel.snapshot());
@@ -31,12 +32,13 @@ class RunReportTest {
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 16, false, null, MapSampling.EVERY_TICK, new Observation(false, 0),
-                EngineConfig.defaults(42L, 64, 16), 1, false);
+        final RunConfig config =
+                new RunConfig(25, 200, 16, false, null, MapSampling.EVERY_TICK, new Observation(false, 0),
+                        EngineConfig.defaults(42L, 64, 16), 1, false);
 
         // act
-        String first = runAndRender(config);
-        String second = runAndRender(config);
+        final String first = runAndRender(config);
+        final String second = runAndRender(config);
 
         // assert
         assertEquals(first, second);
@@ -45,7 +47,7 @@ class RunReportTest {
     @Test
     void reportDoesNotInlinePerUnitDetail() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 8, false, null, MapSampling.EVERY_TICK,
+        final String report = runAndRender(new RunConfig(25, 50, 8, false, null, MapSampling.EVERY_TICK,
                 new Observation(false, 0), EngineConfig.defaults(1L, 64, 8), 1, false));
 
         // assert
@@ -56,7 +58,7 @@ class RunReportTest {
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
+        final String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
                 new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert
@@ -78,15 +80,16 @@ class RunReportTest {
     @Test
     void sectionsAppearInTodaysOrder() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
+        final String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
                 new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert
-        String[] headers = {"# Simolution run report", "\n## structure\n", "\n## dynamics\n", "\n## reproduction\n",
-                "\n## energy\n", "\n## mass\n", "\nstate-digest: "};
+        final String[] headers =
+                {"# Simolution run report", "\n## structure\n", "\n## dynamics\n", "\n## reproduction\n",
+                        "\n## energy\n", "\n## mass\n", "\nstate-digest: "};
         int previous = -1;
         for (String header : headers) {
-            int at = report.indexOf(header);
+            final int at = report.indexOf(header);
             assertTrue(at > previous, header);
             previous = at;
         }
@@ -96,7 +99,7 @@ class RunReportTest {
     @Test
     void reportOmitsRetiredLines() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
+        final String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
                 new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert

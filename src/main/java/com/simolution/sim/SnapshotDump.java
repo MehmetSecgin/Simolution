@@ -51,7 +51,7 @@ public final class SnapshotDump {
     }
 
     private static void appendWires(final StringBuilder out, final CompiledConnection[] liveConnections) {
-        for (final CompiledConnection c : liveConnections) {
+        for (CompiledConnection c : liveConnections) {
             final int slot = c.sourceAbsoluteIndex / NodeLayout.TOTAL;
             final int srcLocal = c.sourceAbsoluteIndex % NodeLayout.TOTAL;
             final int dstLocal = c.destinationAbsoluteIndex % NodeLayout.TOTAL;

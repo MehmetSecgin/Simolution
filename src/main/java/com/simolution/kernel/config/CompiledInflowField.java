@@ -25,7 +25,7 @@ public final class CompiledInflowField {
         }
         final int x = x(cell);
         final int y = y(cell);
-        for (final InflowSource s : dynamic) {
+        for (InflowSource s : dynamic) {
             acc = combine.apply(acc, s.capAt(x, y, tick, worldWidth));
         }
         return acc;
@@ -33,14 +33,14 @@ public final class CompiledInflowField {
 
     private static InflowSource[] select(final List<InflowSource> sources, final boolean wantStatic) {
         int count = 0;
-        for (final InflowSource s : sources) {
+        for (InflowSource s : sources) {
             if (s.isStatic() == wantStatic) {
                 count++;
             }
         }
         final InflowSource[] selected = new InflowSource[count];
         int next = 0;
-        for (final InflowSource s : sources) {
+        for (InflowSource s : sources) {
             if (s.isStatic() == wantStatic) {
                 selected[next++] = s;
             }
@@ -61,7 +61,7 @@ public final class CompiledInflowField {
 
     private double bakedCapAt(final int cell, final InflowSource[] fixed) {
         double acc = baseline;
-        for (final InflowSource s : fixed) {
+        for (InflowSource s : fixed) {
             acc = combine.apply(acc, s.capAt(x(cell), y(cell), 0, worldWidth));
         }
         return acc;

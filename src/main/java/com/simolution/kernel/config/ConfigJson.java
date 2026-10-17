@@ -75,7 +75,7 @@ public final class ConfigJson {
     public static String write(final EngineConfig config) {
         try {
             return MAPPER.writer(PRINTER).writeValueAsString(flatten(config)) + "\n";
-        } catch (final JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("cannot serialize config: " + e.getOriginalMessage(), e);
         }
     }
@@ -84,13 +84,13 @@ public final class ConfigJson {
         try {
             rejectUnknownKeys(json);
             return readStrict(json);
-        } catch (final ValueInstantiationException e) {
+        } catch (ValueInstantiationException e) {
             final Throwable cause = e.getCause() instanceof IllegalArgumentException ? e.getCause() : e;
             throw new IllegalArgumentException(
                     "invalid config: " + (cause == e ? e.getOriginalMessage() : cause.getMessage()), e);
-        } catch (final JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("invalid config: " + e.getOriginalMessage(), e);
-        } catch (final IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("invalid config: " + e.getMessage(), e);
         }
     }

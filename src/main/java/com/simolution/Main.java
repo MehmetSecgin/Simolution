@@ -24,31 +24,32 @@ public class Main {
 
     private static final int MAX_TRACED_UNITS = 8;
 
-    static void main(String[] args) throws IOException {
+    static void main(final String[] args) throws IOException {
         if (ReplayCommand.requested(args)) {
             ReplayCommand.run(args);
             return;
         }
-        RunConfig config = RunConfig.parse(args);
-        Founders founders = Founders.create(config);
-        StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());
-        DynamicsObserver dynamics = new DynamicsObserver();
-        TimeSeriesSampler timeSeries = new TimeSeriesSampler(config.ticks());
+        final RunConfig config = RunConfig.parse(args);
+        final Founders founders = Founders.create(config);
+        final StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());
+        final DynamicsObserver dynamics = new DynamicsObserver();
+        final TimeSeriesSampler timeSeries = new TimeSeriesSampler(config.ticks());
         try (Kernel kernel = founders.newKernel(config.threads());
                 RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
-            TickObserver[] observers = observers(config, kernel, dynamics, timeSeries, artifacts);
-            RunResult result = SimulationRun.execute(kernel, config.ticks(), observers);
+            final TickObserver[] observers = observers(config, kernel, dynamics, timeSeries, artifacts);
+            final RunResult result = SimulationRun.execute(kernel, config.ticks(), observers);
             artifacts.close();
             artifacts.announceObservabilityWritten();
-            String report = RunReport.render(config, structure, dynamics.summarize(result.finalDigest()));
+            final String report = RunReport.render(config, structure, dynamics.summarize(result.finalDigest()));
             RunConsole.printReport(report, result.elapsedMillis());
             artifacts.writeReport(report, timeSeries.render());
         }
     }
 
-    private static TickObserver[] observers(RunConfig config, Kernel kernel, DynamicsObserver dynamics,
-            TimeSeriesSampler timeSeries, RunArtifacts artifacts) {
-        List<TickObserver> observers = new ArrayList<>();
+    private static TickObserver[] observers(final RunConfig config, final Kernel kernel,
+            final DynamicsObserver dynamics,
+            final TimeSeriesSampler timeSeries, final RunArtifacts artifacts) {
+        final List<TickObserver> observers = new ArrayList<>();
         observers.add(dynamics);
         if (config.digestEveryTick()) {
             observers.add(
@@ -57,8 +58,8 @@ public class Main {
         observers.add(timeSeries);
         observers.addAll(artifacts.observers());
         if (config.trace()) {
-            ConsoleTableLogger trace = new ConsoleTableLogger();
-            int unitsToTrace = Math.min(config.founderCount(), MAX_TRACED_UNITS);
+            final ConsoleTableLogger trace = new ConsoleTableLogger();
+            final int unitsToTrace = Math.min(config.founderCount(), MAX_TRACED_UNITS);
             observers.add(snapshot -> trace.log(snapshot, unitsToTrace));
         }
         return observers.toArray(TickObserver[]::new);

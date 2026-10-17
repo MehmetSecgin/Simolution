@@ -55,7 +55,7 @@ public final class DynamicsObserver implements TickObserver {
 
     private static double sum(final double[] values) {
         double total = 0.0;
-        for (final double value : values) {
+        for (double value : values) {
             total += value;
         }
         return total;
@@ -63,7 +63,7 @@ public final class DynamicsObserver implements TickObserver {
 
     private static int livingCount(final KernelSnapshot snapshot) {
         int count = 0;
-        for (final double energy : snapshot.energy) {
+        for (double energy : snapshot.energy) {
             if (energy > 0.0) {
                 count++;
             }

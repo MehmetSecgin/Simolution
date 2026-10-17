@@ -32,7 +32,7 @@ public final class TimeSeriesSampler implements TickObserver {
     private void appendRow(final KernelSnapshot snapshot) {
         int population = 0;
         double unitEnergy = 0.0;
-        for (final double e : snapshot.energy) {
+        for (double e : snapshot.energy) {
             if (e > 0.0) {
                 population++;
             }

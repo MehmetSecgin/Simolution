@@ -33,7 +33,7 @@ public final class RunDirectoryReader {
     private static int latestCheckpointTickAtOrBefore(final Path ckptDir, final int tick) throws IOException {
         int best = -1;
         try (Stream<Path> files = Files.list(ckptDir)) {
-            for (final Path file : files.toList()) {
+            for (Path file : files.toList()) {
                 final String name = file.getFileName().toString();
                 if (name.endsWith(CHECKPOINT_SUFFIX)) {
                     final int at = Integer.parseInt(name.substring(0, name.length() - CHECKPOINT_SUFFIX.length()));
@@ -66,7 +66,7 @@ public final class RunDirectoryReader {
     private static Kernel stepOrClose(final Kernel kernel, final int ticks) {
         try {
             kernel.step(ticks);
-        } catch (final RuntimeException e) {
+        } catch (RuntimeException e) {
             kernel.close();
             throw e;
         }

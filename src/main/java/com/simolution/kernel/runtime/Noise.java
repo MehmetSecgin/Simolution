@@ -45,7 +45,7 @@ public final class Noise {
      * mantissa precision) scaled by 2^-52 give {@code [0, 2)}, shifted
      * down to {@code [-1, 1)}.
      */
-    public static double sample(long seed, int unitIndex, int tick) {
+    public static double sample(final long seed, final int unitIndex, final int tick) {
         long h = mix(stream(seed, STREAM_RAND) + GOLDEN_GAMMA * (unitIndex + 1L));
         h = mix(h + GOLDEN_GAMMA * (tick + 1L));
         return (h >>> 11) * 0x1.0p-52 - 1.0;
@@ -63,13 +63,13 @@ public final class Noise {
      * many values, so it computes this once and finishes each draw with
      * {@link #mutationUniformFromPrefix}.
      */
-    public static long mutationPrefix(long seed, int parentSlot, int birthTick) {
+    public static long mutationPrefix(final long seed, final int parentSlot, final int birthTick) {
         final long h = mix(stream(seed, STREAM_MUTATION) + GOLDEN_GAMMA * (parentSlot + 1L));
         return mix(h + GOLDEN_GAMMA * (birthTick + 1L));
     }
 
     /** The last mix of a mutation draw, given the birth's {@link #mutationPrefix}. */
-    public static double mutationUniformFromPrefix(long prefix, int index) {
+    public static double mutationUniformFromPrefix(final long prefix, final int index) {
         final long h = mix(prefix + GOLDEN_GAMMA * (index + 1L));
         return (h >>> 11) * 0x1.0p-53;
     }
@@ -87,7 +87,7 @@ public final class Noise {
      * of 0, every bit flips. {@code log(u)} is finite because {@code u ≥ 2^-53}, so the quotient
      * is never NaN, and a quotient beyond {@code long} range saturates to {@link Long#MAX_VALUE}.
      */
-    public static long geometricGap(double draw, double logKeep) {
+    public static long geometricGap(final double draw, final double logKeep) {
         if (!(logKeep < 0.0)) {
             return Long.MAX_VALUE;
         }
@@ -102,7 +102,7 @@ public final class Noise {
      * by {@link #STREAM_PLACEMENT}, so a placement draw never collides
      * with sensor noise or a mutation flip. Same key → same layout, always.
      */
-    public static double placementUniform(long seed, int index) {
+    public static double placementUniform(final long seed, final int index) {
         final long h = mix(stream(seed, STREAM_PLACEMENT) + GOLDEN_GAMMA * (index + 1L));
         return (h >>> 11) * 0x1.0p-53;
     }
@@ -112,7 +112,7 @@ public final class Noise {
      * tagged differently never share a key, so RAND noise, mutation flips and founder placement
      * stay independent for any seed, and each follows the run seed.
      */
-    private static long stream(long seed, long tag) {
+    private static long stream(final long seed, final long tag) {
         return mix(seed + GOLDEN_GAMMA * tag);
     }
 
@@ -122,6 +122,7 @@ public final class Noise {
      * (avalanche). This is what turns nearby inputs into
      * statistically independent outputs.
      */
+    @SuppressWarnings("checkstyle:FinalParameters")
     public static long mix(long z) {
         z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
         z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;

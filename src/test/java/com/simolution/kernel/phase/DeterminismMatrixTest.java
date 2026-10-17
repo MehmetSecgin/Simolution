@@ -42,7 +42,7 @@ class DeterminismMatrixTest {
 
     private static long population(final Kernel k) {
         long alive = 0;
-        for (final double e : k.state().energy) {
+        for (double e : k.state().energy) {
             if (e > 0.0) {
                 alive++;
             }
@@ -57,7 +57,7 @@ class DeterminismMatrixTest {
         final EngineConfig config = config(world);
         final long[] expected = perTickDigests(config, founders, 400, 1);
 
-        for (final int threads : THREAD_COUNTS) {
+        for (int threads : THREAD_COUNTS) {
             // act
             final long[] actual = perTickDigests(config, founders, 400, threads);
 

@@ -26,7 +26,7 @@ class NodeLayoutTest {
     @Test
     void jsonListsEveryNode() throws Exception {
         // act
-        JsonNode json = new ObjectMapper().readTree(NodeLayout.toJson());
+        final JsonNode json = new ObjectMapper().readTree(NodeLayout.toJson());
 
         // assert
         assertEquals(24, json.get("names").size());

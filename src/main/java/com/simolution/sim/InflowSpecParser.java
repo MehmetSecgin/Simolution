@@ -18,7 +18,7 @@ public final class InflowSpecParser {
     public static InflowConfig parse(final String spec) {
         final Settings settings = new Settings();
         final List<InflowSource> sources = new ArrayList<>();
-        for (final String raw : spec.split(";")) {
+        for (String raw : spec.split(";")) {
             final String segment = raw.trim();
             if (segment.isEmpty()) {
                 continue;
@@ -91,7 +91,7 @@ public final class InflowSpecParser {
         }
 
         void apply(final String[] tokens) {
-            for (final String token : tokens) {
+            for (String token : tokens) {
                 if (token.startsWith("combine=")) {
                     combine = InflowConfig.Combine.valueOf(value(token).toUpperCase());
                 } else if (token.startsWith("baseline=")) {

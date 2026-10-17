@@ -21,11 +21,11 @@ class MovementTest {
     private static final int SUB_DEADZONE_RAW = 512;
     private static final int TORUS_WIDTH = 4;
 
-    private static int driveEast(int weightRaw) {
+    private static int driveEast(final int weightRaw) {
         return Genes.constTo(NodeLayout.Action.MOVE_E, weightRaw);
     }
 
-    private static int driveWest(int weightRaw) {
+    private static int driveWest(final int weightRaw) {
         return Genes.constTo(NodeLayout.Action.MOVE_W, weightRaw);
     }
 
@@ -33,8 +33,8 @@ class MovementTest {
     @DisplayName("contract-v3 §7: a mover steps east every tick once the drive propagates, with energy conserved")
     void motileUnitStepsEastEachTickAndConservesEnergy() {
         // arrange
-        Kernel kernel = Worlds.kernelAt(TORUS_WIDTH, new int[][] {{driveEast(CLEARS_DEADZONE_RAW)}}, 0);
-        double initialCredit = DEFAULTS.founder().initialEnergy()
+        final Kernel kernel = Worlds.kernelAt(TORUS_WIDTH, new int[][] {{driveEast(CLEARS_DEADZONE_RAW)}}, 0);
+        final double initialCredit = DEFAULTS.founder().initialEnergy()
                 + DEFAULTS.chemicals().get(0).initial() * TORUS_WIDTH * TORUS_WIDTH
                 + DEFAULTS.founder().initialMass();
 
@@ -48,7 +48,7 @@ class MovementTest {
             kernel.tick();
 
             // assert
-            KernelSnapshot snapshot = kernel.snapshot();
+            final KernelSnapshot snapshot = kernel.snapshot();
             assertEquals(expected, snapshot.position[0], "east step at tick " + snapshot.tick);
             EnergyAudit.assertConserved(snapshot, initialCredit, 1.0e-6);
         }
@@ -59,7 +59,7 @@ class MovementTest {
         // arrange
         assertTrue(SUB_DEADZONE_RAW * GeneDecoder.WEIGHT_PER_RAW_UNIT < DEFAULTS.motility().deadzone(),
                 "test precondition: drive must be inside the deadzone");
-        Kernel kernel = Worlds.kernelAt(TORUS_WIDTH, new int[][] {{driveEast(SUB_DEADZONE_RAW)}}, 0);
+        final Kernel kernel = Worlds.kernelAt(TORUS_WIDTH, new int[][] {{driveEast(SUB_DEADZONE_RAW)}}, 0);
 
         // act
         kernel.step(10);
@@ -71,13 +71,13 @@ class MovementTest {
     @Test
     void stepIntoAnOccupiedCellIsBlocked() {
         // arrange
-        Kernel kernel = Worlds.kernelAt(TORUS_WIDTH, new int[][] {{driveEast(CLEARS_DEADZONE_RAW)}, {}}, 0, 1);
+        final Kernel kernel = Worlds.kernelAt(TORUS_WIDTH, new int[][] {{driveEast(CLEARS_DEADZONE_RAW)}, {}}, 0, 1);
 
         // act
         kernel.step(4);
 
         // assert
-        KernelSnapshot snapshot = kernel.snapshot();
+        final KernelSnapshot snapshot = kernel.snapshot();
         assertEquals(0, snapshot.position[0], "mover blocked by the occupant of cell 1");
         assertEquals(1, snapshot.position[1], "blocker stayed put");
     }
@@ -85,17 +85,17 @@ class MovementTest {
     @Test
     void contestedCellGoesToLowestSlot() {
         // arrange
-        Kernel kernel = Worlds.kernelAt(TORUS_WIDTH,
+        final Kernel kernel = Worlds.kernelAt(TORUS_WIDTH,
                 new int[][] {{driveEast(CLEARS_DEADZONE_RAW)}, {driveWest(CLEARS_DEADZONE_RAW)}}, 0, 2);
         kernel.tick();
-        double moveCost = DEFAULTS.motility().fixedCost()
+        final double moveCost = DEFAULTS.motility().fixedCost()
                 + DEFAULTS.motility().costPerMass() * kernel.snapshot().mass[0];
 
         // act
         kernel.tick();
 
         // assert
-        KernelSnapshot snapshot = kernel.snapshot();
+        final KernelSnapshot snapshot = kernel.snapshot();
         assertEquals(1, snapshot.position[0], "slot 0 wins the contested cell");
         assertEquals(2, snapshot.position[1], "slot 1 loses and stays");
         assertEquals(snapshot.energy[1] - moveCost, snapshot.energy[0], 1.0e-9, "only the winner pays the move cost");
@@ -104,7 +104,7 @@ class MovementTest {
     @Test
     void vacatedCellCannotBeEnteredSameTick() {
         // arrange
-        Kernel kernel = Worlds.kernelAt(TORUS_WIDTH,
+        final Kernel kernel = Worlds.kernelAt(TORUS_WIDTH,
                 new int[][] {{driveEast(CLEARS_DEADZONE_RAW)}, {driveEast(CLEARS_DEADZONE_RAW)}}, 1, 0);
         kernel.tick();
 

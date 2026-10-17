@@ -14,10 +14,10 @@ class SimulationRunTest {
     @Test
     void observersRunInArrayOrderEveryTick() throws Exception {
         // arrange
-        List<String> calls = new ArrayList<>();
-        TickObserver a = snapshot -> calls.add("a" + snapshot.tick);
-        TickObserver b = snapshot -> calls.add("b" + snapshot.tick);
-        Founders founders = Founders.create(RunConfig.parse(new String[] {"--units", "3", "--world", "4"}));
+        final List<String> calls = new ArrayList<>();
+        final TickObserver a = snapshot -> calls.add("a" + snapshot.tick);
+        final TickObserver b = snapshot -> calls.add("b" + snapshot.tick);
+        final Founders founders = Founders.create(RunConfig.parse(new String[] {"--units", "3", "--world", "4"}));
 
         // act
         try (Kernel kernel = founders.newKernel(1)) {

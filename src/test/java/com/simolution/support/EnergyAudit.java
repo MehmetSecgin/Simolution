@@ -10,7 +10,7 @@ public final class EnergyAudit {
 
     public static double totalEnergy(final KernelSnapshot snapshot) {
         double total = 0.0;
-        for (final double energy : snapshot.energy) {
+        for (double energy : snapshot.energy) {
             total += energy;
         }
         return total;

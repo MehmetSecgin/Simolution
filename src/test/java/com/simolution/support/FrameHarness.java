@@ -92,7 +92,7 @@ public final class FrameHarness {
     public List<Chunk> chunks() {
         final byte[] bytes = frames.toByteArray();
         final List<Chunk> chunks = new ArrayList<>();
-        for (final String row : idx().lines().toList()) {
+        for (String row : idx().lines().toList()) {
             if (row.startsWith("format ") || row.startsWith("end")) {
                 continue;
             }

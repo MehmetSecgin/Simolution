@@ -14,13 +14,13 @@ class GeneDecoderTest {
     @Test
     void roundTripsBuilderGene() {
         // arrange
-        int gene = GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
+        final int gene = GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
                 .toInternal(NodeLayout.Internal.DELAY)
                 .weightRaw((short) -16384)
                 .build();
 
         // act
-        CompiledConnection connection = GeneDecoder.decode(gene, 0);
+        final CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
         // assert
         assertEquals(NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.CONST, connection.sourceAbsoluteIndex);
@@ -31,13 +31,13 @@ class GeneDecoderTest {
     @Test
     void wrapsOutOfRangeIdsWithModulo() {
         // arrange
-        int gene = GeneBuilder.fromSensor(127)
+        final int gene = GeneBuilder.fromSensor(127)
                 .toInternal(127)
                 .weightRaw((short) 1)
                 .build();
 
         // act
-        CompiledConnection connection = GeneDecoder.decode(gene, 0);
+        final CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
         // assert
         assertEquals(NodeLayout.SENSOR_OFFSET + (127 % NodeLayout.Sensor.TYPE_COUNT), connection.sourceAbsoluteIndex);
@@ -48,14 +48,14 @@ class GeneDecoderTest {
     @Test
     void appliesUnitOffsetToAbsoluteIndices() {
         // arrange
-        int gene = GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
+        final int gene = GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
                 .toAction(NodeLayout.Action.Y)
                 .weightRaw((short) 1)
                 .build();
-        int unitOffset = NodeLayout.TOTAL * 3;
+        final int unitOffset = NodeLayout.TOTAL * 3;
 
         // act
-        CompiledConnection connection = GeneDecoder.decode(gene, unitOffset);
+        final CompiledConnection connection = GeneDecoder.decode(gene, unitOffset);
 
         // assert
         assertEquals(unitOffset + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD, connection.sourceAbsoluteIndex);
@@ -65,13 +65,13 @@ class GeneDecoderTest {
     @Test
     void anyRandomIntDecodesToConnection() {
         // arrange
-        java.util.Random random = new java.util.Random(42);
+        final java.util.Random random = new java.util.Random(42);
 
         for (int i = 0; i < 10_000; i++) {
-            int gene = random.nextInt();
+            final int gene = random.nextInt();
 
             // act
-            CompiledConnection connection = GeneDecoder.decode(gene, 0);
+            final CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
             // assert
             assertTrue(Math.abs(connection.weight) <= 32768 * GeneDecoder.WEIGHT_PER_RAW_UNIT,
@@ -83,28 +83,28 @@ class GeneDecoderTest {
     void primitiveAccessorsMatchIndependentReference() {
         for (int i = 0; i < 10_000; i++) {
             // arrange
-            int gene = (int) Noise.mix(i * Noise.GOLDEN_GAMMA);
-            int srcType = (gene >>> 31) & 0x1;
-            int srcId = (gene >>> 24) & 0x7F;
-            int dstType = (gene >>> 23) & 0x1;
-            int dstId = (gene >>> 16) & 0x7F;
-            int low16 = gene & 0xFFFF;
-            int expectedSource = srcType == 0
+            final int gene = (int) Noise.mix(i * Noise.GOLDEN_GAMMA);
+            final int srcType = (gene >>> 31) & 0x1;
+            final int srcId = (gene >>> 24) & 0x7F;
+            final int dstType = (gene >>> 23) & 0x1;
+            final int dstId = (gene >>> 16) & 0x7F;
+            final int low16 = gene & 0xFFFF;
+            final int expectedSource = srcType == 0
                     ? NodeLayout.SENSOR_OFFSET
                             + (srcId % NodeLayout.Sensor.TYPE_COUNT) * NodeLayout.Sensor.INSTANCES_PER_TYPE
                     : NodeLayout.INTERNAL_OFFSET
                             + (srcId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
-            int expectedDestination = dstType == 0
+            final int expectedDestination = dstType == 0
                     ? NodeLayout.INTERNAL_OFFSET
                             + (dstId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE
                     : NodeLayout.ACTION_OFFSET
                             + (dstId % NodeLayout.Action.TYPE_COUNT) * NodeLayout.Action.INSTANCES_PER_TYPE;
-            double expectedWeight = (short) low16 * (4.0 / 32767);
+            final double expectedWeight = (short) low16 * (4.0 / 32767);
 
             // act
-            int source = GeneDecoder.sourceNodeIndex(gene);
-            int destination = GeneDecoder.destinationNodeIndex(gene);
-            double weight = GeneDecoder.weight(gene);
+            final int source = GeneDecoder.sourceNodeIndex(gene);
+            final int destination = GeneDecoder.destinationNodeIndex(gene);
+            final double weight = GeneDecoder.weight(gene);
 
             // assert
             assertEquals(expectedSource, source);

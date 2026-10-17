@@ -40,10 +40,10 @@ public record RunPaths(Path report) {
         }
     }
 
-    private Path sibling(String suffix) {
-        String name = report.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        String base = dot < 0 ? name : name.substring(0, dot);
+    private Path sibling(final String suffix) {
+        final String name = report.getFileName().toString();
+        final int dot = name.lastIndexOf('.');
+        final String base = dot < 0 ? name : name.substring(0, dot);
         return report.resolveSibling(base + suffix);
     }
 }

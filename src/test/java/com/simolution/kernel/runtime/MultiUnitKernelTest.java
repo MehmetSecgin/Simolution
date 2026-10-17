@@ -18,29 +18,29 @@ class MultiUnitKernelTest {
     @Test
     void unitsDoNotLeakSignalsIntoEachOther() {
         // arrange
-        Kernel kernel = Worlds.kernel(2, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME);
-        int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
-        int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
+        final Kernel kernel = Worlds.kernel(2, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME);
+        final int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
+        final int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
 
         // act
         kernel.step(10);
-        KernelSnapshot snapshot = kernel.snapshot();
+        final KernelSnapshot snapshot = kernel.snapshot();
 
         // assert
         for (int unit : new int[] {0, 2}) {
-            int base = unit * NodeLayout.TOTAL;
+            final int base = unit * NodeLayout.TOTAL;
             assertEquals(0.0, snapshot.outputs[base + addIdx], 0.0, "ADD of empty unit " + unit);
             assertEquals(0.0, snapshot.outputs[base + actionIdx], 0.0, "ACTION of empty unit " + unit);
         }
-        int activeBase = NodeLayout.TOTAL;
+        final int activeBase = NodeLayout.TOTAL;
         assertNotEquals(0.0, snapshot.outputs[activeBase + addIdx]);
     }
 
     @Test
     void unitZeroIsInvariantUnderPopulationSize() {
         // arrange
-        Kernel alone = Worlds.kernel(1, FEEDBACK_GENOME);
-        Kernel crowded =
+        final Kernel alone = Worlds.kernel(1, FEEDBACK_GENOME);
+        final Kernel crowded =
                 Worlds.kernel(3, FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME);
 
         for (int tick = 0; tick < 20; tick++) {
@@ -49,8 +49,8 @@ class MultiUnitKernelTest {
             crowded.tick();
 
             // assert
-            float[] aloneOutputs = alone.snapshot().outputs;
-            float[] crowdedOutputs = crowded.snapshot().outputs;
+            final float[] aloneOutputs = alone.snapshot().outputs;
+            final float[] crowdedOutputs = crowded.snapshot().outputs;
             for (int node = 0; node < NodeLayout.TOTAL; node++) {
                 assertEquals(aloneOutputs[node], crowdedOutputs[node], 0.0, "node " + node + " at tick " + tick);
             }
@@ -60,12 +60,12 @@ class MultiUnitKernelTest {
     @Test
     void unitsReceiveDistinctRandStreams() {
         // arrange
-        Kernel kernel = Worlds.kernel(2, EMPTY_GENOME, EMPTY_GENOME);
-        int randIdx = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
+        final Kernel kernel = Worlds.kernel(2, EMPTY_GENOME, EMPTY_GENOME);
+        final int randIdx = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
 
         // act
         kernel.tick();
-        KernelSnapshot snapshot = kernel.snapshot();
+        final KernelSnapshot snapshot = kernel.snapshot();
 
         // assert
         assertNotEquals(snapshot.outputs[randIdx], snapshot.outputs[NodeLayout.TOTAL + randIdx]);

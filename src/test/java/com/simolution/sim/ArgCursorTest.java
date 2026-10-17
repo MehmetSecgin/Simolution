@@ -10,7 +10,7 @@ class ArgCursorTest {
     @Test
     void missingValueNamesTheFlag() {
         // act
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        final IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> RunConfig.parse(new String[] {"--units"}));
 
         // assert

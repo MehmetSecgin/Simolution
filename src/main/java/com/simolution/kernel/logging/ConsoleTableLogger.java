@@ -7,7 +7,7 @@ public final class ConsoleTableLogger {
 
     private boolean headerPrinted = false;
 
-    public void log(KernelSnapshot snapshot, int unitsToTrace) {
+    public void log(final KernelSnapshot snapshot, final int unitsToTrace) {
         if (!headerPrinted) {
             System.out.printf(
                     "%5s %4s | %7s %7s | %7s %7s %7s %7s %7s | %7s | %7s | %9s%n",

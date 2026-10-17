@@ -17,17 +17,17 @@ class SnapshotDumpTest {
     @Test
     void resourceRowHoldsOneDigitPerCellWithTwoChemicals() {
         // arrange
-        ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        EngineConfig config = EngineConfig.defaults(0L, 4, 8).withChemicals(List.of(first, second));
-        Kernel kernel = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
+        final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        final EngineConfig config = EngineConfig.defaults(0L, 4, 8).withChemicals(List.of(first, second));
+        final Kernel kernel = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
         kernel.tick();
 
         // act
-        String dump = SnapshotDump.render(kernel.snapshot(), new CompiledConnection[0], config);
+        final String dump = SnapshotDump.render(kernel.snapshot(), new CompiledConnection[0], config);
 
         // assert
-        String row = dump.lines().filter(l -> l.startsWith("resource ")).findFirst().orElseThrow();
+        final String row = dump.lines().filter(l -> l.startsWith("resource ")).findFirst().orElseThrow();
         assertEquals("resource ".length() + 16, row.length());
         kernel.close();
     }
