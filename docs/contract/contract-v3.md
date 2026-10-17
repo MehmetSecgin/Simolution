@@ -1,5 +1,7 @@
 # Kernel v3 Contract — Space (the world becomes a place)
 
+> Superseded in part by [contract-v9](contract-v9.md) §1 (motility tie and chain rules, §9) and §6 (pipeline rule, §6).
+
 ## 0. Scope
 
 Kernel v0–v2 ran every unit in a single well-mixed world: one global resource

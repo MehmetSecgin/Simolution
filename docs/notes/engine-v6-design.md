@@ -1,6 +1,6 @@
 # Engine v6: fast, parallel, extensible, controllable
 
-Status: draft for owner review, 2026-10-17. Branch `kernel-v6-engine`.
+Status: implemented (2026-10-17); stopping rule 2 not met: 2.07x from 1 to 4 threads on big500, 2.5x required (rules 1 and 3 met, CX33 sanity run pending, see [engine-v6-bench.md](engine-v6-bench.md)). Branch `kernel-v6-engine`.
 
 Markers used below: **[owner]** = decided by the owner in conversation. **[call]** = the designer's call, open to change. Unmarked text describes the current code.
 

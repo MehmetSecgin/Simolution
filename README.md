@@ -42,12 +42,14 @@ A genome is just which nodes are wired to which, and how strongly.
 
 **Gene encoding (32 bits).** `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]`. IDs wrap modulo the node count and the weight is a linear signed scale, so **every random 32-bit integer is a legal gene** — mutation can never produce an un-decodable genome.
 
-**The tick** is a locked 11-phase pipeline, the same every step, with no per-tick allocation and memory only through `DELAY` (no instantaneous feedback):
+**The tick** is an ordered list of 12 declared phases, the same every step, with no per-tick allocation and memory only through `DELAY` (no instantaneous feedback). Each phase declares a shape (per-unit, per-cell, claim, serial) that fixes what it may touch and how it splits across threads:
 
 ```
 clear → propagate → evaluate → swap
-      → intake → cost → growth → reproduction → movement → diffusion → decay
+      → intake → inflow → cost → growth → reproduction → movement → diffusion → decay
 ```
+
+Reproduction and movement are **claim** phases: every unit proposes in parallel from the start-of-phase world, then a fixed-order resolve picks winners (lowest slot wins a contested cell, no same-tick chains).
 
 **Energy is conserved.** It is never created, only moved — into a cell from inflow, into a unit by harvesting, out to a sink by metabolism, growth loss, motility, and death. An audit invariant (`energy-audit-error ≈ 0`) holds every tick.
 
@@ -55,7 +57,7 @@ clear → propagate → evaluate → swap
 
 **Space & motility.** The W×W grid *is* the population: one unit per cell. Each cell holds its own resource field, replenished by inflow (uniform, or a programmable pulsing/orbiting/noise field), spread by diffusion, and dissipated by decay so nothing stays free forever. Units sense only their own cell and take one Moore step per tick — **chemotaxis is emergent**, never coded.
 
-**Evolution.** At each birth the child genome is copied with per-bit point mutation, then per-gene deletion and tandem duplication — so genome *length itself is heritable*. Duplicating a harvest transporter raises intake capacity (gene dosage); replication costs energy that scales with the child's length.
+**Evolution.** At each birth the child genome is copied with per-bit point mutation (drawn by skip sampling and keyed by the parent), then per-gene deletion and tandem duplication, so genome *length itself is heritable*. Duplicating a harvest transporter raises intake capacity (gene dosage); replication costs energy that scales with the child's length.
 
 ## Quickstart
 
@@ -70,7 +72,7 @@ Requires **JDK 26** (`.sdkmanrc` pins `26.0.1.0+8-open`).
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/run.txt"
 ```
 
-Useful flags: `--units N --ticks T --seed S --world W --genes G --max-genes G2`, plus a patchy, breathing resource world: `--resource-cycle --cycle-period 2000 --cycle-radius 22 --cycle-peak 10` (or the full `--inflow "<dsl>"`).
+Useful flags: `--units N --ticks T --seed S --world W --genes G --max-genes G2`, `--threads N` (worker threads, default all cores; never changes results), `--config <file.json>` (the full per-run constants, see `examples/baseline.json`), `--digest-every-tick` (debug), plus a patchy, breathing resource world: `--resource-cycle --cycle-period 2000 --cycle-radius 22 --cycle-peak 10` (or the full `--inflow "<dsl>"`).
 
 ## Watch a run
 
@@ -84,7 +86,7 @@ python3 tools/mapviz.py runs/run.frames.zst    # -> runs/run.map.html
 bash scripts/serve-live.sh                      # serves runs/ on :8090
 ```
 
-The viewer is what produced the images above: scrub the lattice (colour by genome), click any cell to inspect its **evolved circuit** as a force-directed graph, and walk a lineage's genome diffs over its `.births.csv.gz` (DuckDB-queryable). A deterministic-replay observability layer (`--observe`) adds checkpoints + time-travel.
+The viewer is what produced the images above: scrub the lattice (colour by genome), click any cell to inspect its **evolved circuit** as a force-directed graph, and walk a lineage's genome diffs over its `.births.csv.gz` (DuckDB-queryable). `--observe` writes a run directory with self-sufficient versioned checkpoints: seek to any tick (`--replay <dir> --at T`) on any thread count, or branch a run from a tick under changed rates, costs or inflow.
 
 <p align="center">
   <img src="docs/images/lattice.png" width="460" alt="A single tick at peak, full resolution">
@@ -92,9 +94,30 @@ The viewer is what produced the images above: scrub the lattice (colour by genom
 
 <p align="center"><sub>A single tick at peak, full resolution — <b>3,143 units, 457 distinct genomes</b>. Each colour is one lineage; the patches are territory nobody assigned.</sub></p>
 
-## Determinism — the prime invariant
+## Determinism: the prime invariant
 
-Same genome + same seed → **byte-identical history, always.** Fixed seed, no wall-clock, no unseeded randomness, fixed evaluation order, and a counter-based RNG that is a pure function of `(seed, unit, tick)`. The signal state is single-precision `float` (the energy economy stays `double` so conservation is exact); strict IEEE-754 keeps it reproducible — verified byte-identical run-to-run *and* across JDK 25 ↔ 26.
+Same engine version + same config + same seed → **byte-identical state, on any machine and any thread count.** No wall-clock, no unseeded randomness; every draw is a pure function of the run seed, a stream tag and ids. Parallel phases split into fixed 4096-entry chunks that never depend on the thread count, totals are merged in chunk order, and order-dependent phases resolve in a fixed order. Tests run the same world on 1, 2, 4 and 8 threads and compare the digest every tick, and resume from a checkpoint on a different thread count. The signal state is single-precision `float` (the energy economy stays `double` so conservation is exact); kernel sources use `StrictMath` or exact operations only. Results may change between engine versions, never within one.
+
+## Performance
+
+`./gradlew bench --args="--threads N"` runs three fixed worlds (seed 42, observer and time series on every tick, no `--out`) and prints ticks/s. Apple M2 Pro, 12 cores, JDK 26, `-Xmx4g`, median of 3 timed runs. Engine v6 changed the dynamics (claim phases, new mutation keying), so v5 and v6 rows are not one identical workload.
+
+| world | v5, 1 thread | v6, 1 thread | v6, 4 threads |
+|---|---|---|---|
+| small (64×64, 200 founders) | 1088 ticks/s | 12048 | 11976 |
+| dense (200×200, 4000 founders) | 73 | 629 (8.6×) | 890 |
+| big (500×500, 20000 founders) | 12 | 90 (7.5×) | 186 (2.07× over 1 thread) |
+
+A 1000×1000 world with 50000 founders runs 100 ticks in 2.8 s (4 threads) inside `-Xmx4g`. The design's stopping rule asked for 2.5× from 1 to 4 threads on the big world; **that one is not met** (2.07×), because the serial claim resolves, the snapshot sums and the harness are about a fifth of the tick. A CX33 sanity run is still to be done. Profile, per-rule results and the exact commands are in [`docs/notes/engine-v6-bench.md`](docs/notes/engine-v6-bench.md).
+
+## Engine architecture
+
+- **State is declared once** (`WorldState` / `FieldSpec`): checkpoint, birth reset, death cleanup and the state digest all walk the same list. Flat primitive arrays, no object per organism.
+- **The node layout is generated** from `NodeCatalog` and exported as `<base>.layout.json`; adding a sensor or action is one declaration.
+- **Phases are a list with shapes**, run by a fixed-size `ParallelRunner` over fixed chunks with an allocation-free barrier.
+- **The resource field is a chemical table** (one chemical today), with inflow, diffusion and decay per chemical.
+- **A run is `EngineConfig` (JSON) + seed + founders.** Checkpoints store the full config, the node layout and the state digest, so they resume without side files; `seek` and `branch` build on them.
+- Decisions are in [`docs/decisions/`](docs/decisions/) (0038 to 0045) and the binding laws in [`docs/contract/contract-v9.md`](docs/contract/contract-v9.md).
 
 ## Milestones
 
@@ -107,9 +130,10 @@ The kernel grew one honest law at a time, each on its own branch:
 | **v2** | reproduction + point mutation + entropic aging (evolution proper) |
 | **v3** | space + motility — toroidal lattice, per-cell resource, `MOVE` effectors |
 | **v4** | variable-length genomes — heritable gene count via indels |
-| **v5** | biomass — `mass` as crystallized energy, growth, symmetric fission |
+| **v5** | biomass: `mass` as crystallized energy, growth, symmetric fission |
+| **engine v6** | parallel, declaratively extensible engine: claim phases, per-run config, versioned checkpoints with seek and branch |
 
-Next: crowding/quorum signalling and multi-resource stoichiometry. Each decision is recorded in a short ADR under [`docs/decisions/`](docs/decisions/), and the binding physical laws live in [`docs/contract/`](docs/contract/).
+Next: sensors beyond the own cell, several resources, secretions and corpses. Each decision is recorded in a short ADR under [`docs/decisions/`](docs/decisions/), and the binding physical laws live in [`docs/contract/`](docs/contract/).
 
 ## Lineage & credit
 

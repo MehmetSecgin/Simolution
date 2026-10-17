@@ -1,5 +1,7 @@
 # 0026 — Variable-length genomes: indel operators, soft cap, length-cost
 
+> Mutation keying superseded in part by [ADR 0041](0041-parent-keyed-skip-sampled-mutation.md).
+
 ## Context
 Point mutation (ADR 0021) leaves gene *count* fixed per lineage — complexity cannot
 grow. contract-v2 §9/§15 provisioned the storage (per-slot `MAX_GENES` capacity +

@@ -2,29 +2,50 @@
 
 Artificial-life experiment: emergent survival under honest thermodynamics. The kernel defines physical laws (energy, decay, signal propagation) and never meanings, goals, or fitness. Lifelike strategies must emerge from evolution, never be coded in.
 
-Current milestone: **Kernel v5 (biomass / Pirt size physics)** — a deterministic VM for *evolving* signal graphs living on a **2D toroidal lattice**, where units **move**, genome *length* is heritable, and each unit now has a *size* (`mass`) it grows and pays for. Genome = list of 32-bit genes, one gene = one weighted connection between nodes of a fixed substrate. Energy accounting (decay, activity cost, aging, death), reproduction + point mutation, space + motility carry over from v2/v3. v3 makes the world a *place*: each cell holds its own resource (uniform inflow, spread by diffusion); a unit occupies one cell (`position[slot]`, exclusive via `cellOccupant`), senses and harvests **only its own cell** (`LOCAL_RESOURCE` replaced the old global `RESOURCE` sensor), and offspring are placed in a free **Moore neighbour** (no free neighbour → no birth; the grid is the slot pool, so v2's `MAX_UNITS` halt-on-full is retired). Motility adds four `MOVE_N/S/E/W` effectors (Fork B): each tick a unit may take one Moore step (`dx` from E−W, `dy` from N−S, deadzone `θ`), paying `MOVE_COST`; blocked if the target is occupied; **chemotaxis is emergent** via `LOCAL_RESOURCE` + `DELAY`. The slot is a unit's permanent storage identity, so moving never recompiles/allocates (ADR 0020). Substrate grew with the 4 motility effectors, then v5's `SELF_MASS` sensor + `GROW` action (`NodeLayout.TOTAL` = 24: sensors 7, internals 8, actions 9). v4 makes genome **length** heritable: at birth, after point mutation, each gene may be **deleted** (`INDEL_RATE_DEL`) then each survivor may spawn a **tandem duplicate** (`INDEL_RATE_DUP`), changing the gene *count* within a soft `MAX_GENES` cap (floor 0 = legal + inert), so complexity itself evolves — duplicating a HARVEST transporter raises intake capacity (gene dosage, ADR 0012). Replication cost now scales with the child's length (`buildCost = BUILD_COST + BUILD_COST_PER_GENE·geneCount`, build-time anti-bloat pressure — **no** per-tick per-gene tax). Determinism holds via a monotone operation-counter RNG key (contract-v4, ADR 0026). v5 adds **biomass**: a unit has a *size* (`mass`) grown via a `GROW` effector (energy→mass, lossy) that scales maintenance (∝ mass — replacing the old energy-as-biomass proxy, `STORAGE_LEAK_RATE` retired), locomotion cost, and harvest (∝ mass^α, the surface-area law); mass *is* crystallized energy (one currency, audit gains a Σmass term). Reproduction becomes **symmetric binary fission** — mass + energy split 50/50, `REPRODUCE` an ungated *costly trigger* so the size-control checkpoint emerges via the new `SELF_MASS` sensor rather than being coded (no `M_DIV_MIN`); growth is phase 7 (pipeline 9→10). Determinism + audit hold (contract-v5, ADR 0028); report-v10 surfaces mass across the report (`## mass`), `.units.csv` (`final_mass`), `metrics.csv` (`mass_total`), and the map viewers (colour-by-mass). Next: CROWDING/EMIT + quorum, multi-resource + stoichiometry.
+Current milestone: **Engine v6** on the **v5 biology** (contracts v0 to v9). The engine is a deterministic, multithreaded VM for *evolving* signal graphs living on a **2D toroidal lattice**; the same engine version, config and seed give a byte-identical state on any machine and any thread count (contract-v9). Genome = list of 32-bit genes, one gene = one weighted connection between nodes of a fixed substrate. Law constants named in CAPS in the contracts (`MOVE_COST`, `BUILD_COST`, ...) are fields of the per-run `EngineConfig` (camelCase), loaded from JSON with `--config`.
+
+Biology in force:
+
+- **Space.** Each cell holds its own resource (inflow, diffusion, decay; chemical 0 of a chemical table). A unit occupies one cell (`position[slot]`, exclusive via `cellOccupant`), senses and harvests only its own cell (`LOCAL_RESOURCE`), and the W×W grid is the slot pool (no free neighbour or slot, no birth). The slot is a unit's permanent storage identity, so moving never recompiles (ADR 0020).
+- **Motility.** Four `MOVE_N/S/E/W` effectors: each tick a unit may take one Moore step (`dx` from E−W, `dy` from N−S, deadzone `θ`) paying `MOVE_COST`. Movement is a **claim** (contract-v9 §1): the target must be free at phase start, the lowest slot wins a contested cell, no chains. Chemotaxis is emergent via `LOCAL_RESOURCE` + `DELAY`.
+- **Genome length is heritable** (contract-v4): at birth, after point mutation, each gene may be deleted (`INDEL_RATE_DEL`), then each survivor may spawn a tandem duplicate (`INDEL_RATE_DUP`), within the soft `MAX_GENES` cap (floor 0 = legal and inert). Replication cost is `buildCost = BUILD_COST + BUILD_COST_PER_GENE·geneCount`, build-time only. Mutation is keyed by the **parent** slot and point mutation is skip-sampled (contract-v9 §3).
+- **Biomass** (contract-v5): `mass` is crystallized energy (audit gains a Σmass term), grown by the `GROW` effector, scaling maintenance, move cost and harvest (∝ mass^α, α = 0.5 so `sqrt`). Reproduction is **symmetric binary fission** (mass and energy split 50/50), `REPRODUCE` an ungated costly trigger, resolved as a **claim** (contract-v9 §2); the size-control checkpoint emerges via `SELF_MASS`, it is never coded.
+- **Resource decay** (contract-v8) dissipates part of every cell's field to the sink each tick; the field starts empty.
+- **Layout.** `NodeLayout.TOTAL` = 24 (sensors 7, internals 8, actions 9 including junk), generated from `NodeCatalog` and exported as `<base>.layout.json`.
+
+Next: sensors that read beyond the own cell, several resources with separate harvesting, secretions, corpses that release their body stores, each with its own contract.
 
 ## Commands
 
 ```sh
 ./gradlew run     # demo: 4-gene feedback genome, 10 ticks, trace + report
-./gradlew test    # JUnit 5; includes spec-conformance tests
+./gradlew test    # JUnit 5; spec-conformance, determinism matrix, resume equivalence, strict-math lint
 ./gradlew build   # full verification
 
-# population run with deterministic report (schema: docs/specs/report-v6.md)
+# population run with deterministic report (schema: docs/specs/report-v15.md)
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100"
-# flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --map-frames N --trace --out <file>
+# flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --trace --out <file>
+#        --config <file.json>  (EngineConfig as JSON, see examples/baseline.json; --seed/--world/--max-genes override it)
+#        --threads N           (worker threads, default all cores; NEVER changes results, see contract-v9 §7)
+#        --digest-every-tick   (debug: prints `digest <tick> <hex>` after each tick; the report digest is end-of-run only)
+#        --map-frames N --map-from T0 --map-to T1   (map frames, see below)
+#        --observe --checkpoint-every C             (run directory, see below)
 #        --resource-cycle --cycle-period N --cycle-radius N --cycle-peak X  (contract-v6, opt-in)
-#        --map-from T0 --map-to T1  (map sampler: a frame EVERY tick only within [T0,T1] — tick-by-tick window of any phase, tiny data vs every-tick over the whole run)
+#        --inflow "<dsl>"      (contract-v7, opt-in; mutually exclusive with --resource-cycle)
+
+# reproducible benchmark (fixed configs: small, dense200, big500; ticks/s per thread count)
+./gradlew bench --args="--threads 4"     # numbers and the stopping-rule check: docs/notes/engine-v6-bench.md
 
 # patchy + cyclic resource (contract-v6): a central disk pulses 0->peak->0 (period in ticks),
 # periphery barren, diffusion spreads it; watch the breathing gradient live.
 ./gradlew run --args="--units 300 --ticks 30000 --seed 42 --world 100 --resource-cycle --cycle-period 2000 --cycle-radius 22 --cycle-peak 10 --out runs/cyc.txt"
 # --world W = lattice side; the W×W grid IS the slot pool (one unit per cell,
 #   contract-v3 §2/§5). Population is bounded physically by W² and energetically
-#   by starvation — there is no halt-on-full anymore; a birth with no free
-#   neighbour cell just doesn't happen. Founders (--units N) must fit: N ≤ W².
-#   Default if omitted: W = ceil(sqrt(units·4)). --out also writes the sidecars.
+#   by starvation; a birth with no free neighbour cell or free slot just doesn't happen.
+#   Founders (--units N) must fit: N ≤ W². Default if omitted: W = ceil(sqrt(units·4)).
+# --out <base>.txt writes the report plus <base>.timeseries.csv, <base>.layout.json
+#   (node names, offsets, junk ranges, gene bit layout: the viewers read it),
+#   <base>.catalog.gz and <base>.births.csv.gz. Map frames are opt-in (below).
 
 # visualize a run as a self-contained HTML dashboard (stdlib python, no deps)
 python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
@@ -32,19 +53,25 @@ python3 tools/visualize.py runs/baseline.txt   # writes runs/baseline.html
 # bake the spatial map (report-v14) into a SELF-CONTAINED rich viewer: the same
 # genome panel + circuit inspector + colour by genome as the live view, frames + catalog
 # inlined, opens anywhere (even file://). The run writes chunked-zstd <base>.frames.zst
-# (lean row `u <cell> <slot> <genomeId>` — mass + action dropped, report-v14) + a gzipped
-# <base>.catalog.gz (genome dictionary) when --out is set and frames are requested
-# (--map-frames N: negative/absent = off [default], 0 = every tick, N>0 = N frames). Then:
+# (lean row `u <cell> <slot> <genomeId>`) + <base>.frames.idx + the gzipped <base>.catalog.gz
+# when --out is set and frames are requested
+# (--map-frames N: negative/absent = off [default], 0 = every tick, N>0 = N frames;
+#  --map-from T0 --map-to T1: a frame EVERY tick only within [T0,T1]). Then:
 python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.html (offline; needs the zstd CLI)
 
-# observability layer (report-v8): optional, decoupled, off by default. Writes
-# <base>.obs/ (manifest.json, events.jsonl, metrics.csv, ckpt/<tick>.ckpt) beside
-# --out. Determinism is the time machine: store the replay key + periodic
-# checkpoints, recompute any tick on demand. Sink-off runs stay byte-identical.
-./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo.txt --observe --checkpoint-every 2000"
-# then reconstruct any tick at full fidelity (lattice + per-unit + evolved circuits):
+# run directory (engine v6, ADR 0043): optional, off by default. --observe with --out writes
+# <base>.obs/ = run.json (runId = SHA-256 of the first checkpoint, engine version, parent),
+# ckpt/<tick>.ckpt (self-sufficient, versioned checkpoint format 2 with the state digest in
+# the header; tick 0 at creation, then every --checkpoint-every ticks, default 2000),
+# events.jsonl and metrics.csv. Sink-off runs stay byte-identical.
+./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo.txt --observe --checkpoint-every 500"
+# seek: reconstruct any tick (nearest checkpoint at or before T, then step forward). Works for
+# any thread count and for inflow runs (the checkpoint carries the full config):
 ./gradlew run --args="--replay runs/foo.obs --at 600 --snapshot-out runs/foo.obs/snap-600.txt"
 python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
+# branch (API, no CLI flag): CheckpointCodec.readBranch(in, changedConfig, threads) + RunDirectory.createBranch.
+# A branch may change rates, costs, thresholds and inflow; it may not change world size, maxGenes
+# or chemical count. Checkpoints from another engine version or format are refused.
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
 
 # watch a run LIVE while it ticks (report-v14): the viewer (live.html) loads the tiny
@@ -58,6 +85,7 @@ bash scripts/serve-live.sh   # runs a sim in the background, serves runs/ on :80
 
 # lineage / "what happened to who": every --out run writes <base>.births.csv.gz
 # (tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated).
+# parent_slot is exact: rows come from the engine's published per-tick birth list.
 # Query with DuckDB (no JVM); lineage+generation are kernel-exact, so genome history is:
 #   duckdb -c "SELECT DISTINCT generation, child_genome_id FROM 'runs/baseline.births.csv.gz'
 #              WHERE lineage=76 ORDER BY 1"   -- then diff catalog genes hop to hop
@@ -65,10 +93,11 @@ bash scripts/serve-live.sh   # runs a sim in the background, serves runs/ on :80
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
 `runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --world 100 --out runs/baseline.txt`
-after the change and diff it (`runs/baseline.txt` is the committed baseline; the
-per-unit/wiring CSV sidecars were retired in report-v13). Output is byte-deterministic,
-so every changed line was caused by your change; the `state-digest` line catches drift
-below display rounding. Explain the diff (or its absence) when delivering.
+after the change and diff it (`runs/baseline.txt` is the committed baseline, `state-digest:
+78644e65e8086e45`; only the report is tracked, the sidecars next to it are not). Output is
+byte-deterministic and identical for any `--threads` value, so every changed line was caused by
+your change; the `state-digest` line is the digest of the whole final state (`StateDigest`) and
+catches drift below display rounding. Explain the diff (or its absence) when delivering.
 
 Requires JDK 26 (`.sdkmanrc` pins `26.0.1.0+8-open`; `sdk env` activates it).
 
@@ -76,47 +105,64 @@ Requires JDK 26 (`.sdkmanrc` pins `26.0.1.0+8-open`; `sdk env` activates it).
 
 ```
 com.simolution
-├── Main                      demo entry point
+├── Main                      entry point: demo, population run, --replay (seek) front end
+├── bench.Bench               reproducible benchmark (`./gradlew bench`): small / dense200 / big500, median of 3 timed runs
 └── kernel
-    ├── config.EngineConfig   per-run law constants as data (JSON via ConfigJson, `--config`); chemicals + inflow per ChemicalSpec
+    ├── EngineVersion         the one engine version constant (report header, checkpoints, run.json)
+    ├── config
+    │   ├── EngineConfig      per-run law constants as one immutable record (JSON via ConfigJson, `--config`); `branchCompatible` says which changes keep the state shape
+    │   ├── ChemicalSpec      one diffusing field: inflow, capacity, initial, diffusion, decay, decay target (ADR 0042)
+    │   └── InflowConfig / InflowSource / CompiledInflowField / ValueNoise   programmable inflow field (contract-v7), static sources baked once
     ├── layout
-    │   ├── NodeLayout        flat index space: [sensors | internals | actions], offsets, junk padding
-    │   ├── NodeType          SENSOR / INTERNAL / ACTION
-    │   └── CompiledConnection {srcAbsIdx, dstAbsIdx, weight}
+    │   ├── NodeCatalog/NodeSpec  declared sensors, internals, actions + junk counts (ADR 0038)
+    │   ├── NodeLayout        offsets, TOTAL, TYPE_COUNT and name lookup generated from the catalog; `toJson()` is `<base>.layout.json`
+    │   └── CompiledConnection {srcAbsIdx, dstAbsIdx, weight}   inspection view only (`Kernel.connectionsOf`), not the engine's storage
     ├── genome
     │   ├── GeneBuilder       fluent 32-bit gene packing (manual/test use only)
-    │   ├── GeneDecoder       gene → CompiledConnection; modulo ID wrap; weight scaling
-    │   └── GenomeCompiler    int[] genes → CompiledConnection[] (precompute, never per-tick)
+    │   ├── GeneDecoder       gene → local source/destination index, weight; modulo ID wrap; weight scaling
+    │   ├── SlotCompiler      writes a slot's flat connection region (source/destination/weight arrays), junk-source connections pruned; once per slot at start, at birth and at restore, no allocation
+    │   └── GenomeCompiler    int[] genes → CompiledConnection[] (harness structure stats and tests)
+    ├── state
+    │   ├── WorldState        every state array and scalar, allocated once; `fields()` declares each as a FieldSpec (ADR 0038)
+    │   ├── FieldSpec         name, dimension, persistence (SAVED/DERIVED/SCRATCH), birth rule, death rule
+    │   ├── StateDigest       parallel chunked digest of the SAVED state (ADR 0044)
+    │   └── CheckpointCodec   self-sufficient versioned checkpoint, format 2 (ADR 0043)
+    ├── phase
+    │   ├── Phase / Shape     a declared step and its shape: PER_UNIT, PER_CELL, CLAIM, SERIAL (ADR 0039)
+    │   ├── Chunks            fixed 4096-entry chunk boundaries and chunk-ordered sums
+    │   ├── PhaseRunner / ParallelRunner   run the list; the parallel one uses a fixed pool, an atomic chunk counter and an allocation-free barrier
+    │   └── Clear, Propagate, Evaluate, Swap, Intake, Inflow, Cost, Growth, Reproduction, Movement, Diffusion, Decay   the 12 phases of the tick, in that order (Reproduction and Movement are CLAIM, Swap is SERIAL)
     ├── runtime
-    │   ├── Kernel            tick loop: clear → propagate → evaluate → swap → settle-intake → settle-cost → settle-growth → settle-reproduction → settle-movement → settle-diffusion → settle-decay (11 phases; v8 decay dissipates RESOURCE_DECAY_RATE of each cell's field to the sink so resource isn't permanent, CELL_INITIAL=0 starts the field empty); W×W toroidal lattice, slot = permanent storage identity, cell = position[slot] (cellOccupant enforces one-per-cell), per-cell resource field (double-buffered), per-cell intake, spatial birth into a free Moore neighbour, MOVE_N/S/E/W motility, per-slot genes recompiled at birth (point mutation + indels — tandem duplication/deletion move geneCount within the soft maxGenes cap; never on move), per-gene replication build cost (buildCost = BUILD_COST + BUILD_COST_PER_GENE·geneCount); v5 biomass: per-slot mass (crystallized energy), GROW effector (settle-growth) energy→mass, maintenance/harvest(∝mass^α)/move-cost scale with mass, reproduction is symmetric fission (mass+energy split 50/50), death dissipates mass→sink (die helper); population derived (energy>0); saveState/loadState for report-v8 checkpoints (rebuilds structure from genes; mass + cellOccupant stored, not rederived) + connectionsOf(slot) for replay circuit inspection
-    │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + mass + sink
-    │   └── Noise             stateless counter-based RNG: sample(seed, unit, tick)
+    │   ├── Kernel            builds the phase list and runs it: W×W toroidal lattice, slot = permanent storage identity, cell = position[slot]; `tick()`, `step(n)`, `snapshot()`, `stateDigest()`, `connectionsOf(slot)`, `close()` (stops workers). Population is derived (energy>0)
+    │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + mass + sink; the tick's birth list (`birthParent`, `birthChild`, `birthCount`) is published in `WorldState`
+    │   └── Noise             stateless counter-based RNG with tagged streams (RAND 1, mutation 2, placement 3), all keyed by the run seed
     └── logging
         └── ConsoleTableLogger renders snapshots as a per-tick trace table
 com.simolution.sim            run harness + observer (laws stay in kernel, interpretation here)
-├── RunConfig                 CLI args: --units --ticks --seed --genes --trace --out
+├── RunConfig                 CLI args: --units --ticks --seed --genes --world --config --threads --digest-every-tick --trace --out ...
 ├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
-├── StructuralAnalyzer/Stats  wiring-derived stats: junk load, reachability, weights
-├── DynamicsObserver/Summary  re-derives propagation from snapshots; activity, dormancy, regimes, digest
-├── RunReport                 byte-deterministic report-v6 text (aggregates + distributions + reproduction)
-├── MapFrameWriter            streams every-tick spatial frames to <base>.frames.zst as 256-frame chunks, each zstd-19 (report-v14: lean row `u <cell> <slot> <genomeId>` — mass + action dropped; RLE resource field) + a <base>.frames.idx ASCII chunk index (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
-├── GenomeCatalogWriter       <base>.catalog.gz — gzipped global write-once genome dictionary (`g <id> <count> <genes>`); ~20× smaller than the v13 text, whole-loaded + native-gunzipped by the viewer (no <base>.catalog.idx, no per-genome Range — report-v14); frames carry the id
-├── BirthLogWriter            <base>.births.csv.gz — one row per derived birth (lineage/generation kernel-exact, genome ids from the shared catalog); DuckDB-queryable lineage store (report-v13, unchanged in v14)
-├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
-├── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
-├── RunManifest/ConfigHash    report-v8 replay key (verbatim founder genomes+cells, EngineConfig fingerprint + config.json)
-├── EventLogWriter            report-v8 events.jsonl — births/deaths/extinctions derived from snapshot deltas; mutation bits by child↔parent gene diff (no kernel hook)
-├── MetricsWriter             report-v8 metrics.csv — per-tick aggregates, streamed, O(1)/tick
-├── CheckpointWriter          report-v8 ckpt/<tick>.ckpt — full-state checkpoints via Kernel.saveState every C ticks
-├── Replayer                  report-v8 replay: open manifest, seekTo(T) = nearest ckpt + forward ticks, circuitOf(slot); refuses on configHash mismatch
-└── SnapshotDump              report-v8 one-shot tick-T state page (lattice + per-unit + evolved circuits) for tools/timetravel.py
+├── StructuralAnalyzer/Stats  wiring-derived stats of the founders: junk load, reachability, weights
+├── DynamicsObserver/Summary  running aggregates over snapshots (activity, populations, energy, mass); no per-unit state, no trajectory
+├── RunReport                 byte-deterministic report-v15 text (aggregates + distributions + reproduction)
+├── TimeSeriesReport          <base>.timeseries.csv, one row per tick
+├── MapFrameWriter            streams spatial frames to <base>.frames.zst as 256-frame chunks, each zstd-19 (report-v14: lean row `u <cell> <slot> <genomeId>`; RLE resource field) + a <base>.frames.idx ASCII chunk index (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
+├── GenomeCatalogWriter       <base>.catalog.gz: gzipped global write-once genome dictionary (`g <id> <count> <genes>`), whole-loaded + native-gunzipped by the viewer; frames carry the id
+├── BirthLogWriter            <base>.births.csv.gz: one row per birth from the engine's birth list (lineage/generation/parent exact, genome ids from the shared catalog); DuckDB-queryable lineage store
+├── EventLogWriter            events.jsonl (observe): births from the birth list, deaths/extinctions derived from snapshot deltas; mutation bits by child↔parent gene diff (no kernel hook)
+├── MetricsWriter             metrics.csv (observe): per-tick aggregates, streamed, O(1)/tick
+├── SnapshotDump              one-shot tick-T state page (lattice + per-unit + evolved circuits) for tools/timetravel.py
+└── run
+    ├── RunDirectory          run.json + ckpt/<tick>.ckpt, `runId`, `seek(dir, T, threads)`, `createBranch`
+    └── LatestFrame           latest-frame-wins publisher: the tick loop publishes a compact frame every N ticks, readers never block it
 ```
+
+The tick, in order: `clear → propagate → evaluate → swap → intake → inflow → cost → growth → reproduction → movement → diffusion → decay`. Shapes: `clear`, `propagate`, `evaluate`, `intake`, `cost`, `growth` are per-unit; `inflow`, `diffusion`, `decay` are per-cell; `reproduction` and `movement` are claims; `swap` is serial.
 
 Gene bit layout (32 bits): `[SrcType:1 | SrcID:7 | DstType:1 | DstID:7 | Weight:16]`. SrcType 0=sensor 1=internal; DstType 0=internal 1=action. IDs wrap modulo TYPE_COUNT, so **every random int is a legal gene**. Weight: signed int16 × (4.0 / 32767), linear, unclamped.
 
 ## Docs — read before changing kernel behavior
 
-Binding (implementations MUST conform):
+Binding (implementations MUST conform). Phase numbers quoted inside older contracts are historical; the current order is in Architecture.
 
 - [docs/contract/contract-v0.md](docs/contract/contract-v0.md) — the closed-system laws: time, energy, decay, dormancy, death, prohibitions
 - [docs/contract/contract-v1.md](docs/contract/contract-v1.md) — open-system laws (energy intake); supersedes v0 §3/§10. Implemented (ADR 0010–0013)
@@ -124,15 +170,17 @@ Binding (implementations MUST conform):
 - [docs/contract/contract-v3.md](docs/contract/contract-v3.md) — space + motility: 2D toroidal lattice, per-cell resource field + diffusion, `LOCAL_RESOURCE` local sensing, one unit per cell (slot=identity, cell=`position[slot]`), spatial birth (free Moore neighbour), `MOVE_N/S/E/W` motility (phase 8). Implemented (ADR 0018 geometry, 0019 economics, 0020 motility); supersedes v1 §2–§5 (global RESOURCE) and v2 §5 (halt-on-full)
 - [docs/contract/contract-v4.md](docs/contract/contract-v4.md) — variable-length genomes (indels): heritable gene *count* via per-gene deletion + per-survivor tandem duplication at birth, soft `MAX_GENES` cap (floor 0 = inert), replication cost ∝ child length (`BUILD_COST_PER_GENE`), monotone operation-counter RNG keying. Implemented (ADR 0026); supersedes v2 §9's fixed-length provision (uses the v2 §12 provisioned storage)
 - [docs/contract/contract-v5.md](docs/contract/contract-v5.md) — biomass (Pirt size physics): `mass` as a distinct state variable = crystallized energy (one currency, audit gains a Σmass term), `GROW` effector (energy→mass) + `SELF_MASS` sensor, maintenance ∝ mass (replaces the v1 energy proxy, `STORAGE_LEAK_RATE` retired), harvest ∝ mass^α (asserted surface law), move cost ∝ mass, reproduction = **symmetric binary fission** (split mass+energy 50/50, `REPRODUCE` an ungated trigger — no viability gate, size-control checkpoint emergent), growth = phase 7 (pipeline 9→10), death dissipates mass→sink. Implemented (ADR 0028); supersedes contract-v2 reproduction-investment
-- [docs/contract/contract-v6.md](docs/contract/contract-v6.md) — patchy + cyclic resource inflow (**opt-in**): a central disk pulses `peak·triangle(tick)` (0→peak→0, period in **ticks** — no wall-clock), **barren periphery**, diffusion spreads it into a breathing radial gradient. Breaks spatial+temporal uniformity → niches (storage/timing/migration) so biomass finally pays. `InflowConfig` + `Kernel.configureInflow` (NOT a ctor param — engine, not DTO → baseline byte-identical), flags `--resource-cycle/--cycle-period/--cycle-radius/--cycle-peak`. Replay of cyclic runs guarded off. Implemented (ADR 0029); supersedes v1 §5 uniform inflow when enabled
-- [docs/contract/contract-v7.md](docs/contract/contract-v7.md) — programmable inflow **field** (**opt-in**): generalizes v6's single disk into a composable list of `InflowSource`s combined (MAX/ADD) over a baseline — the cap is a pure `f(x,y,tick)`. Sources: `Disk` (STATIC/ORBIT/DRIFT motion + pulse), `Rect` (+ toroidal drift), `Points` (explicit cells), `Noise` (seeded trig-free value-noise thresholded into emergent regions — Minecraft-style worldgen, optionally animated via a tick time-axis), `Ring` (concentric radial traveling wave from a centre — expanding ripples). `InflowConfig` reshaped to `(baseline, sources[], combine)`; `compile(W)` **bakes static sources** once into a `double[cells]` layer (hot path = array read, zero per-tick alloc; `UNIFORM` allocates nothing → baseline byte-identical `b3f5198071d3d9e5`). DSL flag `--inflow "disk …; rect …; points …; noise …; combine=… baseline=…"` (`--resource-cycle` kept as sugar, mutually exclusive). Closes v6's multiple/moving-patch gaps. Determinism via StrictMath orbit + integer-lattice value noise; conservation unchanged. Kernel logic untouched (config/harness only). Implemented (ADR 0034); supersedes v6 inflow when `--inflow` used
-- [docs/contract/contract-v8.md](docs/contract/contract-v8.md) — **resource decay** (field dissipation, always on): standing resource is no longer permanent — new **phase 11 (settle-decay)** after diffusion dissipates `field·RESOURCE_DECAY_RATE` (0.02, ~35-tick half-life) of every cell to the sink, and `CELL_INITIAL` 100→**0** (field starts empty). Before v8 the field had no sink (diffusion only redistributes, inflow only tops up), so the world started saturated and a moving source painted permanent resource — the inflow pattern was cosmetic. Now barren cells relax to 0, a moving source leaves a fading trail, `LOCAL_RESOURCE` is a live ramping input even under uniform inflow, and lean patchy worlds can drive cold-start extinction (honest pressure). Conservative (decay→sink, audit holds ~1e-6); deterministic. Baseline digest `1f97e28f3e369e9b → 52d655ca519aa56b`. Implemented (ADR 0036)
+- [docs/contract/contract-v6.md](docs/contract/contract-v6.md): patchy + cyclic resource inflow (**opt-in**): a central disk pulses `peak·triangle(tick)` (0→peak→0, period in **ticks**: no wall-clock), **barren periphery**, diffusion spreads it into a breathing radial gradient. Breaks spatial+temporal uniformity → niches (storage/timing/migration) so biomass finally pays. `InflowConfig` (now chemical 0's inflow inside `EngineConfig`), flags `--resource-cycle/--cycle-period/--cycle-radius/--cycle-peak`. Checkpoints carry the config, so cyclic runs resume and seek. Implemented (ADR 0029); supersedes v1 §5 uniform inflow when enabled
+- [docs/contract/contract-v7.md](docs/contract/contract-v7.md): programmable inflow **field** (**opt-in**): generalizes v6's single disk into a composable list of `InflowSource`s combined (MAX/ADD) over a baseline: the cap is a pure `f(x,y,tick)`. Sources: `Disk` (STATIC/ORBIT/DRIFT motion + pulse), `Rect` (+ toroidal drift), `Points` (explicit cells), `Noise` (seeded trig-free value-noise thresholded into emergent regions: Minecraft-style worldgen, optionally animated via a tick time-axis), `Ring` (concentric radial traveling wave from a centre: expanding ripples). `InflowConfig` reshaped to `(baseline, sources[], combine)`; `compile(W)` **bakes static sources** once into a `double[cells]` layer (hot path = array read, zero per-tick alloc; `UNIFORM` allocates nothing). DSL flag `--inflow "disk …; rect …; points …; noise …; combine=… baseline=…"` (`--resource-cycle` kept as sugar, mutually exclusive). Closes v6's multiple/moving-patch gaps. Determinism via StrictMath orbit + integer-lattice value noise; conservation unchanged. Implemented (ADR 0034); supersedes v6 inflow when `--inflow` used
+- [docs/contract/contract-v8.md](docs/contract/contract-v8.md): **resource decay** (field dissipation, always on): standing resource is no longer permanent: new **decay phase** after diffusion dissipates `field·RESOURCE_DECAY_RATE` (0.02, ~35-tick half-life) of every cell to the sink, and `CELL_INITIAL` 100→**0** (field starts empty). Before v8 the field had no sink (diffusion only redistributes, inflow only tops up), so the world started saturated and a moving source painted permanent resource: the inflow pattern was cosmetic. Now barren cells relax to 0, a moving source leaves a fading trail, `LOCAL_RESOURCE` is a live ramping input even under uniform inflow, and lean patchy worlds can drive cold-start extinction (honest pressure). Conservative (decay→sink, audit holds ~1e-6); deterministic. Implemented (ADR 0036)
+- [docs/contract/contract-v9.md](docs/contract/contract-v9.md): **claim phases, seed-keyed streams, thread-count independence** (engine v6). Movement and reproduction are propose-then-resolve: a target or child cell must be free at phase start, the lowest slot (parent) wins, no chains, an unaffordable parent pays nothing and burns no slot, winners take free slots in ascending order, and the tick's births are published as a list. Mutation is keyed `(seed, parentSlot, tick, op)` and point mutation is geometric skip-sampled. All kernel randomness follows the run seed through tagged streams. Strict arithmetic (`StrictMath`, no `Math.pow/exp/log/sin/cos/tan/fma`), phases have shapes, and same version + config + seed gives identical state for any thread count (fixed 4096-entry chunks, ordered partial totals, chunked digest). Supersedes contract-v3 §9 tie and chain rules, contract-v5 §5 placement order, contract-v4 §4 keying, and the locked-pipeline rule. Implemented (ADRs 0038 to 0045)
+- [docs/specs/report-v15.md](docs/specs/report-v15.md): engine v6 report: `state-digest` is the chunked digest of the final state (not a per-tick chain), the observer keeps running aggregates over all living units and drops the founder-indexed lines (`## burn-rate`, `## terminal-regimes`, `## action-channel`, ...), `schema: report-v15`, `kernel: v6`. Lists every baseline line that moved and why. Delta over report-v14
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics
 - [docs/specs/report-v6.md](docs/specs/report-v6.md) — run report + per-unit CSV + wiring CSV schema (reproduction section: births, generations, population, lineages); delta over [report-v5.md](docs/specs/report-v5.md)
 - [docs/specs/report-v7.md](docs/specs/report-v7.md) — spatial map sidecar `<base>.map.txt` (resource field + per-cell lineage, sampled, streamed) + `tools/mapviz.py` HTML scrub player; delta over report-v6
-- [docs/specs/report-v8.md](docs/specs/report-v8.md) — observability layer: deterministic-replay time-travel (manifest + checkpoints), decoupled `events.jsonl`/`metrics.csv` sinks (kernel stays pure — no event hook), DuckDB/Parquet query layer, `tools/timetravel.py`. Implemented (ADR 0023); `--observe` off by default, sink-off runs byte-identical; delta over report-v7
+- [docs/specs/report-v8.md](docs/specs/report-v8.md): observability layer (the manifest, `Replayer` and positional checkpoints are superseded by engine v6 checkpoints, ADR 0043): deterministic-replay time-travel (manifest + checkpoints), decoupled `events.jsonl`/`metrics.csv` sinks (kernel stays pure: no event hook), DuckDB/Parquet query layer, `tools/timetravel.py`. Implemented (ADR 0023); `--observe` off by default, sink-off runs byte-identical; delta over report-v7
 - [docs/specs/report-v9.md](docs/specs/report-v9.md) — genome-carrying map frames + circuit inspector: each `<base>.map.txt` `u` line now carries the unit's genome + per-tick node outputs, so the live viewer groups living units by genome, decodes any genome to a **force-directed circuit** (curved sign/weight edges, self-loops, ×N dosage, junk filter), and on hover isolates a node + shows its **actual weights** with per-tick active-signal glow — all client-side, no reconstruction. Kernel stays pure; delta over report-v7
 - [docs/specs/report-v10.md](docs/specs/report-v10.md) — surface biomass (mass): new `## mass` report section (totals + alive distribution), `final_mass` column in `.units.csv`, `mass_total` column in `metrics.csv`, a `mass` field on each map-frame `u` line, and a **colour-by-mass** toggle in `tools/mapviz.py` + `live.html` (blue→red, scaled to run max) with mass mean/max readouts. Report `schema:` → report-v10, `kernel:` → v5. Harness + viewers only; kernel stays pure; delta over report-v9
 - [docs/specs/report-v11.md](docs/specs/report-v11.md) — compact map frames: the `<base>.map.txt` `u` line was half redundant (genome re-emitted every frame though it only changes at birth) and half over-precise (full-`double` node outputs). report-v11 **dedups genome per slot** (`* <count> <genes>` define vs `^` carry-forward) and **rounds outputs to ≤4 decimals** (`NaN`→null), shrinking the u-portion ~60–80% (survivor 226 MB → ~45 MB). Fields 0–5 keep their position → `tools/mapviz.py` untouched; `LiveServer` carries genomes forward at parse → JSON + `live.html` untouched (and still reads pre-v11 files). Writer keeps an O(slots) last-genome cache (doctrine intact). Composes with the windowed sampler (`--map-from/--map-to`, commit `ac17dc3`). Harness + viewers only; kernel stays pure; text report `schema:` stays report-v10; delta over report-v10 (ADR 0030)
@@ -150,27 +198,26 @@ If code and a binding spec disagree, the spec wins. If a change requires the spe
 ## Invariants — do not break
 
 - **No semantics in the kernel.** Nodes carry no meaning; the kernel never interprets, rewards, or privileges behavior. If a behavior feels "obvious" while coding, you are probably smuggling semantics.
-- **Determinism.** Fixed seed, no wall-clock, no unseeded randomness, fixed evaluation order. Same genome + seed → identical tick history, always.
-- **Tick pipeline is locked:** clear accumulators → propagate → evaluate → swap → settle intake → settle cost → settle growth → settle reproduction → settle movement → settle diffusion → settle decay. New mechanics become additional phases (growth = phase 7, reproduction = phase 8, movement = phase 9, diffusion = phase 10, decay = phase 11), never reorderings of existing ones.
+- **Determinism.** Same engine version + config + seed gives a byte-identical state on any machine and any **thread count**. No wall-clock, no unseeded randomness; every random draw is a pure function of the run seed, a stream tag and ids. Chunk boundaries are fixed (`Chunks.SIZE`) and never depend on threads; totals are merged in ascending chunk index; claim resolves run in ascending slot order. Results may change between engine versions, never within one.
+- **Strict arithmetic in `kernel/`.** `StrictMath` or exact operations only; no `Math.pow/exp/log/sin/cos/tan/fma` (`StrictMathLintTest` enforces it) and no floating-point reduction in an order that depends on scheduling.
+- **Phases declare a shape and keep inside it.** The tick is an ordered `List<Phase>` built in `Kernel`; adding, splitting, removing or reordering a phase is an edit to that list (and a contract change if it alters the world). Per-unit phases write only their own slot and own cell; per-cell phases write only their own cell's next buffer; claim phases write only intents in `run` and winners in `finish`, in fixed order; scalar totals go to the per-chunk partial arrays and `finish` merges them in chunk order. A phase that breaks its shape breaks thread-count independence.
 - **Energy is conserved.** Never created, only moved to the sink; charges clamp to available energy. The `energy-audit-error` line must stay ~0 (FP noise only). Death is `energy ≤ 0`, derived — never store an alive flag (contract §9).
-- **No per-tick allocation or decoding.** Genome decoding happens once in GenomeCompiler. Hot loop touches flat arrays only.
+- **No per-tick allocation or decoding.** Genome decoding happens in `SlotCompiler` at start, birth and restore, never per tick. The hot loop touches flat arrays only; births allocate nothing.
 - **Memory only via DELAY.** No instantaneous feedback; propagation reads previous-tick outputs only.
 - **Data-oriented, not OO organisms.** Flat arrays + indices + phases. No object graphs between nodes.
 - **Mutation-safe encoding.** Any 32-bit int must remain decodable. Never add validation that can reject a gene outright (structural no-ops are fine).
 
-## Performance doctrine
+## Performance and memory
 
-The kernel must stay small enough to embed in a game loop later — think microcontroller-class budgets, not server-class.
+The engine is built for a multi-core research machine (a Hetzner CX33 is the deployment target), not for a game loop or a microcontroller (ADR 0045). Speed is measured, not assumed: `./gradlew bench` and [docs/notes/engine-v6-bench.md](docs/notes/engine-v6-bench.md) hold the numbers and the stopping-rule check.
 
-- Primitives and flat arrays only in runtime state. No boxing, no collections, no streams, no lambdas in the hot path.
-- Zero allocation and zero decoding inside `tick()`. Anything structure-derived is precomputed once (see cache spec).
-- Memory budget is a feature: the four per-node signal arrays (outputs×2, accumulators, delayMemory) are `float` — 4 × NodeLayout.TOTAL × 4 bytes/unit (ADR 0037, signals only; the energy economy stays `double` for the audit). Any change that grows per-unit or per-connection footprint needs an ADR justifying it.
-- **Memory discipline (core value).** Total footprint must be linear in units and CONSTANT in tick count. Concretely:
-  - No unbounded collections anywhere in a loop. Nothing may accumulate per-tick history — observers and future instruments keep running aggregates (O(units)), never trajectories. If a feature seems to need history, it needs a bounded ring buffer and an ADR.
-  - Observers preallocate every buffer in their constructor; `observe()`-style per-tick methods allocate nothing.
-  - Any new allocation in a per-tick path needs an ADR. Known accepted exception: `Kernel.snapshot()` allocates one small view object per call — fine at game framerates, to be replaced with a reusable view if profiling ever shows GC pressure.
-  - Boxing, varargs, streams, and string building stay out of per-tick paths (trace logging is exempt: opt-in, small runs only).
-- Known future optimizations, deliberately deferred (each needs an ADR when taken): CompiledConnection object array → structure-of-arrays; reusable snapshot view. (Signal state double → float is done — ADR 0037; full single-precision SIMD of the propagate multiply is still gated on the SoA/weight-as-float step.)
+- Primitives and flat arrays in runtime state. No boxing, collections, streams or lambdas in the hot path; no object per organism.
+- Zero allocation and zero decoding inside `tick()`, births included. Anything structure-derived is computed once.
+- The signal arrays (outputs ×2, accumulators, delayMemory) are `float`; the energy economy stays `double` so the audit is exact (ADR 0037).
+- **Memory discipline (core value).** Total footprint is linear in units and cells and CONSTANT in tick count. Nothing accumulates per-tick history: observers keep running aggregates, never trajectories. If a feature seems to need history, it needs a bounded ring buffer. Observers preallocate in their constructors.
+- Footprint growth (a new per-unit array, a wider connection record) needs a sentence in the design note or an ADR, not a per-array justification.
+- `Kernel.snapshot()` allocates one small view object per call; the `observe()`-style per-tick methods allocate nothing. Boxing and string building stay out of per-tick paths (trace logging is exempt: opt-in, small runs only).
+- Known serial costs (resolve passes of the claim phases, `snapshot()` sums) bound the thread speed-up; the bench note has the profile.
 
 ## Decision records
 
@@ -201,9 +248,10 @@ Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://
 6. ~~Space (basic)~~ done (ADR 0018 geometry, 0019 economics): 2D toroidal lattice, per-cell resource field + diffusion, `LOCAL_RESOURCE` replaces global RESOURCE, one-pixel-one-unit, spatial birth into a free Moore neighbour, halt-on-full retired. Sessile. Yields coexisting lineages (vs the old monoculture).
 7. ~~Motility~~ done (ADR 0020): `MOVE_N/S/E/W` effectors (Fork B), one Moore step/tick, `MOVE_COST`, deadzone, blocked-if-occupied; position decoupled from slot (no per-move recompile/alloc); chemotaxis emergent via LOCAL_RESOURCE + DELAY.
 8. ~~Spatial map + scrub viewer + live viewer~~ done (report-v7): `MapFrameWriter` streams a sampled `<base>.map.txt` (resource field + per-cell lineage, O(1) RAM); `tools/mapviz.py` renders a self-contained HTML scrub player; `--serve PORT` started an in-JVM `LiveServer` (`com.sun.net.httpserver`, no deps) that tailed the file so a run could be watched live (`src/main/resources/live.html`, follow-live + scrub). **report-v12 (ADR 0031) removed the bespoke `LiveServer` + `--serve`**: the viewer now parses `.map.txt` client-side and tails it over a generic static server (or runs fully offline from baked frames).
-9. ~~Observability layer~~ done (report-v8, ADR 0023): deterministic-replay time-travel (`RunManifest` + `CheckpointWriter` + `Replayer`, `Kernel.saveState`/`loadState`), decoupled `EventLogWriter`/`MetricsWriter` sinks (kernel stays pure — no event hook; events + mutation bits derived from snapshots/gene-diff), DuckDB/Parquet query layer, `tools/timetravel.py` time-travel page. `--observe` off by default; sink-off runs byte-identical.
+9. ~~Observability layer~~ done (report-v8, ADR 0023): deterministic-replay time-travel (manifest + checkpoints + `Replayer`; replaced in engine v6 by `RunDirectory` and `CheckpointCodec`, ADR 0043), decoupled `EventLogWriter`/`MetricsWriter` sinks (kernel stays pure: no event hook; events + mutation bits derived from snapshots/gene-diff), DuckDB/Parquet query layer, `tools/timetravel.py` time-travel page. `--observe` off by default; sink-off runs byte-identical.
 10. ~~Variable-length genomes (indels)~~ done (contract-v4, ADR 0026): heritable gene *count* via per-gene deletion + per-survivor tandem duplication at birth (operation-counter RNG keying), soft `MAX_GENES` cap (floor 0 = inert), replication cost ∝ child length (`BUILD_COST_PER_GENE`, build-time anti-bloat — no per-tick per-gene tax). Gene dosage emergent (duplicate a transporter → more harvest capacity).
 11. ~~Biomass (Pirt size physics)~~ done (contract-v5, ADR 0028): `mass` as a distinct crystallized-energy variable, `GROW` effector + `SELF_MASS` sensor, maintenance ∝ mass (replaces the energy proxy), harvest ∝ mass^α surface law, move cost ∝ mass, **symmetric binary fission** (split mass+energy 50/50), ungated `REPRODUCE` trigger (size-control checkpoint emergent — no `M_DIV_MIN`), growth phase 7, death dissipates mass→sink.
 12. ~~report-v10 (surface mass)~~ done: `## mass` report section, `final_mass` (units.csv) + `mass_total` (metrics.csv) columns, `mass` on map-frame `u` lines, colour-by-mass in `tools/mapviz.py` + `live.html`.
-13. ~~Fluctuating/patchy inflow~~ done (contract-v6 ADR 0029 + contract-v7 ADR 0034): v6 opt-in central pulsing disk (`--resource-cycle`); **v7 generalized to a programmable inflow field** — composable `InflowSource`s (disk w/ ORBIT/DRIFT motion, rect, explicit points, seeded value-noise worldgen) combined MAX/ADD over a baseline, `--inflow "<spec>"` DSL, static-source bake. Closes multiple/moving patches. Remaining: replay support (manifest doesn't carry the field), seed-from-evolved-founder, fractal/Perlin noise octaves.
-14. Later: CROWDING/EMIT + quorum, multi-resource + stoichiometry, sub-gene/selfish-DNA/whole-genome-duplication indel variants, catabolism + corpse decomposition + multi-cell bodies (contract-v5 omissions).
+13. ~~Fluctuating/patchy inflow~~ done (contract-v6 ADR 0029 + contract-v7 ADR 0034): v6 opt-in central pulsing disk (`--resource-cycle`); **v7 generalized to a programmable inflow field**: composable `InflowSource`s (disk w/ ORBIT/DRIFT motion, rect, explicit points, seeded value-noise worldgen) combined MAX/ADD over a baseline, `--inflow "<spec>"` DSL, static-source bake. Closes multiple/moving patches. Remaining: seed-from-evolved-founder, fractal/Perlin noise octaves.
+14. ~~Engine v6~~ done (contract-v9, ADRs 0038 to 0045, report-v15): state declared once (`WorldState`/`FieldSpec`), node layout generated from `NodeCatalog` and exported as `.layout.json`, flat connection arrays with junk pruning, the tick as a declared list of shaped phases run by a fixed-chunk `ParallelRunner`, claim-based movement and reproduction, parent-keyed skip-sampled mutation, all randomness keyed by the run seed, chemical table, per-run `EngineConfig` from JSON, self-sufficient versioned checkpoints with seek and branch, chunked state digest. Benchmarks and the stopping-rule result (rule 2, 4-thread scaling on big500, not met) are in [docs/notes/engine-v6-bench.md](docs/notes/engine-v6-bench.md); the CX33 run is pending.
+15. Later: sensors beyond the own cell (gradients), several resources with separate harvesting, secretions and quorum (CROWDING/EMIT), corpse release and decomposers, sub-gene/selfish-DNA/whole-genome-duplication indel variants, multi-cell bodies (contract-v5 omissions), the web app (design §9).

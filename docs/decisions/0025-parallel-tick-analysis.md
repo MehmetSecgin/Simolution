@@ -1,5 +1,7 @@
 # 0025 — Parallelizing the tick: feasibility analysis (deferred)
 
+> Superseded in part by [ADR 0039](0039-phase-shapes-and-parallel-runner.md): work scheduling is dynamic, chunk boundaries and merge order are fixed.
+
 ## Context
 The kernel is single-threaded: ~485 ticks/s sparse (W=100), ~226 ticks/s dense
 (W=130) on an M2 Pro, ~4M cell-ticks/s per core. Cost per tick ≈ `W²` (full-grid

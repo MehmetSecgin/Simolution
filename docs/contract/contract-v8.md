@@ -1,5 +1,7 @@
 # Contract v8 — resource decay (field dissipation)
 
+> Superseded in part by [contract-v9](contract-v9.md) §6: the "locked pipeline" wording is retired.
+
 Delta over [contract-v7](contract-v7.md). Adds a **resource-decay law**: standing
 resource in the cell field is no longer permanent — each tick every cell
 dissipates a fixed fraction of its resource to the sink. Independent of, and

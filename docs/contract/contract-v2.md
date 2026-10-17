@@ -1,5 +1,7 @@
 # Kernel v2 Contract — Reproduction & Mutation (evolution proper)
 
+> Superseded in part by [contract-v9](contract-v9.md) §6: the "pipeline is locked" rule (§11) is retired.
+
 ## 0. Scope
 
 Kernel v2 closes the evolutionary loop. v1 opened the system (energy intake);

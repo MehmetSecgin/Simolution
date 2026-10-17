@@ -1,5 +1,7 @@
 # 0023 — Observability: replay-based time-travel + decoupled logs, DuckDB/Parquet query
 
+> Superseded in part by [ADR 0043](0043-per-run-config-versioned-checkpoints-seek-branch.md): the manifest, `Replayer` and positional checkpoints.
+
 ## Context
 Runs are explored today via end-of-run report + sidecars + the spatial scrub
 viewer. Missing: *"jump to any tick and see the whole world there"* and *"ask

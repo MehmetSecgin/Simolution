@@ -1,5 +1,7 @@
 # Contract v4 — variable-length genomes (indels)
 
+> Superseded in part by [contract-v9](contract-v9.md) §3: mutation is keyed by the parent slot and point mutation is skip-sampled (replaces §4).
+
 Delta over [contract-v3](contract-v3.md). Adds the **genome-length axis**: the
 *number* of genes in a genome can now change heritably, via insertion and deletion
 mutation operators, so complexity itself can evolve (gene duplication →
