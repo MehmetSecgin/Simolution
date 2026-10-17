@@ -64,6 +64,11 @@ public final class WorldState {
     public final int[] activeThisTick;
     public final int[] moveIntent;
     public final int[] cellWinner;
+    public final int[] birthCell;
+    public final double[] birthCost;
+    public final int[] birthParent;
+    public final int[] birthChild;
+    public final int[] birthChildCell;
     public final double[] sinkPartial;
     public final double[] inflowPartial;
 
@@ -71,6 +76,7 @@ public final class WorldState {
     public double energySink;
     public double cumulativeInflow;
     public long birthsTotal;
+    public int birthCount;
     public int maxGeneration;
     public double creditedInitialEnergy;
     public double creditedInitialMass;
@@ -133,6 +139,12 @@ public final class WorldState {
         Arrays.fill(moveIntent, -1);
         this.cellWinner = new int[slots];
         Arrays.fill(cellWinner, -1);
+        this.birthCell = new int[slots];
+        Arrays.fill(birthCell, -1);
+        this.birthCost = new double[slots];
+        this.birthParent = new int[slots];
+        this.birthChild = new int[slots];
+        this.birthChildCell = new int[slots];
         this.sinkPartial = new double[Chunks.count(slots)];
         this.inflowPartial = new double[Chunks.count(slots)];
 
@@ -203,6 +215,11 @@ public final class WorldState {
                 new FieldSpec("activeThisTick", Dim.UNIT, scratch, zeroed, OnDeath.KEEP, activeThisTick),
                 new FieldSpec("moveIntent", Dim.UNIT, scratch, explicit, OnDeath.KEEP, moveIntent),
                 new FieldSpec("cellWinner", Dim.CELL, scratch, explicit, OnDeath.KEEP, cellWinner),
+                new FieldSpec("birthCell", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthCell),
+                new FieldSpec("birthCost", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthCost),
+                new FieldSpec("birthParent", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthParent),
+                new FieldSpec("birthChild", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthChild),
+                new FieldSpec("birthChildCell", Dim.UNIT, scratch, explicit, OnDeath.KEEP, birthChildCell),
                 new FieldSpec("outputsNext", Dim.UNIT_NODE, scratch, zeroed, OnDeath.KEEP, outputsNext),
                 new FieldSpec("cellChemNext", Dim.CELL_CHEM, scratch, explicit, OnDeath.KEEP, cellChemNext),
                 new FieldSpec("sinkPartial", Dim.CHUNK, scratch, explicit, OnDeath.KEEP, sinkPartial),

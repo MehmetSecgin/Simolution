@@ -7,36 +7,28 @@ import java.util.Arrays;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 /**
  * Streams exact life-cycle events to {@code events.jsonl}, one JSON object per
- * line (report-v8). The kernel exposes no event hook (it stays pure); this
- * writer <b>derives</b> every event from snapshot deltas and the state it can
- * already see:
+ * line (report-v8). The kernel exposes no event hook (it stays pure); births come
+ * from the engine's published per-tick birth list ({@code WorldState.birthParent} /
+ * {@code birthChild}, engine v6 design §5.6) and the rest is derived from snapshot
+ * deltas:
  * <ul>
- *   <li><b>BIRTH</b> — a slot that was empty (or held a different occupant) last
- *       tick now holds a living unit. The parent is the prev-tick occupant of a
- *       Moore neighbour of the child's cell whose lineage matches and whose
- *       generation is one less; reproduction (phase 7) places the child in a free
- *       neighbour of the parent's <i>start-of-tick</i> cell, so prev positions are
- *       the right ones to test (movement is a later phase). The exact mutated bit
- *       count is {@code popcount(child ⊕ parent)} over the genes. If the parent is
- *       ambiguous (no unique match — a rare same-tick tie) {@code parentSlot} and
- *       {@code mutations} are emitted as {@code -1}: an honest "unknown", never a
- *       guess.</li>
- *   <li><b>DEATH</b> — a slot that held a living unit last tick is now empty (or
- *       reused), i.e. it crossed {@code energy ≤ 0} (contract §9). {@code lifespan}
- *       is ticks since that occupant's birth.</li>
+ *   <li><b>BIRTH</b> — one per entry of the birth list, with the exact parent. The
+ *       mutated bit count is {@code popcount(child ⊕ parent)} over the genes, or
+ *       {@code -1} when an indel changed the length.</li>
+ *   <li><b>DEATH</b> — a slot that held a living unit last tick is now empty, or was
+ *       reused by a birth this tick, i.e. it crossed {@code energy ≤ 0} (contract §9).
+ *       {@code lifespan} is ticks since that occupant's birth.</li>
  *   <li><b>EXTINCTION</b> — a lineage's living count fell to zero, never to recover
  *       within this slot pool (it cannot: lineage ids are founder-rooted and never
  *       reissued). Emitted once, with the lineage's peak membership and deepest
  *       generation.</li>
  * </ul>
  * Founders are recorded in the manifest, not as events; there is no abiogenesis in
- * the current kernel. Births/deaths within a single tick that reuse a slot for two
- * individuals of the same {@code (lineage, generation)} are the one delta-invisible
- * case — vanishingly rare and noted; the exact cumulative counts still live in
- * {@code metrics.csv} (kernel-tracked {@code birthsTotal}).
+ * the current kernel.
  * <p>
  * All buffers are sized once in the constructor; {@link #observe} allocates only
  * the JSONL text it streams, and only on an actual event (events are rare relative
@@ -45,7 +37,6 @@ import com.simolution.kernel.runtime.KernelSnapshot;
 public final class EventLogWriter implements Closeable {
 
     private final Writer out;
-    private final BirthTracker births;
     private final int maxUnits;
     private final int founderCount;
     private final StringBuilder line;
@@ -62,11 +53,10 @@ public final class EventLogWriter implements Closeable {
     private final int[] lineageMaxGen;
     private final boolean[] lineageExtinct;
 
-    public EventLogWriter(final Writer out, final BirthTracker births, final int maxUnits,
+    public EventLogWriter(final Writer out, final int maxUnits,
                           final int founderCount, final int[] founderCells,
                           final EngineConfig config) throws IOException {
         this.out = out;
-        this.births = births;
         this.maxUnits = maxUnits;
         this.founderCount = founderCount;
         this.line = new StringBuilder(160);
@@ -108,7 +98,8 @@ public final class EventLogWriter implements Closeable {
 
         Arrays.fill(lineageCount, 0);
 
-        final int birthCount = births.birthCount();
+        final WorldState state = snapshot.state;
+        final int birthCount = state.birthCount;
         int nextBirth = 0;
         for (int slot = 0; slot < maxUnits; slot++) {
             final boolean prevAlive = prevEnergy[slot] > 0.0;
@@ -125,14 +116,13 @@ public final class EventLogWriter implements Closeable {
                 }
             }
 
-            final boolean idChanged = prevAlive && curAlive
-                    && (prevLineage[slot] != lineage[slot] || prevGeneration[slot] != generation[slot]);
+            final boolean born = nextBirth < birthCount && state.birthChild[nextBirth] == slot;
 
-            if ((prevAlive && !curAlive) || idChanged) {
+            if (prevAlive && (!curAlive || born)) {
                 emitDeath(tick, slot);
             }
-            if (nextBirth < birthCount && births.birthChild(nextBirth) == slot) {
-                emitBirth(tick, slot, births.birthParent(nextBirth), snapshot);
+            if (born) {
+                emitBirth(tick, slot, state.birthParent[nextBirth], snapshot);
                 nextBirth++;
             }
         }
@@ -161,8 +151,8 @@ public final class EventLogWriter implements Closeable {
         final int cell = s.position[child];
         final long childLineage = s.lineageId[child];
         final int childGen = s.generation[child];
-        final int mutations = parent < 0 ? -1 : countMutations(child, parent, s);
-        final long parentLineage = parent < 0 ? -1 : s.lineageId[parent];
+        final int mutations = countMutations(child, parent, s);
+        final long parentLineage = s.lineageId[parent];
 
         birthTick[child] = tick;
 

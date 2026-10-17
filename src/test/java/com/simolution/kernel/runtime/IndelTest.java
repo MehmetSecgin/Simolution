@@ -121,7 +121,7 @@ class IndelTest {
     }
 
     // determinism (contract-v4 §4): the operation-counter keying is a pure
-    // function of (seed, childSlot, birthTick, opIndex), so two independent runs
+    // function of (seed, parentSlot, birthTick, opIndex), so two independent runs
     // of the same seed evolve byte-identical genomes and energy.
     @Test
     void sameSeedProducesIdenticalGenomes() {

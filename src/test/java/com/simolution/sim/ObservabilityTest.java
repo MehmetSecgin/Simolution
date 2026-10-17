@@ -79,12 +79,11 @@ class ObservabilityTest {
 
     private long digestOfRun(boolean observe) throws IOException {
         Kernel kernel = freshKernel();
-        BirthTracker births = new BirthTracker(WORLD * WORLD, UNITS, WORLD, founderCells(), ENGINE);
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
         if (observe) {
             eventLog = new EventLogWriter(new BufferedWriter(new StringWriter()),
-                    births, WORLD * WORLD, UNITS, founderCells(), ENGINE);
+                    WORLD * WORLD, UNITS, founderCells(), ENGINE);
             metrics = new MetricsWriter(new BufferedWriter(new StringWriter()), UNITS, WORLD * WORLD);
         }
         long digest = 0L;
@@ -92,7 +91,6 @@ class ObservabilityTest {
             kernel.tick();
             KernelSnapshot s = kernel.snapshot();
             if (observe) {
-                births.observe(s);
                 eventLog.observe(s);
                 metrics.sample(s);
             }

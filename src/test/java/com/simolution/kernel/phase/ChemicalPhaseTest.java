@@ -84,7 +84,7 @@ class ChemicalPhaseTest {
                 "reproduction", "movement", "diffusion", "decay"),
                 phases.stream().map(Phase::name).toList());
         assertEquals(List.of(Shape.PER_UNIT, Shape.PER_UNIT, Shape.PER_UNIT, Shape.SERIAL, Shape.PER_UNIT,
-                Shape.PER_CELL, Shape.PER_UNIT, Shape.PER_UNIT, Shape.SERIAL, Shape.CLAIM, Shape.PER_CELL,
+                Shape.PER_CELL, Shape.PER_UNIT, Shape.PER_UNIT, Shape.CLAIM, Shape.CLAIM, Shape.PER_CELL,
                 Shape.PER_CELL),
                 phases.stream().map(Phase::shape).toList());
     }

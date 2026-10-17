@@ -8,28 +8,39 @@ import com.simolution.kernel.state.WorldState;
 
 /**
  * Phase 8: reproduction as symmetric binary fission (contract v5 §5, supersedes the
- * contract-v2 investment/budding model). A unit that wants to divide ({@code REPRODUCE}
- * output {@code > 0}, a bare trigger whose magnitude is not an investment amount) and can
- * afford the replication work splits its body in two: the child receives <i>half</i> the
- * parent's energy and <i>half</i> its mass, and the parent keeps the other half. There
- * is no viability gate (contract v5 §5): an undersized daughter simply cannot pay its
- * maintenance against its sublinear harvest and dies on its own, and a unit that fires
- * {@code REPRODUCE} blindly wastes {@code buildCost} and halves itself toward corpses, so the
- * size-control checkpoint is left to evolve via {@code SELF_MASS} rather than coded here.
+ * contract-v2 investment/budding model), resolved as a claim (engine v6 design §5.6). A unit
+ * that wants to divide ({@code REPRODUCE} output {@code > 0}, a bare trigger whose magnitude is
+ * not an investment amount) and can afford the replication work splits its body in two: the
+ * child receives <i>half</i> the parent's energy and <i>half</i> its mass, and the parent keeps
+ * the other half. There is no viability gate (contract v5 §5): an undersized daughter simply
+ * cannot pay its maintenance against its sublinear harvest and dies on its own, and a unit that
+ * fires {@code REPRODUCE} blindly wastes {@code buildCost} and halves itself toward corpses, so
+ * the size-control checkpoint is left to evolve via {@code SELF_MASS} rather than coded here.
  * <p>
- * The act of copying still costs {@code buildCost = BUILD_COST + BUILD_COST_PER_GENE ·
- * childGeneCount} (contract v4 §3), charged to the sink before the split; the child genome is
- * built first so its post-indel length is known to price it. A parent that cannot afford
- * {@code buildCost} does not divide (an energy constraint, not a denied birth); the cheap
- * pre-filter {@code energy ≤ BUILD_COST} skips parents too poor for even an empty child
- * without claiming a slot. Because the parent always retains {@code (energy − buildCost)/2 >
- * 0}, fission is never terminal: the parent cannot die dividing (no semelparity), so this
- * phase frees no cell. Placement is spatial (contract v3 §5): the lowest-indexed free Moore
- * neighbour, or no birth if none is free. Parents scan in ascending slot order with the child
- * installed immediately, so the genealogy and geography stay deterministic.
+ * The act of copying costs {@code buildCost = BUILD_COST + BUILD_COST_PER_GENE · childGeneCount}
+ * (contract v4 §3), charged to the sink before the split. Indel decisions never read gene values,
+ * so {@link #childLength} knows the post-indel length from the parent's key alone, before any
+ * slot is claimed. Because the parent always retains {@code (energy − buildCost)/2 > 0}, fission
+ * is never terminal, so this phase frees no cell and kills no unit.
  * <p>
- * Shape is {@link Shape#SERIAL}: an in-order scan with immediate installation is the conflict
- * resolution, and births claim slots and cells as they go.
+ * {@link #run} (parallel, per parent) reads only phase-start state and writes only the parent's
+ * own {@code birthCell} and {@code birthCost}: the lowest-indexed free Moore neighbour (contract
+ * v3 §5) and the build cost, or {@code birthCell = -1} when the unit does not want to divide,
+ * has no free neighbour, or cannot afford its child. {@link #finish} (serial) resolves in
+ * ascending parent slot: the first claim on a cell wins ({@code cellWinner}, reset per touched
+ * entry so it is all {@code -1} again when movement starts). Winners take free slots
+ * ({@code energy ≤ 0} at phase start) in ascending slot order and install their child; losers
+ * and unaffordable parents pay nothing and claim no slot. Each birth is appended to the
+ * published birth list ({@code birthParent}, {@code birthChild}, {@code birthChildCell},
+ * {@code birthCount}), ascending in parent and child slot alike.
+ * <p>
+ * The free-slot scan uses one monotone cursor, so two winners never share a slot. A slot freed
+ * by a death earlier this tick (cost or growth) has {@code energy ≤ 0} at phase start, so it is
+ * free here like any other dead slot. Slots this phase changes stay live: a parent keeps
+ * positive energy and a child is installed only behind the cursor, so reading
+ * {@code energy[slot] ≤ 0} at the cursor is the same as reading it at phase start.
+ * <p>
+ * Shape is {@link Shape#CLAIM}.
  */
 public final class ReproductionPhase implements Phase {
 
@@ -39,11 +50,10 @@ public final class ReproductionPhase implements Phase {
     private final int unitCount;
     private final double buildCostBase;
     private final double buildCostPerGene;
-    private final double mutationRateWeight;
-    private final double mutationRateStruct;
+    private final double logKeepWeight;
+    private final double logKeepStruct;
     private final double indelRateDup;
     private final double indelRateDel;
-    private int freeSlotCursor;
 
     public ReproductionPhase(final WorldState state, final EngineConfig config) {
         this.state = state;
@@ -52,8 +62,8 @@ public final class ReproductionPhase implements Phase {
         this.unitCount = state.unitCount;
         this.buildCostBase = config.buildCost();
         this.buildCostPerGene = config.buildCostPerGene();
-        this.mutationRateWeight = config.mutationRateWeight();
-        this.mutationRateStruct = config.mutationRateStruct();
+        this.logKeepWeight = StrictMath.log(1 - config.mutationRateWeight());
+        this.logKeepStruct = StrictMath.log(1 - config.mutationRateStruct());
         this.indelRateDup = config.indelRateDup();
         this.indelRateDel = config.indelRateDel();
     }
@@ -65,7 +75,7 @@ public final class ReproductionPhase implements Phase {
 
     @Override
     public Shape shape() {
-        return Shape.SERIAL;
+        return Shape.CLAIM;
     }
 
     @Override
@@ -74,53 +84,96 @@ public final class ReproductionPhase implements Phase {
     }
 
     @Override
-    public void prepare() {
-        freeSlotCursor = 0;
-    }
-
-    @Override
     public void run(final int from, final int to, final int chunk) {
         final int[] geneCount = state.geneCount;
         final double[] energy = state.energy;
-        final double[] mass = state.mass;
-        final double[] damage = state.damage;
-        final int[] generation = state.generation;
         final int[] position = state.position;
+        final int[] birthCell = state.birthCell;
+        final double[] birthCost = state.birthCost;
+        final int tick = state.tick;
 
         for (int parent = from; parent < to; parent++) {
-            if (energy[parent] <= buildCostBase) {
-                continue;
-            }
-            if (!wantsToDivide(parent)) {
+            birthCell[parent] = -1;
+            if (energy[parent] <= buildCostBase || !wantsToDivide(parent)) {
                 continue;
             }
             final int childCell = freeMooreNeighbour(position[parent]);
             if (childCell < 0) {
                 continue;
             }
-            final int childSlot = nextFreeSlot();
-            if (childSlot < 0) {
-                continue;
-            }
-            buildChildGenome(childSlot, parent);
+            final long prefix = Noise.mutationPrefix(Noise.LEGACY_RNG_SEED, parent, tick);
             final double buildCost = buildCostBase
-                    + buildCostPerGene * geneCount[childSlot];
+                    + buildCostPerGene * childLength(geneCount[parent], prefix);
             if (energy[parent] <= buildCost) {
                 continue;
             }
+            birthCell[parent] = childCell;
+            birthCost[parent] = buildCost;
+        }
+    }
+
+    @Override
+    public void finish() {
+        final int[] genes = state.genes;
+        final int[] geneCount = state.geneCount;
+        final double[] energy = state.energy;
+        final double[] mass = state.mass;
+        final double[] damage = state.damage;
+        final int[] birthCell = state.birthCell;
+        final double[] birthCost = state.birthCost;
+        final int[] cellWinner = state.cellWinner;
+        final int slots = unitCount;
+
+        for (int parent = 0; parent < slots; parent++) {
+            final int cell = birthCell[parent];
+            if (cell >= 0 && cellWinner[cell] < 0) {
+                cellWinner[cell] = parent;
+            }
+        }
+        int births = 0;
+        int freeCursor = 0;
+        double sink = 0.0;
+        for (int parent = 0; parent < slots; parent++) {
+            final int cell = birthCell[parent];
+            if (cell < 0 || cellWinner[cell] != parent) {
+                continue;
+            }
+            cellWinner[cell] = -1;
+            while (freeCursor < slots && energy[freeCursor] > 0.0) {
+                freeCursor++;
+            }
+            if (freeCursor == slots) {
+                continue;
+            }
+            final int child = freeCursor++;
+            final double buildCost = birthCost[parent];
             energy[parent] -= buildCost;
-            state.energySink += buildCost;
             damage[parent] += buildCost;
+            sink += buildCost;
             final double childEnergy = energy[parent] * 0.5;
             final double childMass = mass[parent] * 0.5;
             energy[parent] = childEnergy;
             mass[parent] = childMass;
-            finishChild(childSlot, childCell, parent, childEnergy, childMass);
+
+            final int count = geneCount[parent];
+            System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
+            geneCount[child] = mutate(genes, child * maxGenes, count,
+                    Noise.mutationPrefix(Noise.LEGACY_RNG_SEED, parent, state.tick));
+            SlotCompiler.compile(state, child);
+            finishChild(child, cell, parent, childEnergy, childMass);
+
             state.birthsTotal++;
-            if (generation[childSlot] > state.maxGeneration) {
-                state.maxGeneration = generation[childSlot];
+            if (state.generation[child] > state.maxGeneration) {
+                state.maxGeneration = state.generation[child];
             }
+            state.birthParent[births] = parent;
+            state.birthChild[births] = child;
+            state.birthChildCell[births] = cell;
+            births++;
         }
+        state.birthCount = births;
+        state.sinkPartial[0] += sink;
+        state.mergePartials();
     }
 
     /**
@@ -174,61 +227,13 @@ public final class ReproductionPhase implements Phase {
     }
 
     /**
-     * Lowest free (energy &le; 0) slot at or beyond the monotone cursor, or -1 if
-     * none remain (contract v2 §11). A slot is a unit's permanent storage identity
-     * (ADR 0020); births claim a fresh one. Because {@code #living = #occupied
-     * cells ≤ W·W = #slots}, a free Moore-neighbour cell (the placement constraint)
-     * guarantees a free slot exists, so this never returns -1 in practice. The
-     * cursor only advances, so the per-tick scan is O(maxUnits) total, not per
-     * birth; it is reset in {@link #prepare()} at the start of each tick.
-     */
-    private int nextFreeSlot() {
-        final double[] energy = state.energy;
-
-        for (int slot = freeSlotCursor; slot < unitCount; slot++) {
-            if (energy[slot] <= 0.0) {
-                freeSlotCursor = slot + 1;
-                return slot;
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * Build a child's genome into a free slot from its parent's (contract v4 §2):
-     * copy the parent's live genes, apply the three mutation operators
-     * ({@link #mutate}: point mutation, then deletion, then tandem duplication),
-     * and recompile the slot's connection region ({@link SlotCompiler} is
-     * length-aware, so variable length flows through with no storage rework,
-     * contract v2 §12). After this, {@code geneCount[child]} is the child's
-     * post-indel length, which {@link #run} needs to price the per-gene build
-     * cost (contract v4 §3) before charging the parent. Runs at a birth attempt
-     * only, never per tick. If the parent then cannot afford the build, the slot
-     * is simply left dead (energy untouched): its now-stale genes are inert and
-     * unreferenced until a later birth reclaims the slot.
-     */
-    private void buildChildGenome(final int child, final int parent) {
-        final int[] genes = state.genes;
-        final int[] geneCount = state.geneCount;
-
-        final int count = geneCount[parent];
-        System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
-        geneCount[child] = count;
-        mutate(child);
-        SlotCompiler.compile(state, child);
-    }
-
-    /**
-     * Finish installing a child whose genome {@link #buildChildGenome} has
-     * already written and compiled (contract v2 §6). Node state (outputs, delay
-     * memory) is zeroed so the child starts inert and first acts next tick;
-     * energy, mass (each half the parent's, symmetric fission, contract v5 §5),
-     * {@code damage} (reset to 0, germline renewal, contract v2 §7),
-     * {@code lineageId} (inherited unchanged, the root ancestor), {@code
-     * generation} (parent's + 1), and cell are set. The child takes storage slot
-     * {@code child} and cell {@code childCell} (a free Moore neighbour, §5); slot
-     * and cell are independent (ADR 0020). Called only after the parent has been
-     * charged, so an unaffordable build never installs a living unit.
+     * Finish installing a child whose genome has already been written and compiled
+     * (contract v2 §6). Node state (outputs, delay memory) is zeroed so the child
+     * starts inert and first acts next tick; energy, mass (each half the parent's,
+     * symmetric fission, contract v5 §5), {@code damage} (reset to 0, germline
+     * renewal, contract v2 §7), {@code lineageId} (inherited unchanged, the root
+     * ancestor), {@code generation} (parent's + 1), and cell are set. Slot and cell
+     * are independent (ADR 0020).
      */
     private void finishChild(final int child, final int childCell, final int parent,
             final double childEnergy, final double childMass) {
@@ -242,82 +247,108 @@ public final class ReproductionPhase implements Phase {
     }
 
     /**
-     * Mutate a freshly-copied child genome in place: the three heritable
-     * operators of contract v4 §2, applied in the fixed order determinism
-     * depends on:
-     * <ol>
-     *   <li><b>Point mutation</b> (contract v2 §9 / ADR 0021): each of the 32
-     *       bits of each <i>inherited</i> gene flips at its class-split rate:
-     *       weight bits 0–15 at {@code MUTATION_RATE_WEIGHT}, structure bits
-     *       16–31 at the lower {@code MUTATION_RATE_STRUCT}, protecting topology
-     *       while keeping weight search fast.</li>
-     *   <li><b>Deletion</b>: each gene position is dropped with probability
-     *       {@code INDEL_RATE_DEL}; survivors compact toward index 0 (no holes),
-     *       shrinking {@code geneCount}.</li>
-     *   <li><b>Tandem duplication</b>: each <i>survivor</i> spawns, with
-     *       probability {@code INDEL_RATE_DUP}, a faithful copy appended at the
-     *       end, the gene-level analogue of unequal crossing-over (Ohno).
-     *       Divergence of the copy is deferred to point mutation in later
-     *       generations, so there is no separate "randomise the copy" step. A
-     *       duplication that would exceed {@code maxGenes} is dropped (the soft
-     *       cap, §1); the floor is 0 genes (an empty genome is legal and inert).</li>
-     * </ol>
-     * Mutation-safe by construction: every 32-bit value decodes to a legal gene,
-     * and copy/delete cannot forge an illegal one, so no operator can be rejected.
-     *
-     * <p><b>Determinism (contract v4 §4).</b> A single monotone {@code opIndex}
-     * walks every decision in exactly the order above (all point-mutation bit
-     * draws, then all deletion draws, then all duplication draws), each keyed
-     * {@code (seed, childSlot, birthTick, opIndex)} via
-     * {@link Noise#mutationUniform}. The counter never repeats within a birth and
-     * at most one birth claims a slot per tick, so every draw has a unique key:
-     * same seed gives the same genome, and report-v8 replay reproduces it exactly. The
-     * duplication draw is consumed for every survivor even when the cap drops its
-     * effect, so a binding cap never desynchronises the counter. This monotone
-     * single-counter key is contract v4 §4 verbatim; it replaces the v2 per-bit
-     * {@code geneIndex} key, which the index shifts of indels would have broken.
+     * The post-indel length of the child a parent with {@code parentCount} genes would build
+     * under mutation key {@code prefix}: {@link #mutate} as a dry run that consumes the same
+     * draws and writes nothing. Pure and allocation free, so {@link #run} calls it in parallel.
      */
-    private void mutate(final int child) {
-        final int[] genes = state.genes;
-        final int[] geneCount = state.geneCount;
+    private int childLength(final int parentCount, final long prefix) {
+        return mutate(null, 0, parentCount, prefix);
+    }
 
-        final int base = child * maxGenes;
-        int count = geneCount[child];
-        final long prefix = Noise.mutationPrefix(Noise.LEGACY_RNG_SEED, child, state.tick);
-        int opIndex = 0;
-
-        for (int g = 0; g < count; g++) {
-            int gene = genes[base + g];
-            for (int bit = 0; bit < 32; bit++) {
-                final double rate = bit < 16
-                        ? mutationRateWeight
-                        : mutationRateStruct;
-                if (Noise.mutationUniformFromPrefix(prefix, opIndex++)
-                        < rate) {
-                    gene ^= (1 << bit);
-                }
+    /**
+     * Mutate a freshly-copied child genome of {@code count} genes at {@code genes[base..]} in
+     * place and return its new length; with {@code genes == null} only the length is computed
+     * ({@link #childLength}). The three heritable operators of contract v4 §2, in the fixed order
+     * determinism depends on:
+     * <ol>
+     *   <li><b>Point mutation</b> (contract v2 §9 / ADR 0021): each of the 32 bits of each
+     *       <i>inherited</i> gene flips independently at its class rate: weight bits 0–15 at
+     *       {@code MUTATION_RATE_WEIGHT}, structure bits 16–31 at {@code MUTATION_RATE_STRUCT}.
+     *       Drawn by geometric skip sampling (engine v6 design §5.7): each class keeps the
+     *       position of its next flip in its own bit sequence (gene by gene, 16 bits per gene),
+     *       one {@link Noise#geometricGap} draw per flip instead of one draw per bit. Flips are
+     *       visited in today's bit order (gene by gene, bits 0 to 31), and each flip draws the
+     *       gap to its class's next flip. Which bits flip depends only on the key and the gene
+     *       count, never on gene values.</li>
+     *   <li><b>Deletion</b>: each gene position is dropped with probability
+     *       {@code INDEL_RATE_DEL}; survivors compact toward index 0 (no holes).</li>
+     *   <li><b>Tandem duplication</b>: each <i>survivor</i> spawns, with probability
+     *       {@code INDEL_RATE_DUP}, a faithful copy appended at the end (Ohno). A duplication
+     *       that would exceed {@code maxGenes} is dropped (the soft cap, §1); the floor is 0
+     *       genes (an empty genome is legal and inert).</li>
+     * </ol>
+     * Mutation-safe by construction: every 32-bit value decodes to a legal gene, and
+     * copy/delete cannot forge an illegal one, so no operator can be rejected.
+     *
+     * <p><b>Determinism (contract v4 §4, keyed by parent per engine v6 design §5.6).</b> One
+     * monotone {@code op} counter walks every draw: the first weight gap, the first structure
+     * gap, one gap per flip in bit order, then one deletion draw per gene, then one duplication
+     * draw per survivor, each keyed {@code (seed, parentSlot, birthTick, op)} through
+     * {@code prefix}. A parent divides at most once per tick, so every key is unique, and the
+     * genome is known before the child's slot is. The duplication draw is consumed even when the
+     * cap drops its effect, so a binding cap never desynchronises the counter.
+     */
+    private int mutate(final int[] genes, final int base, final int count, final long prefix) {
+        final long classBits = 16L * count;
+        int op = 0;
+        long weight = nextFlip(-1, Noise.geometricGap(Noise.mutationUniformFromPrefix(prefix, op++), logKeepWeight),
+                classBits);
+        long struct = nextFlip(-1, Noise.geometricGap(Noise.mutationUniformFromPrefix(prefix, op++), logKeepStruct),
+                classBits);
+        while (weight < classBits || struct < classBits) {
+            final long weightBit = weight < classBits ? geneBit(weight, 0) : Long.MAX_VALUE;
+            final long structBit = struct < classBits ? geneBit(struct, 16) : Long.MAX_VALUE;
+            final long bit;
+            if (weightBit < structBit) {
+                bit = weightBit;
+                weight = nextFlip(weight,
+                        Noise.geometricGap(Noise.mutationUniformFromPrefix(prefix, op++), logKeepWeight), classBits);
+            } else {
+                bit = structBit;
+                struct = nextFlip(struct,
+                        Noise.geometricGap(Noise.mutationUniformFromPrefix(prefix, op++), logKeepStruct), classBits);
             }
-            genes[base + g] = gene;
+            if (genes != null) {
+                genes[base + (int) (bit >>> 5)] ^= 1 << (bit & 31);
+            }
         }
 
         int survivors = 0;
         for (int g = 0; g < count; g++) {
-            final boolean delete = Noise.mutationUniformFromPrefix(prefix, opIndex++)
-                    < indelRateDel;
-            if (!delete) {
-                genes[base + survivors++] = genes[base + g];
+            if (Noise.mutationUniformFromPrefix(prefix, op++) >= indelRateDel) {
+                if (genes != null) {
+                    genes[base + survivors] = genes[base + g];
+                }
+                survivors++;
             }
         }
-        count = survivors;
 
+        int length = survivors;
         for (int g = 0; g < survivors; g++) {
-            final boolean duplicate = Noise.mutationUniformFromPrefix(prefix, opIndex++)
-                    < indelRateDup;
-            if (duplicate && count < maxGenes) {
-                genes[base + count++] = genes[base + g];
+            if (Noise.mutationUniformFromPrefix(prefix, op++) < indelRateDup && length < maxGenes) {
+                if (genes != null) {
+                    genes[base + length] = genes[base + g];
+                }
+                length++;
             }
         }
+        return length;
+    }
 
-        geneCount[child] = count;
+    /**
+     * The class position after {@code position} that flips next, given the skipped-bit
+     * {@code gap}, or {@code limit} once past the class's last bit. Written so a saturated gap
+     * ({@link Long#MAX_VALUE}, rate 0) cannot overflow.
+     */
+    private static long nextFlip(final long position, final long gap, final long limit) {
+        return gap >= limit - position - 1 ? limit : position + 1 + gap;
+    }
+
+    /**
+     * Genome-wide bit index ({@code gene · 32 + bit}) of class position {@code k}: class
+     * positions run 16 per gene, at bit offset 0 for weight bits and 16 for structure bits.
+     */
+    private static long geneBit(final long k, final int offset) {
+        return ((k >>> 4) << 5) + offset + (k & 15);
     }
 }

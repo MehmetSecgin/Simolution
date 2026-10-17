@@ -46,25 +46,26 @@ public final class Noise {
 
     /**
      * Deterministic pseudo-random double in {@code [0, 1)} for mutation
-     * decisions, keyed by the birth event {@code (seed, childSlot, birthTick)}
-     * and a per-stream {@code index} (contract v2 §9). Domain-separated from
+     * decisions, keyed by the birth event {@code (seed, parentSlot, birthTick)}
+     * and a per-stream {@code index} (contract v2 §9; parent-keyed since engine v6
+     * design §5.6, so the child genome is known before its slot is). Domain-separated from
      * {@link #sample} — which hashes (unit, tick) for the RAND sensor — by
      * folding in the index as a third dimension, so a child's mutation stream
      * never collides with any unit's sensor noise. Same key → same flips,
      * always, so a run's entire genealogy is reproducible.
      */
-    public static double mutationUniform(long seed, int childSlot, int birthTick, int index) {
-        return mutationUniformFromPrefix(mutationPrefix(seed, childSlot, birthTick), index);
+    public static double mutationUniform(long seed, int parentSlot, int birthTick, int index) {
+        return mutationUniformFromPrefix(mutationPrefix(seed, parentSlot, birthTick), index);
     }
 
     /**
      * The first two mixes of {@link #mutationUniform}, which depend only on the
-     * birth event {@code (seed, childSlot, birthTick)}. A birth draws thousands
-     * of values, so it computes this once and finishes each draw with
+     * birth event {@code (seed, parentSlot, birthTick)}. A birth draws many
+     * values, so it computes this once and finishes each draw with
      * {@link #mutationUniformFromPrefix}.
      */
-    public static long mutationPrefix(long seed, int childSlot, int birthTick) {
-        final long h = mix(seed + GOLDEN_GAMMA * (childSlot + 1L));
+    public static long mutationPrefix(long seed, int parentSlot, int birthTick) {
+        final long h = mix(seed + GOLDEN_GAMMA * (parentSlot + 1L));
         return mix(h + GOLDEN_GAMMA * (birthTick + 1L));
     }
 
@@ -72,6 +73,26 @@ public final class Noise {
     public static double mutationUniformFromPrefix(long prefix, int index) {
         final long h = mix(prefix + GOLDEN_GAMMA * (index + 1L));
         return (h >>> 11) * 0x1.0p-53;
+    }
+
+    /**
+     * Geometric skip sampling for point mutation (engine v6 design §5.7): the number of bits
+     * skipped before the next flip, for bits that flip independently at {@code rate}, given
+     * {@code logKeep = StrictMath.log(1 - rate)}. With {@code u = 1 - draw} in {@code (0, 1]},
+     * {@code floor(log(u) / logKeep)} is geometric with success probability {@code rate}, so one
+     * draw replaces a draw per bit.
+     * <p>
+     * Edge cases are exact rather than numeric accidents: {@code logKeep} that is not negative
+     * (rate 0, a negative rate, or NaN from a rate above 1) returns {@link Long#MAX_VALUE}, no
+     * flip ever; rate 1 gives {@code logKeep = -∞} and {@code log(u) / -∞} is {@code ±0}, a gap
+     * of 0, every bit flips. {@code log(u)} is finite because {@code u ≥ 2^-53}, so the quotient
+     * is never NaN, and a quotient beyond {@code long} range saturates to {@link Long#MAX_VALUE}.
+     */
+    public static long geometricGap(double draw, double logKeep) {
+        if (!(logKeep < 0.0)) {
+            return Long.MAX_VALUE;
+        }
+        return (long) StrictMath.floor(StrictMath.log(1.0 - draw) / logKeep);
     }
 
     /**
