@@ -7,7 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -50,6 +53,10 @@ class RunLifecycleTest {
         }
     }
 
+    private static String sha256Hex(final byte[] bytes) throws NoSuchAlgorithmException {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+    }
+
     @Test
     void seekMatchesUninterruptedAtEveryTick(@TempDir final Path dir) throws IOException {
         assertSeekMatchesUninterrupted(EngineConfig.defaults(7L, WORLD, GENES * 2), dir);
@@ -64,7 +71,8 @@ class RunLifecycleTest {
     }
 
     @Test
-    void checkpointsLandEveryNTicksAndRunJsonNamesTheRun(@TempDir final Path dir) throws IOException {
+    void checkpointsLandEveryNTicksAndRunJsonNamesTheRun(@TempDir final Path dir)
+            throws IOException, NoSuchAlgorithmException {
         final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
         final RunDirectoryWriter run = RunDirectoryWriter.create(dir, kernel, EVERY);
         for (int t = 1; t <= 120; t++) {
@@ -77,8 +85,7 @@ class RunLifecycleTest {
         assertTrue(Files.exists(dir.resolve("ckpt/100.ckpt")));
         assertTrue(Files.notExists(dir.resolve("ckpt/120.ckpt")));
         final JsonNode json = new ObjectMapper().readTree(Files.readString(dir.resolve("run.json")));
-        assertEquals(run.runId(), json.get("runId").asText());
-        assertEquals(64, run.runId().length());
+        assertEquals(sha256Hex(Files.readAllBytes(dir.resolve("ckpt/0.ckpt"))), json.get("runId").asText());
         assertEquals(EngineVersion.ID, json.get("engine").asText());
         assertTrue(json.get("parent").isNull());
     }

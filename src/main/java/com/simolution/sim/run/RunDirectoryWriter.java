@@ -22,12 +22,10 @@ public final class RunDirectoryWriter {
 
     private final Path ckptDir;
     private final int checkpointEvery;
-    private final String runId;
 
-    private RunDirectoryWriter(final Path ckptDir, final int checkpointEvery, final String runId) {
+    private RunDirectoryWriter(final Path ckptDir, final int checkpointEvery) {
         this.ckptDir = ckptDir;
         this.checkpointEvery = checkpointEvery;
-        this.runId = runId;
     }
 
     public static RunDirectoryWriter create(final Path dir, final Kernel kernel, final int checkpointEvery)
@@ -42,11 +40,7 @@ public final class RunDirectoryWriter {
         final String runId = sha256Hex(first);
         Files.write(ckptDir.resolve(RunDirectoryReader.checkpointFileName(kernel.currentTick())), first);
         Files.writeString(dir.resolve("run.json"), runManifestJson(runId));
-        return new RunDirectoryWriter(ckptDir, checkpointEvery, runId);
-    }
-
-    public String runId() {
-        return runId;
+        return new RunDirectoryWriter(ckptDir, checkpointEvery);
     }
 
     public void checkpointIfDue(final Kernel kernel) throws IOException {
