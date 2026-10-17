@@ -2,7 +2,6 @@ package com.simolution.kernel.runtime;
 
 import java.util.List;
 
-import com.simolution.kernel.config.ChemicalSpec;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.SlotCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
@@ -62,7 +61,6 @@ public final class Kernel implements AutoCloseable {
      */
     public Kernel(final int[][] initialGenomes, final int[] founderCells, final EngineConfig config,
             final int threads) {
-        validateChemicals(config);
         this.config = config;
         final int worldWidth = config.worldWidth();
         final int maxGenes = config.maxGenes();
@@ -135,23 +133,6 @@ public final class Kernel implements AutoCloseable {
                 new DecayPhase(state, config));
         this.runner = new ParallelRunner(threads);
         this.digest = new StateDigest(state);
-    }
-
-    private static void validateChemicals(final EngineConfig config) {
-        final List<ChemicalSpec> chemicals = config.chemicals();
-        if (chemicals.isEmpty()) {
-            throw new IllegalArgumentException("kernel needs at least one chemical (units sense and harvest chemical 0)");
-        }
-        for (int k = 0; k < chemicals.size(); k++) {
-            final int target = chemicals.get(k).decayTarget();
-            if (target < -1 || target >= chemicals.size()) {
-                throw new IllegalArgumentException(
-                        "chemical " + k + " decayTarget " + target + " is neither -1 (sink) nor a chemical index");
-            }
-            if (target == k) {
-                throw new IllegalArgumentException("chemical " + k + " cannot decay into itself");
-            }
-        }
     }
 
     /**

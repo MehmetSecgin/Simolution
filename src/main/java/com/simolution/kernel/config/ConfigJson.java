@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 
 /**
  * Strict JSON form of an {@link EngineConfig}. Unknown keys and missing keys are
@@ -57,6 +58,9 @@ public final class ConfigJson {
         try {
             MAPPER.readValue(json, EngineConfig.class);
             return STRICT_MAPPER.readValue(json, EngineConfig.class);
+        } catch (final ValueInstantiationException e) {
+            final Throwable cause = e.getCause() instanceof IllegalArgumentException ? e.getCause() : e;
+            throw new IllegalArgumentException("invalid config: " + (cause == e ? e.getOriginalMessage() : cause.getMessage()), e);
         } catch (final JsonProcessingException e) {
             throw new IllegalArgumentException("invalid config: " + e.getOriginalMessage(), e);
         }

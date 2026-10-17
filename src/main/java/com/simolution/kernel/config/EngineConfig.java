@@ -40,6 +40,83 @@ public record EngineConfig(
         double indelRateDel,
         double agingCost) {
 
+    public EngineConfig {
+        if (worldWidth < 1) {
+            throw new IllegalArgumentException("worldWidth must be at least 1, got " + worldWidth);
+        }
+        if (maxGenes < 0) {
+            throw new IllegalArgumentException("maxGenes must be at least 0, got " + maxGenes);
+        }
+        if ((long) worldWidth * worldWidth * maxGenes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("maxGenes " + maxGenes + " with worldWidth " + worldWidth
+                    + " needs more gene slots than an int array holds");
+        }
+        validateChemicals(chemicals);
+        nonNegative("initialEnergy", initialEnergy);
+        nonNegative("basalCost", basalCost);
+        nonNegative("costPerPropagation", costPerPropagation);
+        nonNegative("harvestCapacityPerConnection", harvestCapacityPerConnection);
+        nonNegative("harvestHalfSaturation", harvestHalfSaturation);
+        nonNegative("harvestMassExponent", harvestMassExponent);
+        nonNegative("moveCostBase", moveCostBase);
+        nonNegative("moveCostPerMass", moveCostPerMass);
+        nonNegative("moveDeadzone", moveDeadzone);
+        positive("selfEnergyScale", selfEnergyScale);
+        positive("selfMassScale", selfMassScale);
+        nonNegative("initialMass", initialMass);
+        nonNegative("maintPerMass", maintPerMass);
+        nonNegative("growMax", growMax);
+        nonNegative("growHalfSaturation", growHalfSaturation);
+        unitInterval("growYield", growYield);
+        nonNegative("buildCost", buildCost);
+        nonNegative("buildCostPerGene", buildCostPerGene);
+        unitInterval("mutationRateWeight", mutationRateWeight);
+        unitInterval("mutationRateStruct", mutationRateStruct);
+        unitInterval("indelRateDup", indelRateDup);
+        unitInterval("indelRateDel", indelRateDel);
+        nonNegative("agingCost", agingCost);
+    }
+
+    private static void validateChemicals(final List<ChemicalSpec> chemicals) {
+        if (chemicals.isEmpty()) {
+            throw new IllegalArgumentException("chemicals must hold at least one entry (units sense and harvest chemical 0)");
+        }
+        for (int k = 0; k < chemicals.size(); k++) {
+            final ChemicalSpec chemical = chemicals.get(k);
+            final String at = "chemicals[" + k + "].";
+            positive(at + "capacity", chemical.capacity());
+            nonNegative(at + "initial", chemical.initial());
+            unitInterval(at + "diffusionRate", chemical.diffusionRate());
+            unitInterval(at + "decayRate", chemical.decayRate());
+            final int target = chemical.decayTarget();
+            if (target < -1 || target >= chemicals.size()) {
+                throw new IllegalArgumentException(at + "decayTarget " + target
+                        + " is neither -1 (sink) nor a chemical index");
+            }
+            if (target == k) {
+                throw new IllegalArgumentException(at + "decayTarget cannot be the chemical itself");
+            }
+        }
+    }
+
+    private static void nonNegative(final String field, final double value) {
+        if (!(value >= 0.0) || Double.isInfinite(value)) {
+            throw new IllegalArgumentException(field + " must be finite and at least 0, got " + value);
+        }
+    }
+
+    private static void positive(final String field, final double value) {
+        if (!(value > 0.0) || Double.isInfinite(value)) {
+            throw new IllegalArgumentException(field + " must be finite and above 0, got " + value);
+        }
+    }
+
+    private static void unitInterval(final String field, final double value) {
+        if (!(value >= 0.0 && value <= 1.0)) {
+            throw new IllegalArgumentException(field + " must be in [0, 1], got " + value);
+        }
+    }
+
     public static EngineConfig v5Defaults(final long seed, final int worldWidth, final int maxGenes) {
         return new EngineConfig(
                 seed, worldWidth, maxGenes,
