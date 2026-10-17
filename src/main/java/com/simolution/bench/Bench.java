@@ -50,11 +50,10 @@ public final class Bench {
     private static Row runOnce(final RunConfig config, final String name) {
         final int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         final CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        final int maxUnits = config.worldWidth() * config.worldWidth();
         final int[] founderCells = Kernel.scatterFounders(genomes.length, config.worldWidth());
         final Kernel kernel = new Kernel(genomes, config.worldWidth(), config.maxGenes(), founderCells);
         kernel.configureInflow(config.inflow());
-        final DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
+        final DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
         final TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
 
         final long start = System.nanoTime();

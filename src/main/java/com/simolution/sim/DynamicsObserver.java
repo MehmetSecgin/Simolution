@@ -58,7 +58,7 @@ public final class DynamicsObserver {
     private double initialReservoir;
     private double cumulativeInflow;
 
-    public DynamicsObserver(final int unitCount, final int maxUnits, final CompiledConnection[] connections) {
+    public DynamicsObserver(final int unitCount, final CompiledConnection[] connections) {
         this.unitCount = unitCount;
         this.connections = connections;
 
@@ -286,6 +286,7 @@ public final class DynamicsObserver {
         stateDigest = h;
     }
 
+    /** Reads the last observed snapshot's live kernel arrays, so call it before the kernel ticks again. */
     public DynamicsSummary summarize() {
         final double[] finalAbsAction = new double[unitCount];
         final boolean[] dormantAtEnd = new boolean[unitCount];

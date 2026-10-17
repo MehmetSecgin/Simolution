@@ -18,10 +18,9 @@ class RunReportTest {
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
         int worldWidth = config.worldWidth();
-        int maxUnits = worldWidth * worldWidth;
         Kernel kernel = new Kernel(genomes, worldWidth, config.genesPerUnit(),
                 java.util.stream.IntStream.range(0, genomes.length).toArray());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
+        DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();
             observer.observe(kernel.snapshot());

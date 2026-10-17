@@ -59,7 +59,7 @@ public class Main {
         int[] founderCells = Kernel.scatterFounders(genomes.length, worldWidth);
         Kernel kernel = new Kernel(genomes, worldWidth, maxGenes, founderCells);
         kernel.configureInflow(config.inflow());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), maxUnits, connections);
+        DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
 
