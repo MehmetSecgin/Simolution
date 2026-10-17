@@ -26,19 +26,41 @@ import com.simolution.kernel.state.WorldState;
  * {@link #run} (parallel, per parent) reads only phase-start state and writes only the parent's
  * own {@code birthCell} and {@code birthCost}: the lowest-indexed free Moore neighbour (contract
  * v3 §5) and the build cost, or {@code birthCell = -1} when the unit does not want to divide,
- * has no free neighbour, or cannot afford its child. {@link #finish} (serial) resolves in
- * ascending parent slot: the first claim on a cell wins ({@code cellWinner}, reset per touched
- * entry so it is all {@code -1} again when movement starts). Winners take free slots
- * ({@code energy ≤ 0} at phase start) in ascending slot order and install their child; losers
- * and unaffordable parents pay nothing and claim no slot. Each birth is appended to the
- * published birth list ({@code birthParent}, {@code birthChild}, {@code birthChildCell},
- * {@code birthCount}), ascending in parent and child slot alike.
+ * has no free neighbour, or cannot afford its child. A proposing parent claims its child cell in
+ * {@code cellWinner} through {@link CellClaim}, so after the pass each claimed cell holds its
+ * lowest claiming parent: the first claim in ascending parent slot, as the contract's serial
+ * resolve picks it. Each chunk also counts its free slots ({@code energy ≤ 0} at phase start)
+ * into {@code chunkFreeSlots}.
  * <p>
- * The free-slot scan uses one monotone cursor, so two winners never share a slot. A slot freed
- * by a death earlier this tick (cost or growth) has {@code energy ≤ 0} at phase start, so it is
- * free here like any other dead slot. Slots this phase changes stay live: a parent keeps
- * positive energy and a child is installed only behind the cursor, so reading
- * {@code energy[slot] ≤ 0} at the cursor is the same as reading it at phase start.
+ * The resolve runs as two more parallel passes, with a serial step over the chunk counts
+ * (O(chunks), not O(slots)) before each:
+ * <ol>
+ *   <li>{@link #prepareResolve} 0 turns {@code chunkFreeSlots} into an exclusive prefix, so
+ *       {@code chunkFreeSlots[c]} is the number of free slots before chunk {@code c}. Pass 0
+ *       (judge) writes each chunk's free slots, ascending, into {@code birthChild} from that
+ *       offset, so {@code birthChild[k]} is the {@code k}-th free slot of the world. It keeps the
+ *       winners' {@code birthCell} (and resets their {@code cellWinner} entry to {@code -1}),
+ *       sets the losers' to {@code -1}, and counts the chunk's winners into
+ *       {@code chunkWinners}. A loser that reads its cell's entry after the winner reset it reads
+ *       {@code -1}, which is not its own slot either.</li>
+ *   <li>{@link #prepareResolve} 1 turns {@code chunkWinners} into an exclusive prefix, the rank
+ *       of each chunk's first winner in ascending parent slot, and fixes
+ *       {@code birthCount = min(winners, free slots)}. Pass 1 (install) gives the winner of rank
+ *       {@code k < birthCount} the child slot {@code birthChild[k]}: winners in ascending parent
+ *       slot take free slots in ascending slot order, as the serial cursor did. It charges the
+ *       parent, splits, copies, mutates, compiles and installs the child, and writes
+ *       {@code birthParent[k]} and {@code birthChildCell[k]}. Winners of rank
+ *       {@code ≥ birthCount} find no free slot and pay nothing.</li>
+ * </ol>
+ * Installs never collide: each writes its own parent slot, its own child slot (dead at phase
+ * start, so never a parent), and its own child cell (claimed by it alone). {@link #finish}
+ * walks the birth list once (O(births)) in ascending parent slot: it adds the build costs to
+ * the sink in exactly the order the serial resolve did, and updates {@code birthsTotal} and
+ * {@code maxGeneration}.
+ * <p>
+ * The birth list ({@code birthParent}, {@code birthChild}, {@code birthChildCell},
+ * {@code birthCount}) is ascending in parent and child slot alike. Entries of {@code birthChild}
+ * at or past {@code birthCount} hold leftover free slots and mean nothing.
  * <p>
  * Shape is {@link Shape#CLAIM}.
  */
@@ -92,10 +114,16 @@ public final class ReproductionPhase implements Phase {
         final int[] position = state.position;
         final int[] birthCell = state.birthCell;
         final double[] birthCost = state.birthCost;
+        final int[] cellWinner = state.cellWinner;
         final int tick = state.tick;
 
+        int free = 0;
         for (int parent = from; parent < to; parent++) {
             birthCell[parent] = -1;
+            if (!(energy[parent] > 0.0)) {
+                free++;
+                continue;
+            }
             if (energy[parent] <= buildCostBase || !wantsToDivide(parent)) {
                 continue;
             }
@@ -111,11 +139,62 @@ public final class ReproductionPhase implements Phase {
             }
             birthCell[parent] = childCell;
             birthCost[parent] = buildCost;
+            CellClaim.claim(cellWinner, childCell, parent);
+        }
+        state.chunkFreeSlots[chunk] = free;
+    }
+
+    @Override
+    public int resolvePasses() {
+        return 2;
+    }
+
+    @Override
+    public void prepareResolve(final int pass) {
+        if (pass == 0) {
+            state.birthCount = exclusivePrefix(state.chunkFreeSlots);
+        } else {
+            state.birthCount = Math.min(exclusivePrefix(state.chunkWinners), state.birthCount);
         }
     }
 
     @Override
-    public void finish() {
+    public void resolve(final int pass, final int from, final int to, final int chunk) {
+        if (pass == 0) {
+            judge(from, to, chunk);
+        } else {
+            install(from, to, chunk);
+        }
+    }
+
+    private void judge(final int from, final int to, final int chunk) {
+        final double[] energy = state.energy;
+        final int[] birthCell = state.birthCell;
+        final int[] cellWinner = state.cellWinner;
+        final int[] birthChild = state.birthChild;
+
+        int nextFree = state.chunkFreeSlots[chunk];
+        int winners = 0;
+        for (int slot = from; slot < to; slot++) {
+            if (!(energy[slot] > 0.0)) {
+                birthChild[nextFree++] = slot;
+                continue;
+            }
+            final int cell = birthCell[slot];
+            if (cell < 0) {
+                continue;
+            }
+            if (cellWinner[cell] == slot) {
+                cellWinner[cell] = -1;
+                winners++;
+            } else {
+                birthCell[slot] = -1;
+            }
+        }
+        state.chunkWinners[chunk] = winners;
+    }
+
+    private void install(final int from, final int to, final int chunk) {
         final int[] genes = state.genes;
         final int[] geneCount = state.geneCount;
         final double[] energy = state.energy;
@@ -123,35 +202,19 @@ public final class ReproductionPhase implements Phase {
         final double[] damage = state.damage;
         final int[] birthCell = state.birthCell;
         final double[] birthCost = state.birthCost;
-        final int[] cellWinner = state.cellWinner;
-        final int slots = unitCount;
+        final int[] birthChild = state.birthChild;
+        final int births = state.birthCount;
 
-        for (int parent = 0; parent < slots; parent++) {
+        int rank = state.chunkWinners[chunk];
+        for (int parent = from; parent < to && rank < births; parent++) {
             final int cell = birthCell[parent];
-            if (cell >= 0 && cellWinner[cell] < 0) {
-                cellWinner[cell] = parent;
-            }
-        }
-        int births = 0;
-        int freeCursor = 0;
-        double sink = 0.0;
-        for (int parent = 0; parent < slots; parent++) {
-            final int cell = birthCell[parent];
-            if (cell < 0 || cellWinner[cell] != parent) {
+            if (cell < 0) {
                 continue;
             }
-            cellWinner[cell] = -1;
-            while (freeCursor < slots && energy[freeCursor] > 0.0) {
-                freeCursor++;
-            }
-            if (freeCursor == slots) {
-                continue;
-            }
-            final int child = freeCursor++;
+            final int child = birthChild[rank];
             final double buildCost = birthCost[parent];
             energy[parent] -= buildCost;
             damage[parent] += buildCost;
-            sink += buildCost;
             final double childEnergy = energy[parent] * 0.5;
             final double childMass = mass[parent] * 0.5;
             energy[parent] = childEnergy;
@@ -164,18 +227,41 @@ public final class ReproductionPhase implements Phase {
             SlotCompiler.compile(state, child);
             finishChild(child, cell, parent, childEnergy, childMass);
 
-            state.birthsTotal++;
-            if (state.generation[child] > state.maxGeneration) {
-                state.maxGeneration = state.generation[child];
-            }
-            state.birthParent[births] = parent;
-            state.birthChild[births] = child;
-            state.birthChildCell[births] = cell;
-            births++;
+            state.birthParent[rank] = parent;
+            state.birthChildCell[rank] = cell;
+            rank++;
         }
-        state.birthCount = births;
+    }
+
+    @Override
+    public void finish() {
+        final int[] birthParent = state.birthParent;
+        final int[] birthChild = state.birthChild;
+        final double[] birthCost = state.birthCost;
+        final int[] generation = state.generation;
+        final int births = state.birthCount;
+
+        double sink = 0.0;
+        int maxGeneration = state.maxGeneration;
+        for (int i = 0; i < births; i++) {
+            sink += birthCost[birthParent[i]];
+            maxGeneration = Math.max(maxGeneration, generation[birthChild[i]]);
+        }
+        state.birthsTotal += births;
+        state.maxGeneration = maxGeneration;
         state.sinkPartial[0] += sink;
         state.mergePartials();
+    }
+
+    /** Replaces each count with the sum of the counts before it and returns the total. */
+    private static int exclusivePrefix(final int[] counts) {
+        int total = 0;
+        for (int c = 0; c < counts.length; c++) {
+            final int count = counts[c];
+            counts[c] = total;
+            total += count;
+        }
+        return total;
     }
 
     /**
