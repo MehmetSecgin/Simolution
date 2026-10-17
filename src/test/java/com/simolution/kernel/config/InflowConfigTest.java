@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.sim.GenomeFactory;
@@ -22,9 +23,9 @@ class InflowConfigTest {
 
     @Test
     void uniformIsConstantCellInflowEverywhere() {
-        CompiledInflowField f = InflowConfig.UNIFORM.compile(100);
-        assertEquals(KernelConfig.CELL_INFLOW, f.cap(0, 0), 0.0);
-        assertEquals(KernelConfig.CELL_INFLOW, f.cap(5050, 999), 0.0);
+        CompiledInflowField f = InflowConfig.uniform(1.0).compile(100);
+        assertEquals(1.0, f.cap(0, 0), 0.0);
+        assertEquals(1.0, f.cap(5050, 999), 0.0);
     }
 
     @Test
@@ -161,21 +162,19 @@ class InflowConfigTest {
     @Test
     void cyclicRunConservesEnergy() {
         int w = 60, founders = 100;
-        Kernel k = new Kernel(GenomeFactory.random(3L, founders, 8), w, 16,
-                Kernel.scatterFounders(founders, w));
-        k.configureInflow(InflowConfig.cyclic(400, 10, 8.0));
+        Kernel k = new Kernel(GenomeFactory.random(3L, founders, 8), Kernel.scatterFounders(founders, w),
+                EngineConfig.v5Defaults(0L, w, 16).withChemical0Inflow(InflowConfig.cyclic(400, 10, 8.0)));
         assertAuditHolds(k);
     }
 
     @Test
     void noiseFieldRunConservesEnergy() {
         int w = 60, founders = 100;
-        Kernel k = new Kernel(GenomeFactory.random(3L, founders, 8), w, 16,
-                Kernel.scatterFounders(founders, w));
-        k.configureInflow(InflowConfig.field(0.0, InflowConfig.Combine.MAX,
-                new InflowSource.Noise(11L, 0.06, 0.5, 3.0, 8.0, 5000),
-                new InflowSource.Disk(0.7, 0.3, 6, 5.0, 1000, 0,
-                        InflowSource.Motion.DRIFT, 0.01, 0.0, 0)));
+        Kernel k = new Kernel(GenomeFactory.random(3L, founders, 8), Kernel.scatterFounders(founders, w),
+                EngineConfig.v5Defaults(0L, w, 16).withChemical0Inflow(InflowConfig.field(0.0, InflowConfig.Combine.MAX,
+                        new InflowSource.Noise(11L, 0.06, 0.5, 3.0, 8.0, 5000),
+                        new InflowSource.Disk(0.7, 0.3, 6, 5.0, 1000, 0,
+                                InflowSource.Motion.DRIFT, 0.01, 0.0, 0))));
         assertAuditHolds(k);
     }
 

@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 import com.github.luben.zstd.Zstd;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 /**
@@ -64,6 +64,7 @@ public final class MapFrameWriter implements Closeable {
     private final int sampleEvery;
     private final int windowFrom;
     private final int windowTo;
+    private final double cellCapacity;
 
     private final StringBuilder chunk;
     private int firstTickInChunk = -1;
@@ -95,8 +96,9 @@ public final class MapFrameWriter implements Closeable {
      */
     public MapFrameWriter(final OutputStream out, final Writer idx, final GenomeCatalogWriter catalog,
                           final int worldWidth, final int totalTicks, final int targetFrames,
-                          final int windowFrom, final int windowTo) throws IOException {
+                          final int windowFrom, final int windowTo, final EngineConfig config) throws IOException {
         this.out = out;
+        this.cellCapacity = config.chemicals().get(0).capacity();
         this.idx = idx;
         this.catalog = catalog;
         this.windowFrom = windowFrom;
@@ -198,7 +200,7 @@ public final class MapFrameWriter implements Closeable {
         int runLevel = -1;
         int runLen = 0;
         for (final double r : field) {
-            int level = (int) Math.round(9.0 * r / KernelConfig.CELL_CAPACITY);
+            int level = (int) Math.round(9.0 * r / cellCapacity);
             if (level < 0) {
                 level = 0;
             } else if (level > 9) {

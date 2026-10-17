@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import com.simolution.kernel.config.ConfigJson;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
@@ -20,34 +22,38 @@ import com.simolution.kernel.runtime.KernelSnapshot;
  * full fidelity — per-node outputs, delay memory, the evolved per-slot circuit —
  * which no sampled log can hold.
  * <p>
- * Replay is refused unless the build's {@link ConfigHash} matches the manifest's:
+ * Replay is refused unless the {@link ConfigHash} of the recorded {@code config.json} matches the manifest's:
  * replaying under changed constants would fabricate a wrong "past" rather than
  * reproduce the real one.
  */
 public final class Replayer {
 
     private final RunManifest manifest;
+    private final EngineConfig engine;
     private final Path ckptDir;
     private final int[] checkpointTicks;
     private Kernel kernel;
 
-    private Replayer(final RunManifest manifest, final Path ckptDir, final int[] checkpointTicks) {
+    private Replayer(final RunManifest manifest, final EngineConfig engine, final Path ckptDir,
+            final int[] checkpointTicks) {
         this.manifest = manifest;
+        this.engine = engine;
         this.ckptDir = ckptDir;
         this.checkpointTicks = checkpointTicks;
     }
 
     public static Replayer open(final Path obsDir) throws IOException {
         final RunManifest manifest = RunManifest.parse(Files.readString(obsDir.resolve("manifest.json")));
-        final String current = ConfigHash.compute();
+        final EngineConfig engine = ConfigJson.read(Files.readString(obsDir.resolve("config.json")));
+        final String current = ConfigHash.compute(engine);
         if (!current.equals(manifest.configHash())) {
             throw new IllegalStateException(
                     "configHash mismatch: run recorded under " + manifest.configHash()
-                    + " but this build is " + current + " — replay refused (constants changed)");
+                    + " but config.json hashes to " + current + " — replay refused (constants changed)");
         }
         final Path ckptDir = obsDir.resolve("ckpt");
         final int[] ticks = indexCheckpoints(ckptDir);
-        return new Replayer(manifest, ckptDir, ticks);
+        return new Replayer(manifest, engine, ckptDir, ticks);
     }
 
     private static int[] indexCheckpoints(final Path ckptDir) throws IOException {
@@ -71,6 +77,10 @@ public final class Replayer {
         return out;
     }
 
+    public EngineConfig engine() {
+        return engine;
+    }
+
     public RunManifest manifest() {
         return manifest;
     }
@@ -87,8 +97,7 @@ public final class Replayer {
             throw new IllegalArgumentException(
                     "tick " + t + " out of recorded range [0, " + manifest.ticks() + "]");
         }
-        final Kernel k = new Kernel(manifest.founderGenomes(), manifest.worldWidth(),
-                manifest.maxGenes(), manifest.founderCells());
+        final Kernel k = new Kernel(manifest.founderGenomes(), manifest.founderCells(), engine);
         int from = 0;
         final int ckpt = greatestCheckpointAtMost(t);
         if (ckpt >= 0) {

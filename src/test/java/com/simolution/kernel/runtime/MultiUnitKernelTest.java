@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
 
@@ -34,8 +35,7 @@ class MultiUnitKernelTest {
     @Test
     void unitsDoNotLeakSignalsIntoEachOther() {
         // arrange
-        Kernel kernel = new Kernel(
-                new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 2, 32, new int[] {0, 1, 2});
+        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2}, EngineConfig.v5Defaults(0L, 2, 32));
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         int actionIdx = NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
 
@@ -58,11 +58,8 @@ class MultiUnitKernelTest {
     @Test
     void unitZeroIsInvariantUnderPopulationSize() {
         // arrange
-        Kernel alone = new Kernel(
-                new int[][] {FEEDBACK_GENOME}, 1, 32, new int[] {0});
-        Kernel crowded = new Kernel(
-                new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, 3, 32,
-                new int[] {0, 1, 2, 3, 4});
+        Kernel alone = new Kernel(new int[][] {FEEDBACK_GENOME}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+        Kernel crowded = new Kernel(new int[][] {FEEDBACK_GENOME, FEEDBACK_GENOME, EMPTY_GENOME, FEEDBACK_GENOME, EMPTY_GENOME}, new int[] {0, 1, 2, 3, 4}, EngineConfig.v5Defaults(0L, 3, 32));
 
         // act + assert
         for (int tick = 0; tick < 20; tick++) {
@@ -79,8 +76,7 @@ class MultiUnitKernelTest {
     @Test
     void unitsReceiveDistinctRandStreams() {
         // arrange
-        Kernel kernel = new Kernel(
-                new int[][] {EMPTY_GENOME, EMPTY_GENOME}, 2, 32, new int[] {0, 1});
+        Kernel kernel = new Kernel(new int[][] {EMPTY_GENOME, EMPTY_GENOME}, new int[] {0, 1}, EngineConfig.v5Defaults(0L, 2, 32));
         int randIdx = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.RAND;
 
         // act

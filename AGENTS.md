@@ -78,7 +78,7 @@ Requires JDK 26 (`.sdkmanrc` pins `26.0.1.0+8-open`; `sdk env` activates it).
 com.simolution
 ├── Main                      demo entry point
 └── kernel
-    ├── config.KernelConfig   constants: weight scaling, seed, unit/junk counts
+    ├── config.EngineConfig   per-run law constants as data (JSON via ConfigJson, `--config`); chemicals + inflow per ChemicalSpec
     ├── layout
     │   ├── NodeLayout        flat index space: [sensors | internals | actions], offsets, junk padding
     │   ├── NodeType          SENSOR / INTERNAL / ACTION
@@ -104,7 +104,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── BirthLogWriter            <base>.births.csv.gz — one row per derived birth (lineage/generation kernel-exact, genome ids from the shared catalog); DuckDB-queryable lineage store (report-v13, unchanged in v14)
 ├── UnitCsvReport             per-unit .units.csv sidecar (one row per unit)
 ├── WiringReport              per-unit .wiring.csv sidecar (one row per connection — the signature; docs/specs/report-v5.md)
-├── RunManifest/ConfigHash    report-v8 replay key (verbatim founder genomes+cells, KernelConfig fingerprint)
+├── RunManifest/ConfigHash    report-v8 replay key (verbatim founder genomes+cells, EngineConfig fingerprint + config.json)
 ├── EventLogWriter            report-v8 events.jsonl — births/deaths/extinctions derived from snapshot deltas; mutation bits by child↔parent gene diff (no kernel hook)
 ├── MetricsWriter             report-v8 metrics.csv — per-tick aggregates, streamed, O(1)/tick
 ├── CheckpointWriter          report-v8 ckpt/<tick>.ckpt — full-state checkpoints via Kernel.saveState every C ticks

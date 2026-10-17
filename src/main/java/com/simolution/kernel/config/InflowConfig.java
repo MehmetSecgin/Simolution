@@ -1,12 +1,15 @@
 package com.simolution.kernel.config;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 /**
  * The world's resource-inflow field as composable {@link InflowSource}s
  * (contract v7). The cap at a cell is {@code combine(baseline, source₀, source₁, …)}
  * — a pure function of {@code (x, y, tick)}. This is pure spec data; the kernel runs
  * the {@link #compile(int) compiled} form.
  * <p>
- * {@link #UNIFORM} (no sources, baseline {@code CELL_INFLOW}) is the v1–v5 law:
+ * {@link #uniform} (no sources, baseline 1.0) is the v1–v5 law:
  * every cell admits the same inflow each tick. {@link #cyclic} reproduces the
  * contract-v6 single central pulsing disk exactly (one {@link InflowSource.Disk} at
  * the lattice centre, baseline 0). {@link #field} composes any sources for the
@@ -19,6 +22,19 @@ package com.simolution.kernel.config;
  * inflow changes.
  */
 public record InflowConfig(double baseline, InflowSource[] sources, Combine combine) {
+
+    @Override
+    public boolean equals(final Object o) {
+        return o instanceof InflowConfig other
+                && Double.compare(baseline, other.baseline) == 0
+                && combine == other.combine
+                && Arrays.equals(sources, other.sources);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(baseline, combine, Arrays.hashCode(sources));
+    }
 
     /** How overlapping sources (and the baseline) merge into a single cap. */
     public enum Combine {
@@ -38,8 +54,9 @@ public record InflowConfig(double baseline, InflowSource[] sources, Combine comb
         public abstract double apply(double a, double b);
     }
 
-    public static final InflowConfig UNIFORM =
-            new InflowConfig(KernelConfig.CELL_INFLOW, new InflowSource[0], Combine.MAX);
+    public static InflowConfig uniform(final double baseline) {
+        return new InflowConfig(baseline, new InflowSource[0], Combine.MAX);
+    }
 
     /** The general case: a baseline plus any composed sources. */
     public static InflowConfig field(final double baseline, final Combine combine, final InflowSource... sources) {

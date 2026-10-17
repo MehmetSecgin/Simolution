@@ -1,6 +1,6 @@
 package com.simolution.sim;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.KernelSnapshot;
@@ -26,14 +26,16 @@ public final class SnapshotDump {
 
     private SnapshotDump() {}
 
-    public static String render(final KernelSnapshot snapshot, final CompiledConnection[] liveConnections) {
+    public static String render(final KernelSnapshot snapshot, final CompiledConnection[] liveConnections,
+            final EngineConfig config) {
         final StringBuilder out = new StringBuilder(4096);
         out.append("tick ").append(snapshot.tick).append('\n');
         out.append("world ").append(snapshot.worldWidth).append('\n');
 
+        final double cellCapacity = config.chemicals().get(0).capacity();
         out.append("resource ");
         for (final double r : snapshot.resourceField) {
-            int level = (int) Math.round(9.0 * r / KernelConfig.CELL_CAPACITY);
+            int level = (int) Math.round(9.0 * r / cellCapacity);
             if (level < 0) {
                 level = 0;
             } else if (level > 9) {

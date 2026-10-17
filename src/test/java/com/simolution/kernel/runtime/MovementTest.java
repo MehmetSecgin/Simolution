@@ -5,11 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.genome.GeneDecoder;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
 
 class MovementTest {
+
+    private static final EngineConfig DEFAULTS = EngineConfig.v5Defaults(0L, 1, 1);
 
     // CONST(=1.0) -> MOVE_E with a weight whose product clears MOVE_DEADZONE
     private static int driveEast(short weightRaw) {
@@ -38,9 +41,9 @@ class MovementTest {
     @Test
     void motileUnitStepsEastEachTickAndConservesEnergy() {
         // arrange: one mover on a 4x4 torus, founder at cell 0
-        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}}, 4, 32, new int[] {0});
-        double credited = KernelConfig.INITIAL_ENERGY + KernelConfig.CELL_INITIAL * 16
-                + KernelConfig.INITIAL_MASS;
+        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 4, 32));
+        double credited = DEFAULTS.initialEnergy() + DEFAULTS.chemicals().get(0).initial() * 16
+                + DEFAULTS.initialMass();
 
         // act + assert
         // tick 1: CONST only just became 1.0 this tick, so MOVE_E read (outputsPrev)
@@ -64,9 +67,9 @@ class MovementTest {
     void weakDriveInsideDeadzoneDoesNotMove() {
         // arrange: CONST*weight stays below MOVE_DEADZONE, so no step
         short weak = 512; // 512 * 4/32767 ~ 0.0625 < MOVE_DEADZONE 0.1
-        assertTrue(weak * KernelConfig.WEIGHT_MULTIPLIER < KernelConfig.MOVE_DEADZONE,
+        assertTrue(weak * GeneDecoder.WEIGHT_MULTIPLIER < DEFAULTS.moveDeadzone(),
                 "test precondition: drive must be inside the deadzone");
-        Kernel kernel = new Kernel(new int[][] {{driveEast(weak)}}, 4, 32, new int[] {0});
+        Kernel kernel = new Kernel(new int[][] {{driveEast(weak)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 4, 32));
 
         // act
         for (int i = 0; i < 10; i++) {
@@ -81,7 +84,7 @@ class MovementTest {
     void stepIntoAnOccupiedCellIsBlocked() {
         // arrange: mover at cell 0 wants to step east into cell 1, held by an
         // inert (empty-genome) unit that never moves
-        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {}}, 4, 32, new int[] {0, 1});
+        Kernel kernel = new Kernel(new int[][] {{driveEast((short) 8192)}, {}}, new int[] {0, 1}, EngineConfig.v5Defaults(0L, 4, 32));
 
         // act: a few ticks while the blocker is still alive
         for (int i = 0; i < 4; i++) {

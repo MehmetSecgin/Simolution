@@ -1,11 +1,13 @@
 package com.simolution.kernel.genome;
 
-import com.simolution.kernel.config.KernelConfig;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.layout.NodeType;
 
 public final class GeneDecoder {
+
+    private static final double MAX_WEIGHT = 4.0;
+    public static final double WEIGHT_MULTIPLIER = MAX_WEIGHT / Short.MAX_VALUE;
 
     private GeneDecoder() {}
 
@@ -43,7 +45,7 @@ public final class GeneDecoder {
         int destinationAbsoluteIndex = unitNodeOffset + destinationLocalIndex;
 
         // --- 6. Scale weight ---
-        double weight = weightRaw * KernelConfig.WEIGHT_MULTIPLIER;
+        double weight = weightRaw * WEIGHT_MULTIPLIER;
 
         return new CompiledConnection(sourceAbsoluteIndex, destinationAbsoluteIndex, weight);
     }

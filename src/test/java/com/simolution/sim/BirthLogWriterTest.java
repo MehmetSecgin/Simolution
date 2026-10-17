@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
@@ -24,8 +25,8 @@ class BirthLogWriterTest {
         GenomeCatalogWriter cat = new GenomeCatalogWriter(catalog);
         int world = 8;
         int[] founders = Kernel.scatterFounders(6, world);
-        Kernel k = new Kernel(GenomeFactory.random(3L, 6, 8), world, 8, founders);
-        BirthTracker tracker = new BirthTracker(world * world, 6, world, founders);
+        Kernel k = new Kernel(GenomeFactory.random(3L, 6, 8), founders, EngineConfig.v5Defaults(0L, world, 8));
+        BirthTracker tracker = new BirthTracker(world * world, 6, world, founders, EngineConfig.v5Defaults(0L, world, 8));
         BirthLogWriter w = new BirthLogWriter(births, cat, tracker);
 
         for (int i = 0; i < 40; i++) {

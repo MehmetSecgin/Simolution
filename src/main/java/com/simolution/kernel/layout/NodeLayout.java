@@ -1,8 +1,10 @@
 package com.simolution.kernel.layout;
 
-import com.simolution.kernel.config.KernelConfig;
-
 public final class NodeLayout {
+
+    public static final int SENSOR_JUNK_COUNT = 2;
+    public static final int INTERNAL_JUNK_COUNT = 3;
+    public static final int ACTION_JUNK_COUNT = 1;
 
     public static final class Sensor {
 
@@ -15,7 +17,7 @@ public final class NodeLayout {
         public static final int MEANINGFUL_COUNT = 5;
 
         public static final int TYPE_COUNT =
-                MEANINGFUL_COUNT + KernelConfig.SENSOR_JUNK_COUNT;
+                MEANINGFUL_COUNT + SENSOR_JUNK_COUNT;
 
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
@@ -33,7 +35,7 @@ public final class NodeLayout {
         public static final int MEANINGFUL_COUNT = 5;
 
         public static final int TYPE_COUNT =
-                MEANINGFUL_COUNT + KernelConfig.INTERNAL_JUNK_COUNT;
+                MEANINGFUL_COUNT + INTERNAL_JUNK_COUNT;
 
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
@@ -54,7 +56,7 @@ public final class NodeLayout {
         public static final int MEANINGFUL_COUNT = 8;
 
         public static final int TYPE_COUNT =
-                MEANINGFUL_COUNT + KernelConfig.ACTION_JUNK_COUNT;
+                MEANINGFUL_COUNT + ACTION_JUNK_COUNT;
 
         public static final int INSTANCES_PER_TYPE = 1;
         public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;

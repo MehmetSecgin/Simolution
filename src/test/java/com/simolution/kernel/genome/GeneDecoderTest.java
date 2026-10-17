@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.KernelConfig;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 
@@ -24,7 +23,7 @@ class GeneDecoderTest {
         // assert
         assertEquals(NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.CONST, connection.sourceAbsoluteIndex);
         assertEquals(NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.DELAY, connection.destinationAbsoluteIndex);
-        assertEquals(-16384 * KernelConfig.WEIGHT_MULTIPLIER, connection.weight, 0.0);
+        assertEquals(-16384 * GeneDecoder.WEIGHT_MULTIPLIER, connection.weight, 0.0);
     }
 
     @Test

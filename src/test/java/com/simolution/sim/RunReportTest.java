@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.InflowConfig;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
@@ -17,10 +17,9 @@ class RunReportTest {
         int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
-        int worldWidth = config.worldWidth();
-        Kernel kernel = new Kernel(genomes, worldWidth, config.genesPerUnit(),
-                java.util.stream.IntStream.range(0, genomes.length).toArray());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
+        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(),
+                config.engine());
+        DynamicsObserver observer = new DynamicsObserver(config.units(), connections, config.engine());
         for (int i = 0; i < config.ticks(); i++) {
             kernel.tick();
             observer.observe(kernel.snapshot());
@@ -31,7 +30,7 @@ class RunReportTest {
     @Test
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
-        RunConfig config = new RunConfig(25, 200, 42L, 16, 64, 16, false, false, null, 0, false, 0, InflowConfig.UNIFORM, -1, -1);
+        RunConfig config = new RunConfig(25, 200, 16, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(42L, 64, 16));
 
         // act
         String first = runAndRender(config);
@@ -44,7 +43,7 @@ class RunReportTest {
     @Test
     void reportDoesNotInlinePerUnitDetail() {
         // act
-        String report = runAndRender(new RunConfig(25, 50, 1L, 8, 64, 8, false, false, null, 0, false, 0, InflowConfig.UNIFORM, -1, -1));
+        String report = runAndRender(new RunConfig(25, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(1L, 64, 8)));
 
         // assert
         assertFalse(report.contains("## units"));
@@ -55,7 +54,7 @@ class RunReportTest {
     @Test
     void reportContainsAllSections() {
         // act
-        String report = runAndRender(new RunConfig(5, 50, 9L, 8, 64, 8, false, false, null, 0, false, 0, InflowConfig.UNIFORM, -1, -1));
+        String report = runAndRender(new RunConfig(5, 50, 8, false, false, null, 0, false, 0, -1, -1, EngineConfig.v5Defaults(9L, 64, 8)));
 
         // assert
         assertTrue(report.contains("schema: report-v14"));

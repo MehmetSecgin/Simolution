@@ -13,6 +13,8 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.simolution.kernel.config.ConfigJson;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
@@ -39,8 +41,10 @@ class ObservabilityTest {
         return Kernel.scatterFounders(UNITS, WORLD);
     }
 
+    private static final EngineConfig ENGINE = EngineConfig.v5Defaults(0L, WORLD, MAX_GENES);
+
     private static Kernel freshKernel() {
-        return new Kernel(genomes(), WORLD, MAX_GENES, founderCells());
+        return new Kernel(genomes(), founderCells(), ENGINE);
     }
 
     // replay from a checkpoint reproduces the canonical history exactly:
@@ -73,7 +77,7 @@ class ObservabilityTest {
     void manifestRoundTrips() {
         RunManifest m = new RunManifest("v3", 7L, WORLD, 2,
                 new int[] {3, 17}, new int[][] {{1, -2, 3}, {-4, 5}},
-                7L, 3, MAX_GENES, TICKS, ConfigHash.compute(), CHECKPOINT_EVERY, 5);
+                7L, 3, MAX_GENES, TICKS, ConfigHash.compute(ENGINE), CHECKPOINT_EVERY, 5);
         RunManifest parsed = RunManifest.parse(m.toJson());
         assertEquals(m.kernel(), parsed.kernel());
         assertEquals(m.seed(), parsed.seed());
@@ -108,19 +112,20 @@ class ObservabilityTest {
         }
         RunManifest manifest = new RunManifest("v3", SEED, WORLD, UNITS,
                 founderCells(), genomes(), SEED, GENES, MAX_GENES, TICKS,
-                ConfigHash.compute(), CHECKPOINT_EVERY, 0);
+                ConfigHash.compute(ENGINE), CHECKPOINT_EVERY, 0);
         Files.writeString(obsDir.resolve("manifest.json"), manifest.toJson());
+        Files.writeString(obsDir.resolve("config.json"), ConfigJson.write(ENGINE));
     }
 
     private long digestOfRun(boolean observe, Path obsDir) throws IOException {
         Kernel kernel = freshKernel();
-        BirthTracker births = new BirthTracker(WORLD * WORLD, UNITS, WORLD, founderCells());
+        BirthTracker births = new BirthTracker(WORLD * WORLD, UNITS, WORLD, founderCells(), ENGINE);
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
         if (observe) {
             Files.createDirectories(obsDir);
             eventLog = new EventLogWriter(new BufferedWriter(new StringWriter()),
-                    births, WORLD * WORLD, UNITS, founderCells());
+                    births, WORLD * WORLD, UNITS, founderCells(), ENGINE);
             metrics = new MetricsWriter(new BufferedWriter(new StringWriter()), UNITS, WORLD * WORLD);
         }
         long digest = 0L;

@@ -5,6 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+import com.simolution.kernel.config.ConfigJson;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
@@ -54,12 +56,12 @@ public class Main {
         for (int[] genome : genomes) {
             maxGenes = Math.max(maxGenes, genome.length);
         }
-        int worldWidth = config.worldWidth();
+        EngineConfig engine = config.engine().withMaxGenes(maxGenes);
+        int worldWidth = engine.worldWidth();
         int maxUnits = worldWidth * worldWidth;
         int[] founderCells = Kernel.scatterFounders(genomes.length, worldWidth);
-        Kernel kernel = new Kernel(genomes, worldWidth, maxGenes, founderCells);
-        kernel.configureInflow(config.inflow());
-        DynamicsObserver observer = new DynamicsObserver(config.units(), connections);
+        Kernel kernel = new Kernel(genomes, founderCells, engine);
+        DynamicsObserver observer = new DynamicsObserver(config.units(), connections, engine);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
 
@@ -70,7 +72,7 @@ public class Main {
         BirthLogWriter birthLog = null;
         BirthTracker birthTracker = null;
         if (config.outPath() != null) {
-            birthTracker = new BirthTracker(maxUnits, genomes.length, worldWidth, founderCells);
+            birthTracker = new BirthTracker(maxUnits, genomes.length, worldWidth, founderCells, engine);
             Path out = Path.of(config.outPath());
             if (out.getParent() != null) {
                 Files.createDirectories(out.getParent());
@@ -89,7 +91,7 @@ public class Main {
                 mapWriter = new MapFrameWriter(
                         Files.newOutputStream(framesPath),
                         Files.newBufferedWriter(sibling(out, ".frames.idx")), catalogWriter,
-                        worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo());
+                        worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo(), engine);
             }
         }
 
@@ -101,7 +103,7 @@ public class Main {
             obsDir = obsDir(Path.of(config.outPath()));
             Files.createDirectories(obsDir);
             eventLog = new EventLogWriter(Files.newBufferedWriter(obsDir.resolve("events.jsonl")),
-                    birthTracker, maxUnits, genomes.length, founderCells);
+                    birthTracker, maxUnits, genomes.length, founderCells, engine);
             metrics = new MetricsWriter(Files.newBufferedWriter(obsDir.resolve("metrics.csv")),
                     genomes.length, maxUnits);
             checkpoints = new CheckpointWriter(obsDir.resolve("ckpt"), config.checkpointEvery());
@@ -109,8 +111,9 @@ public class Main {
                     : (config.mapFrames() > 0 ? Math.max(1, config.ticks() / config.mapFrames()) : 1);
             RunManifest manifest = new RunManifest("v4", config.seed(), worldWidth, genomes.length,
                     founderCells, genomes, config.seed(), config.genesPerUnit(), maxGenes,
-                    config.ticks(), ConfigHash.compute(), config.checkpointEvery(), mapSampleEvery);
+                    config.ticks(), ConfigHash.compute(engine), config.checkpointEvery(), mapSampleEvery);
             Files.writeString(obsDir.resolve("manifest.json"), manifest.toJson());
+            Files.writeString(obsDir.resolve("config.json"), ConfigJson.write(engine));
             System.out.println("observability layer writing to " + obsDir + "/ (manifest, events.jsonl, "
                     + "metrics.csv, ckpt/ every " + config.checkpointEvery() + " ticks)");
         }
@@ -210,7 +213,7 @@ public class Main {
         }
         Replayer replayer = Replayer.open(Path.of(obs));
         KernelSnapshot snapshot = replayer.seekTo(at);
-        String dump = SnapshotDump.render(snapshot, replayer.kernel().liveConnections());
+        String dump = SnapshotDump.render(snapshot, replayer.kernel().liveConnections(), replayer.engine());
         if (snapshotOut == null) {
             System.out.print(dump);
         } else {

@@ -12,8 +12,8 @@ import java.util.Map;
  * past", so this small object plus the kernel is the whole time machine.
  * <p>
  * Founder genomes and cells are stored <b>verbatim</b> (not regenerated from
- * {@code genomeSeed}): {@code configHash} covers {@link com.simolution.kernel.config.KernelConfig}
- * constants but not {@code GenomeFactory}'s algorithm, so a factory change would
+ * {@code genomeSeed}): {@code configHash} covers the {@link com.simolution.kernel.config.EngineConfig}
+ * stored beside the manifest as {@code config.json} but not {@code GenomeFactory}'s algorithm, so a factory change would
  * otherwise silently produce different founders with no mismatch caught. The
  * founding state is data, like the scatter placement (ADR 0022). {@code genomeSeed}
  * is kept only as provenance.

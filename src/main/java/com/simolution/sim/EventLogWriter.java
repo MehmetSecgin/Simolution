@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 /**
@@ -63,7 +63,8 @@ public final class EventLogWriter implements Closeable {
     private final boolean[] lineageExtinct;
 
     public EventLogWriter(final Writer out, final BirthTracker births, final int maxUnits,
-                          final int founderCount, final int[] founderCells) throws IOException {
+                          final int founderCount, final int[] founderCells,
+                          final EngineConfig config) throws IOException {
         this.out = out;
         this.births = births;
         this.maxUnits = maxUnits;
@@ -88,7 +89,7 @@ public final class EventLogWriter implements Closeable {
         // generation 0, born at tick 0. This is the "previous" state the first
         // observed tick (tick 1) is differenced against.
         for (int slot = 0; slot < founderCount; slot++) {
-            prevEnergy[slot] = KernelConfig.INITIAL_ENERGY;
+            prevEnergy[slot] = config.initialEnergy();
             prevLineage[slot] = slot;
             prevGeneration[slot] = 0;
             final int cell = founderCells[slot];

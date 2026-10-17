@@ -4,7 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.genome.GeneDecoder;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
 
@@ -41,12 +42,12 @@ class KernelVerticalSliceTest {
                            .weightRaw(W_ADD_TO_ACTION)
                            .build()
         };
-        Kernel kernel = new Kernel(new int[][] {genome}, 1, 32, new int[] {0});
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
 
-        double wConstToAdd = W_CONST_TO_ADD * KernelConfig.WEIGHT_MULTIPLIER;
-        double wAddToDelay = W_ADD_TO_DELAY * KernelConfig.WEIGHT_MULTIPLIER;
-        double wDelayToAdd = W_DELAY_TO_ADD * KernelConfig.WEIGHT_MULTIPLIER;
-        double wAddToAction = W_ADD_TO_ACTION * KernelConfig.WEIGHT_MULTIPLIER;
+        double wConstToAdd = W_CONST_TO_ADD * GeneDecoder.WEIGHT_MULTIPLIER;
+        double wAddToDelay = W_ADD_TO_DELAY * GeneDecoder.WEIGHT_MULTIPLIER;
+        double wDelayToAdd = W_DELAY_TO_ADD * GeneDecoder.WEIGHT_MULTIPLIER;
+        double wAddToAction = W_ADD_TO_ACTION * GeneDecoder.WEIGHT_MULTIPLIER;
 
         float constPrev = 0.0f;
         float addPrev = 0.0f;
@@ -91,8 +92,8 @@ class KernelVerticalSliceTest {
                            .weightRaw((short) 16384)
                            .build()
         };
-        Kernel first = new Kernel(new int[][] {genome}, 1, 32, new int[] {0});
-        Kernel second = new Kernel(new int[][] {genome}, 1, 32, new int[] {0});
+        Kernel first = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+        Kernel second = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
 
         // act + assert
         for (int tick = 0; tick < 50; tick++) {

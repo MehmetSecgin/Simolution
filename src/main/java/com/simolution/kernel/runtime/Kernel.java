@@ -3,13 +3,15 @@ package com.simolution.kernel.runtime;
 import java.util.Arrays;
 
 import com.simolution.kernel.config.CompiledInflowField;
-import com.simolution.kernel.config.InflowConfig;
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.config.ChemicalSpec;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 
 public final class Kernel {
+
+    private static final long LEGACY_RNG_SEED = 0L;
 
     private float[] outputsPrev;
     private float[] outputsNext;
@@ -58,7 +60,35 @@ public final class Kernel {
 
     private int tick = 0;
 
-    private CompiledInflowField inflow;
+    private final CompiledInflowField inflow;
+
+    private final double initialEnergy;
+    private final double basalCost;
+    private final double costPerPropagation;
+    private final double harvestCapacityPerConnection;
+    private final double harvestHalfSaturation;
+    private final double harvestMassExponent;
+    private final double cellCapacity;
+    private final double cellInitial;
+    private final double diffusionRate;
+    private final double resourceDecayRate;
+    private final double moveCostBase;
+    private final double moveCostPerMass;
+    private final double moveDeadzone;
+    private final double selfEnergyScale;
+    private final double selfMassScale;
+    private final double initialMass;
+    private final double maintPerMass;
+    private final double growMax;
+    private final double growHalfSaturation;
+    private final double growYield;
+    private final double buildCostBase;
+    private final double buildCostPerGene;
+    private final double mutationRateWeight;
+    private final double mutationRateStruct;
+    private final double indelRateDup;
+    private final double indelRateDel;
+    private final double agingCost;
 
     /**
      * The substrate is a fixed pool of {@code genomes.length} slots; a slot is
@@ -78,9 +108,15 @@ public final class Kernel {
      * the pool's full capacity {@code unitCount · maxGenes} up front (contract v2
      * §12 footprint note).
      */
-    public Kernel(final int[][] initialGenomes, final int worldWidth, final int maxGenes,
-            final int[] founderCells) {
+    public Kernel(final int[][] initialGenomes, final int[] founderCells, final EngineConfig config) {
 
+        if (config.chemicals().size() != 1 || config.chemicals().get(0).decayTarget() != -1) {
+            throw new IllegalArgumentException(
+                    "kernel supports exactly one chemical that decays to the sink");
+        }
+        final ChemicalSpec chemical = config.chemicals().get(0);
+        final int worldWidth = config.worldWidth();
+        final int maxGenes = config.maxGenes();
         final int maxUnits = worldWidth * worldWidth;
         final int seededCount = initialGenomes.length;
         if (seededCount > maxUnits) {
@@ -96,7 +132,34 @@ public final class Kernel {
         this.worldWidth = worldWidth;
         this.unitCount = maxUnits;
         this.maxGenes = maxGenes;
-        this.inflow = InflowConfig.UNIFORM.compile(worldWidth);
+        this.inflow = chemical.inflow().compile(worldWidth);
+        this.initialEnergy = config.initialEnergy();
+        this.basalCost = config.basalCost();
+        this.costPerPropagation = config.costPerPropagation();
+        this.harvestCapacityPerConnection = config.harvestCapacityPerConnection();
+        this.harvestHalfSaturation = config.harvestHalfSaturation();
+        this.harvestMassExponent = config.harvestMassExponent();
+        this.cellCapacity = chemical.capacity();
+        this.cellInitial = chemical.initial();
+        this.diffusionRate = chemical.diffusionRate();
+        this.resourceDecayRate = chemical.decayRate();
+        this.moveCostBase = config.moveCostBase();
+        this.moveCostPerMass = config.moveCostPerMass();
+        this.moveDeadzone = config.moveDeadzone();
+        this.selfEnergyScale = config.selfEnergyScale();
+        this.selfMassScale = config.selfMassScale();
+        this.initialMass = config.initialMass();
+        this.maintPerMass = config.maintPerMass();
+        this.growMax = config.growMax();
+        this.growHalfSaturation = config.growHalfSaturation();
+        this.growYield = config.growYield();
+        this.buildCostBase = config.buildCost();
+        this.buildCostPerGene = config.buildCostPerGene();
+        this.mutationRateWeight = config.mutationRateWeight();
+        this.mutationRateStruct = config.mutationRateStruct();
+        this.indelRateDup = config.indelRateDup();
+        this.indelRateDel = config.indelRateDel();
+        this.agingCost = config.agingCost();
 
         final int totalNodes = maxUnits * NodeLayout.TOTAL;
 
@@ -122,13 +185,13 @@ public final class Kernel {
         this.generation = new int[maxUnits];
         this.birthsTotal = 0L;
         this.maxGeneration = 0;
-        this.creditedInitialEnergy = KernelConfig.INITIAL_ENERGY * seededCount;
-        this.creditedInitialMass = KernelConfig.INITIAL_MASS * seededCount;
+        this.creditedInitialEnergy = initialEnergy * seededCount;
+        this.creditedInitialMass = initialMass * seededCount;
 
         this.resourceField = new double[maxUnits];
         this.resourceFieldNext = new double[maxUnits];
-        Arrays.fill(resourceField, KernelConfig.CELL_INITIAL);
-        this.initialResourceTotal = KernelConfig.CELL_INITIAL * maxUnits;
+        Arrays.fill(resourceField, cellInitial);
+        this.initialResourceTotal = cellInitial * maxUnits;
         this.cumulativeInflow = 0.0;
 
         this.position = new int[maxUnits];
@@ -156,8 +219,8 @@ public final class Kernel {
                 }
                 System.arraycopy(genome, 0, genes, unit * maxGenes, genome.length);
                 geneCount[unit] = genome.length;
-                energy[unit] = KernelConfig.INITIAL_ENERGY;
-                mass[unit] = KernelConfig.INITIAL_MASS;
+                energy[unit] = initialEnergy;
+                mass[unit] = initialMass;
                 lineageId[unit] = unit;
                 final int cell = founderCells[unit];
                 if (cell < 0 || cell >= maxUnits) {
@@ -176,16 +239,6 @@ public final class Kernel {
     }
 
     /**
-     * Set the resource-inflow pattern (contract v6). Call once before ticking;
-     * the default is {@link InflowConfig#UNIFORM} (the v1–v5 uniform law), so an
-     * unconfigured kernel — and every existing test — stays byte-identical. The
-     * harness calls this only when {@code --resource-cycle} is requested.
-     */
-    public void configureInflow(final InflowConfig inflow) {
-        this.inflow = inflow.compile(worldWidth);
-    }
-
-    /**
      * Founder placement policy (ADR 0022): deterministically scatter
      * {@code seededCount} founders over distinct cells of a
      * {@code worldWidth × worldWidth} lattice. Returns, for each founder slot
@@ -194,7 +247,7 @@ public final class Kernel {
      * <p>
      * A partial Fisher-Yates shuffle over the identity permutation
      * {@code [0, W²)} drives the draws, keyed off the placement RNG
-     * ({@link Noise#placementUniform}, seeded by {@code KernelConfig.RANDOM_SEED}
+     * ({@link Noise#placementUniform}, seeded by {@code LEGACY_RNG_SEED}
      * like RAND and mutation). This replaces the old slot==cell fill, which
      * packed founders into a contiguous row-major strip at one edge and imposed
      * an artificial density gradient on every run. The scatter is uniform and
@@ -210,7 +263,7 @@ public final class Kernel {
         }
         final int[] founderCell = new int[seededCount];
         for (int i = 0; i < seededCount; i++) {
-            final double u = Noise.placementUniform(KernelConfig.RANDOM_SEED, i);
+            final double u = Noise.placementUniform(LEGACY_RNG_SEED, i);
             final int j = i + (int) (u * (cellCount - i));
             final int tmp = cell[i];
             cell[i] = cell[j];
@@ -395,11 +448,11 @@ public final class Kernel {
         final int selfMassIdx = base + NodeLayout.SENSOR_OFFSET + (NodeLayout.Sensor.SELF_MASS * NodeLayout.Sensor.INSTANCES_PER_TYPE);
 
         outputsNext[constIdx] = 1.0f;
-        outputsNext[randIdx] = (float) Noise.sample(KernelConfig.RANDOM_SEED, unit, tick);
+        outputsNext[randIdx] = (float) Noise.sample(LEGACY_RNG_SEED, unit, tick);
         // a unit senses only the cell it currently occupies (contract v3 §3)
-        outputsNext[localResourceIdx] = (float) Math.min(1.0, resourceField[position[unit]] / KernelConfig.CELL_CAPACITY);
-        outputsNext[selfEnergyIdx] = (float) Math.min(1.0, energy[unit] / KernelConfig.SELF_ENERGY_SCALE);
-        outputsNext[selfMassIdx] = (float) Math.min(1.0, mass[unit] / KernelConfig.SELF_MASS_SCALE);
+        outputsNext[localResourceIdx] = (float) Math.min(1.0, resourceField[position[unit]] / cellCapacity);
+        outputsNext[selfEnergyIdx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);
+        outputsNext[selfMassIdx] = (float) Math.min(1.0, mass[unit] / selfMassScale);
 
         final int addIdx = base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
         outputsNext[addIdx] = accumulators[addIdx];
@@ -491,7 +544,7 @@ public final class Kernel {
         for (int cell = 0; cell < unitCount; cell++) {
             final double cap = inflow.cap(cell, tick);
             final double admitted = Math.min(cap,
-                    Math.max(0.0, KernelConfig.CELL_CAPACITY - resourceField[cell]));
+                    Math.max(0.0, cellCapacity - resourceField[cell]));
             resourceField[cell] += admitted;
             cumulativeInflow += admitted;
         }
@@ -528,11 +581,11 @@ public final class Kernel {
         if (!Double.isFinite(output) || output <= 0.0) {
             return 0.0;
         }
-        final double capacity = KernelConfig.HARVEST_CAPACITY_PER_CONNECTION * transporters
-                * Math.pow(mass[unit], KernelConfig.HARVEST_MASS_EXPONENT);
+        final double capacity = harvestCapacityPerConnection * transporters
+                * Math.pow(mass[unit], harvestMassExponent);
         // capacity · output/(HALF+output), rearranged to avoid overflow when
         // output is a huge (divergent) finite value.
-        return capacity / (1.0 + KernelConfig.HARVEST_HALF_SATURATION / output);
+        return capacity / (1.0 + harvestHalfSaturation / output);
     }
 
     /**
@@ -580,11 +633,11 @@ public final class Kernel {
             if (energy[unit] <= 0.0) {
                 continue;
             }
-            final double activity = activeThisTick[unit] * KernelConfig.COST_PER_PROPAGATION;
-            final double maintenance = mass[unit] * KernelConfig.MAINT_PER_MASS;
-            final double aging = damage[unit] * KernelConfig.AGING_COST;
+            final double activity = activeThisTick[unit] * costPerPropagation;
+            final double maintenance = mass[unit] * maintPerMass;
+            final double aging = damage[unit] * agingCost;
             final double charge = Math.min(
-                    KernelConfig.BASAL_COST + activity + maintenance + aging, energy[unit]);
+                    basalCost + activity + maintenance + aging, energy[unit]);
             energy[unit] -= charge;
             energySink += charge;
             damage[unit] += charge;
@@ -635,13 +688,13 @@ public final class Kernel {
             if (!Double.isFinite(output) || output <= 0.0) {
                 continue;
             }
-            double commit = KernelConfig.GROW_MAX
-                    / (1.0 + KernelConfig.GROW_HALF_SATURATION / output);
+            double commit = growMax
+                    / (1.0 + growHalfSaturation / output);
             if (commit > energy[unit]) {
                 commit = energy[unit];
             }
             energy[unit] -= commit;
-            final double gained = KernelConfig.GROW_YIELD * commit;
+            final double gained = growYield * commit;
             mass[unit] += gained;
             energySink += commit - gained;
             if (energy[unit] <= 0.0) {
@@ -680,7 +733,7 @@ public final class Kernel {
     private void settleReproduction() {
         freeSlotCursor = 0;
         for (int parent = 0; parent < unitCount; parent++) {
-            if (energy[parent] <= KernelConfig.BUILD_COST) {
+            if (energy[parent] <= buildCostBase) {
                 continue;
             }
             if (!wantsToDivide(parent)) {
@@ -695,8 +748,8 @@ public final class Kernel {
                 continue;
             }
             buildChildGenome(childSlot, parent);
-            final double buildCost = KernelConfig.BUILD_COST
-                    + KernelConfig.BUILD_COST_PER_GENE * geneCount[childSlot];
+            final double buildCost = buildCostBase
+                    + buildCostPerGene * geneCount[childSlot];
             if (energy[parent] <= buildCost) {
                 continue;
             }
@@ -801,7 +854,7 @@ public final class Kernel {
      * balance (contract v5 §6) is untouched — only resource leaves the field.
      */
     private void settleDecay() {
-        final double rate = KernelConfig.RESOURCE_DECAY_RATE;
+        final double rate = resourceDecayRate;
         if (rate <= 0.0) {
             return;
         }
@@ -814,7 +867,7 @@ public final class Kernel {
 
     private void settleDiffusion() {
         final int w = worldWidth;
-        final double d = KernelConfig.DIFFUSION_RATE;
+        final double d = diffusionRate;
         for (int y = 0; y < w; y++) {
             final int row = y * w;
             final int up = (((y - 1) % w) + w) % w * w;
@@ -856,7 +909,7 @@ public final class Kernel {
      */
     private void settleMovement() {
         final int w = worldWidth;
-        final double theta = KernelConfig.MOVE_DEADZONE;
+        final double theta = moveDeadzone;
         for (int unit = 0; unit < unitCount; unit++) {
             if (energy[unit] <= 0.0) {
                 continue;
@@ -888,8 +941,8 @@ public final class Kernel {
             if (cellOccupant[target] >= 0) {
                 continue;
             }
-            final double moveCost = KernelConfig.MOVE_COST_BASE
-                    + KernelConfig.MOVE_COST_PER_MASS * mass[unit];
+            final double moveCost = moveCostBase
+                    + moveCostPerMass * mass[unit];
             if (energy[unit] <= moveCost) {
                 continue;
             }
@@ -999,9 +1052,9 @@ public final class Kernel {
             int gene = genes[base + g];
             for (int bit = 0; bit < 32; bit++) {
                 final double rate = bit < 16
-                        ? KernelConfig.MUTATION_RATE_WEIGHT
-                        : KernelConfig.MUTATION_RATE_STRUCT;
-                if (Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, opIndex++)
+                        ? mutationRateWeight
+                        : mutationRateStruct;
+                if (Noise.mutationUniform(LEGACY_RNG_SEED, child, tick, opIndex++)
                         < rate) {
                     gene ^= (1 << bit);
                 }
@@ -1011,8 +1064,8 @@ public final class Kernel {
 
         int survivors = 0;
         for (int g = 0; g < count; g++) {
-            final boolean delete = Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, opIndex++)
-                    < KernelConfig.INDEL_RATE_DEL;
+            final boolean delete = Noise.mutationUniform(LEGACY_RNG_SEED, child, tick, opIndex++)
+                    < indelRateDel;
             if (!delete) {
                 genes[base + survivors++] = genes[base + g];
             }
@@ -1020,8 +1073,8 @@ public final class Kernel {
         count = survivors;
 
         for (int g = 0; g < survivors; g++) {
-            final boolean duplicate = Noise.mutationUniform(KernelConfig.RANDOM_SEED, child, tick, opIndex++)
-                    < KernelConfig.INDEL_RATE_DUP;
+            final boolean duplicate = Noise.mutationUniform(LEGACY_RNG_SEED, child, tick, opIndex++)
+                    < indelRateDup;
             if (duplicate && count < maxGenes) {
                 genes[base + count++] = genes[base + g];
             }

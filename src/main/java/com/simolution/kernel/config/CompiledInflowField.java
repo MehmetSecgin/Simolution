@@ -9,7 +9,7 @@ package com.simolution.kernel.config;
  * Time-invariant sources are folded with the baseline into a precomputed
  * {@code double[cells]} layer at compile time, so the hot path reads an array;
  * time-varying sources (pulses, motion, animated noise) are evaluated per tick on
- * top. When the field is just the bare baseline (the {@link InflowConfig#UNIFORM}
+ * top. When the field is just the bare baseline (the {@link InflowConfig#uniform}
  * default), {@code baked} stays {@code null} and {@code dynamic} empty — no
  * allocation, no per-cell work, byte-identical to the v1–v5 uniform law.
  */

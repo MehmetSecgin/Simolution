@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
@@ -36,9 +37,9 @@ class DynamicsObserverTest {
     private static DynamicsSummary runAndSummarize(int[][] genomes, int ticks) {
         CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
         final int worldWidth = (int) Math.ceil(Math.sqrt(Math.max(genomes.length, 4000)));
-        Kernel kernel = new Kernel(genomes, worldWidth, 32,
-                java.util.stream.IntStream.range(0, genomes.length).toArray());
-        DynamicsObserver observer = new DynamicsObserver(genomes.length, connections);
+        EngineConfig engine = EngineConfig.v5Defaults(0L, worldWidth, 32);
+        Kernel kernel = new Kernel(genomes, java.util.stream.IntStream.range(0, genomes.length).toArray(), engine);
+        DynamicsObserver observer = new DynamicsObserver(genomes.length, connections, engine);
         for (int i = 0; i < ticks; i++) {
             kernel.tick();
             observer.observe(kernel.snapshot());

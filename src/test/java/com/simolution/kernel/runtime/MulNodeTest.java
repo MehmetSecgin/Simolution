@@ -5,7 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.genome.GeneDecoder;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
 
@@ -14,7 +15,7 @@ class MulNodeTest {
     private static final int MUL_IDX = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
 
     private static double weight(short raw) {
-        return raw * KernelConfig.WEIGHT_MULTIPLIER;
+        return raw * GeneDecoder.WEIGHT_MULTIPLIER;
     }
 
     private static int constToMul(short raw) {
@@ -25,7 +26,7 @@ class MulNodeTest {
     }
 
     private static double mulOutputAfterTwoTicks(int... genome) {
-        Kernel kernel = new Kernel(new int[][] {genome}, 1, 32, new int[] {0});
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
         kernel.tick();
         kernel.tick();
         return kernel.snapshot().outputs[MUL_IDX];
@@ -120,7 +121,7 @@ class MulNodeTest {
                            .weightRaw(unit)
                            .build()
         };
-        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, 1, 32, new int[] {0});
+        Kernel kernel = new Kernel(new int[][] {specSliceGenome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
         int addIdx = NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
 
         // act

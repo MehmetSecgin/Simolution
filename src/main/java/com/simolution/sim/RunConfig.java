@@ -1,28 +1,43 @@
 package com.simolution.sim;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.simolution.kernel.config.ConfigJson;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.config.InflowSource;
 
 public record RunConfig(
         int units,
         int ticks,
-        long seed,
         int genesPerUnit,
-        int worldWidth,
-        int maxGenes,
         boolean trace,
         boolean demo,
         String outPath,
         int mapFrames,
         boolean observe,
         int checkpointEvery,
-        InflowConfig inflow,
         int mapFrom,
-        int mapTo
+        int mapTo,
+        EngineConfig engine
 ) {
+
+    public long seed() {
+        return engine.seed();
+    }
+
+    public int worldWidth() {
+        return engine.worldWidth();
+    }
+
+    public int maxGenes() {
+        return engine.maxGenes();
+    }
 
     public static RunConfig parse(String[] args) {
         Integer units = null;
@@ -37,7 +52,8 @@ public record RunConfig(
         Double cyclePeak = null;
         Integer mapFrom = null;
         Integer mapTo = null;
-        long seed = 0L;
+        Long seed = null;
+        String configPath = null;
         boolean trace = false;
         boolean observe = false;
         boolean resourceCycle = false;
@@ -54,6 +70,7 @@ public record RunConfig(
                 case "--map-frames" -> mapFrames = Integer.parseInt(args[++i]);
                 case "--checkpoint-every" -> checkpointEvery = Integer.parseInt(args[++i]);
                 case "--seed" -> seed = Long.parseLong(args[++i]);
+                case "--config" -> configPath = args[++i];
                 case "--trace" -> trace = true;
                 case "--observe" -> observe = true;
                 case "--resource-cycle" -> resourceCycle = true;
@@ -80,31 +97,41 @@ public record RunConfig(
             throw new IllegalArgumentException("--map-from requires --map-to >= --map-from");
         }
 
+        final EngineConfig base = configPath == null ? null : loadConfig(configPath);
+
         boolean demo = units == null && genes == null;
         if (demo) {
-            return new RunConfig(1, ticks == null ? 10 : ticks, seed, 0, 1, 0, true, true, outPath, mapFrames == null ? -1 : mapFrames,
-                    observe, checkpointEvery == null ? 2000 : checkpointEvery, InflowConfig.UNIFORM, -1, -1);
+            final EngineConfig engine = base != null
+                    ? applyOverrides(base, seed, null, null)
+                    : EngineConfig.v5Defaults(seed == null ? 0L : seed, 1, 0);
+            return new RunConfig(1, ticks == null ? 10 : ticks, 0, true, true, outPath,
+                    mapFrames == null ? -1 : mapFrames, observe, checkpointEvery == null ? 2000 : checkpointEvery,
+                    -1, -1, engine);
         }
         int u = units == null ? 1 : units;
         int g = genes == null ? 32 : genes;
-        int w = world == null ? squareSideFor(u * 4) : world;
+        EngineConfig engine;
+        if (base != null) {
+            engine = applyOverrides(base, seed, world, maxGenes);
+        } else {
+            int w = world == null ? squareSideFor(u * 4) : world;
+            engine = EngineConfig.v5Defaults(seed == null ? 0L : seed, w, maxGenes == null ? g * 2 : maxGenes);
+        }
+        int w = engine.worldWidth();
         if ((long) w * w < u) {
             throw new IllegalArgumentException(
                     "world " + w + "x" + w + " (" + ((long) w * w) + " cells) cannot hold "
                     + u + " founders");
         }
-        InflowConfig inflow;
         if (inflowSpec != null) {
-            inflow = parseInflowSpec(inflowSpec);
+            engine = engine.withChemical0Inflow(parseInflowSpec(inflowSpec));
         } else if (resourceCycle) {
-            inflow = InflowConfig.cyclic(
+            engine = engine.withChemical0Inflow(InflowConfig.cyclic(
                     cyclePeriod == null ? 2000 : cyclePeriod,
                     cycleRadius == null ? Math.max(1, w / 5) : cycleRadius,
-                    cyclePeak == null ? 6.0 : cyclePeak);
-        } else {
-            inflow = InflowConfig.UNIFORM;
+                    cyclePeak == null ? 6.0 : cyclePeak));
         }
-        if (observe && inflow != InflowConfig.UNIFORM) {
+        if (observe && !engine.chemicals().get(0).inflow().equals(InflowConfig.uniform(1.0))) {
             throw new IllegalArgumentException(
                     "non-uniform inflow with --observe is not supported yet "
                     + "(the replay manifest does not carry the inflow field)");
@@ -112,20 +139,40 @@ public record RunConfig(
         return new RunConfig(
                 u,
                 ticks == null ? 1000 : ticks,
-                seed,
                 g,
-                w,
-                maxGenes == null ? g * 2 : maxGenes,
                 trace,
                 false,
                 outPath,
                 mapFrames == null ? -1 : mapFrames,
                 observe,
                 checkpointEvery == null ? 2000 : checkpointEvery,
-                inflow,
                 mapFrom == null ? -1 : mapFrom,
-                mapTo == null ? -1 : mapTo
+                mapTo == null ? -1 : mapTo,
+                engine
         );
+    }
+
+    private static EngineConfig loadConfig(final String path) {
+        try {
+            return ConfigJson.read(Files.readString(Path.of(path)));
+        } catch (final IOException e) {
+            throw new UncheckedIOException("cannot read config " + path, e);
+        }
+    }
+
+    private static EngineConfig applyOverrides(final EngineConfig base, final Long seed, final Integer world,
+            final Integer maxGenes) {
+        EngineConfig engine = base;
+        if (seed != null) {
+            engine = engine.withSeed(seed);
+        }
+        if (world != null) {
+            engine = engine.withWorldWidth(world);
+        }
+        if (maxGenes != null) {
+            engine = engine.withMaxGenes(maxGenes);
+        }
+        return engine;
     }
 
     /**
@@ -174,7 +221,8 @@ public record RunConfig(
         double peak = 6.0;
         int period = 0;
         int phase = 0;
-        long seed = 0L;
+        Long seed = null;
+        String configPath = null;
         double freq = 0.05;
         double thr = 0.5;
         double gain = 1.0;

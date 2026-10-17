@@ -107,6 +107,20 @@ public sealed interface InflowSource permits
     record Points(int[] cells, double peak, int periodTicks, int phaseTicks) implements InflowSource {
 
         @Override
+        public boolean equals(final Object o) {
+            return o instanceof Points other
+                    && java.util.Arrays.equals(cells, other.cells)
+                    && Double.compare(peak, other.peak) == 0
+                    && periodTicks == other.periodTicks
+                    && phaseTicks == other.phaseTicks;
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(java.util.Arrays.hashCode(cells), peak, periodTicks, phaseTicks);
+        }
+
+        @Override
         public double at(final int x, final int y, final int tick, final int worldWidth) {
             final int cell = y * worldWidth + x;
             for (final int c : cells) {

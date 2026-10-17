@@ -2,7 +2,7 @@ package com.simolution.sim;
 
 import java.util.Arrays;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.KernelSnapshot;
 
 public final class BirthTracker {
@@ -20,7 +20,7 @@ public final class BirthTracker {
     private int births;
 
     public BirthTracker(final int maxUnits, final int founderCount, final int worldWidth,
-                        final int[] founderCells) {
+                        final int[] founderCells, final EngineConfig config) {
         this.maxUnits = maxUnits;
         this.worldWidth = worldWidth;
 
@@ -34,7 +34,7 @@ public final class BirthTracker {
         this.parents = new int[maxUnits];
 
         for (int slot = 0; slot < founderCount; slot++) {
-            prevEnergy[slot] = KernelConfig.INITIAL_ENERGY;
+            prevEnergy[slot] = config.initialEnergy();
             prevLineage[slot] = slot;
             prevGeneration[slot] = 0;
             prevCellOccupant[founderCells[slot]] = slot;

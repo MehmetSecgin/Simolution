@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.sim.GenomeFactory;
@@ -18,6 +18,8 @@ import com.simolution.sim.GenomeFactory;
  * term and must stay exact.
  */
 class BiomassTest {
+
+    private static final EngineConfig DEFAULTS = EngineConfig.v5Defaults(0L, 1, 1);
 
     private static int constTo(int action, short weightRaw) {
         return GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
@@ -36,8 +38,7 @@ class BiomassTest {
         // arrange
         int worldWidth = 50;
         int founders = 200;
-        Kernel kernel = new Kernel(GenomeFactory.random(13L, founders, 8), worldWidth, 16,
-                Kernel.scatterFounders(founders, worldWidth));
+        Kernel kernel = new Kernel(GenomeFactory.random(13L, founders, 8), Kernel.scatterFounders(founders, worldWidth), EngineConfig.v5Defaults(0L, worldWidth, 16));
 
         // act + assert
         for (int t = 0; t < 2000; t++) {
@@ -60,8 +61,7 @@ class BiomassTest {
     @Test
     void fissionHalvesMassAndEnergy() {
         // arrange: a unit that always wants to divide (CONST -> REPRODUCE > 0)
-        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.REPRODUCE, (short) 8192)}},
-                3, 8, new int[] {4});
+        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.REPRODUCE, (short) 8192)}}, new int[] {4}, EngineConfig.v5Defaults(0L, 3, 8));
 
         // act: tick until the first fission
         int birthTick = -1;
@@ -82,12 +82,12 @@ class BiomassTest {
             if (s.energy[slot] > 0.0) {
                 living++;
                 massSum += s.mass[slot];
-                assertEquals(KernelConfig.INITIAL_MASS / 2.0, s.mass[slot], 1.0e-9,
+                assertEquals(DEFAULTS.initialMass() / 2.0, s.mass[slot], 1.0e-9,
                         "each daughter carries half the founder mass, slot " + slot);
             }
         }
         assertEquals(2.0, living, "parent + child both alive after fission");
-        assertEquals(KernelConfig.INITIAL_MASS, massSum, 1.0e-9, "mass is conserved across the split");
+        assertEquals(DEFAULTS.initialMass(), massSum, 1.0e-9, "mass is conserved across the split");
     }
 
     // contract-v5 §2: GROW converts spendable energy into structural mass; the
@@ -95,8 +95,7 @@ class BiomassTest {
     @Test
     void growConvertsEnergyIntoMass() {
         // arrange
-        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}},
-                1, 8, new int[] {0});
+        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8));
 
         // act: a few ticks so GROW propagates and fires
         for (int t = 0; t < 5; t++) {
@@ -105,9 +104,9 @@ class BiomassTest {
         KernelSnapshot s = kernel.snapshot();
 
         // assert
-        assertTrue(s.mass[0] > KernelConfig.INITIAL_MASS,
+        assertTrue(s.mass[0] > DEFAULTS.initialMass(),
                 "GROW must raise mass above the founder value, got " + s.mass[0]);
-        assertTrue(s.energy[0] < KernelConfig.INITIAL_ENERGY,
+        assertTrue(s.energy[0] < DEFAULTS.initialEnergy(),
                 "growth spends energy, got " + s.energy[0]);
     }
 
@@ -116,17 +115,16 @@ class BiomassTest {
     @Test
     void selfMassSensorReflectsMass() {
         // arrange: a grower, so mass changes and the sensor must follow
-        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}},
-                1, 8, new int[] {0});
+        Kernel kernel = new Kernel(new int[][] {{constTo(NodeLayout.Action.GROW, (short) 8192)}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8));
 
         // act + assert: the sensor is read in the evaluate phase, before this
         // tick's growth (phase 7), so it reflects the mass at the tick's start —
         // the previous tick's end mass.
-        double prevMass = KernelConfig.INITIAL_MASS;
+        double prevMass = DEFAULTS.initialMass();
         for (int t = 0; t < 6; t++) {
             kernel.tick();
             KernelSnapshot s = kernel.snapshot();
-            double expected = Math.min(1.0, prevMass / KernelConfig.SELF_MASS_SCALE);
+            double expected = Math.min(1.0, prevMass / DEFAULTS.selfMassScale());
             assertEquals(expected, s.outputs[SELF_MASS_IDX], 1.0e-6,
                     "SELF_MASS must equal min(1, mass_at_tick_start/scale) at tick " + s.tick);
             prevMass = s.mass[0];

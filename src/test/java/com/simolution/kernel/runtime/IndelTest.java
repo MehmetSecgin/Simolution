@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
-import com.simolution.kernel.config.KernelConfig;
 import com.simolution.sim.GenomeFactory;
 
 /**
@@ -17,6 +17,8 @@ import com.simolution.sim.GenomeFactory;
  * deterministic (same seed → identical genomes).
  */
 class IndelTest {
+
+    private static final EngineConfig DEFAULTS = EngineConfig.v5Defaults(0L, 1, 1);
 
     private static final long SEED = 7L;
     private static final int UNITS = 1500;
@@ -30,10 +32,9 @@ class IndelTest {
     // post-tuning indel rates (ADR 0035, 1e-4/gene) to fire both operators. This
     // tests the indel *mechanism*, not population survival under scarcity.
     private static Kernel evolvingKernel() {
-        Kernel kernel = new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), WORLD, MAX_GENES,
-                Kernel.scatterFounders(UNITS, WORLD));
-        kernel.configureInflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX));
-        return kernel;
+        return new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), Kernel.scatterFounders(UNITS, WORLD),
+                EngineConfig.v5Defaults(0L, WORLD, MAX_GENES)
+                        .withChemical0Inflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)));
     }
 
     // contract-v4 §1: MAX_GENES is a hard soft-cap ceiling and 0 the floor —
@@ -83,8 +84,8 @@ class IndelTest {
     // (no connections, no harvest, no motility), and dies of basal cost.
     @Test
     void emptyGenomeIsInertAndMortal() {
-        Kernel kernel = new Kernel(new int[][] {{}}, 1, 8, new int[] {0});
-        double previous = KernelConfig.INITIAL_ENERGY;
+        Kernel kernel = new Kernel(new int[][] {{}}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 8));
+        double previous = DEFAULTS.initialEnergy();
         boolean died = false;
         for (int t = 0; t < 200_000 && !died; t++) {
             kernel.tick();

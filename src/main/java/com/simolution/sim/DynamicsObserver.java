@@ -2,7 +2,7 @@ package com.simolution.sim;
 
 import java.util.Arrays;
 
-import com.simolution.kernel.config.KernelConfig;
+import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.KernelSnapshot;
@@ -41,6 +41,7 @@ public final class DynamicsObserver {
     private final boolean[] reachedNonFinite;
     private final double[] maxAbsOutput;
 
+    private final double initialEnergy;
     private final double[] prevEnergy;
     private final int[] deathTick;
     private final int[] harvestTicksByUnit;
@@ -58,8 +59,10 @@ public final class DynamicsObserver {
     private double initialReservoir;
     private double cumulativeInflow;
 
-    public DynamicsObserver(final int unitCount, final CompiledConnection[] connections) {
+    public DynamicsObserver(final int unitCount, final CompiledConnection[] connections,
+            final EngineConfig config) {
         this.unitCount = unitCount;
+        this.initialEnergy = config.initialEnergy();
         this.connections = connections;
 
         final int totalNodes = unitCount * NodeLayout.TOTAL;
@@ -76,7 +79,7 @@ public final class DynamicsObserver {
         this.maxAbsOutput = new double[unitCount];
 
         this.prevEnergy = new double[unitCount];
-        Arrays.fill(prevEnergy, KernelConfig.INITIAL_ENERGY);
+        Arrays.fill(prevEnergy, initialEnergy);
         this.deathTick = new int[unitCount];
         Arrays.fill(deathTick, -1);
         this.harvestTicksByUnit = new int[unitCount];
@@ -292,7 +295,7 @@ public final class DynamicsObserver {
         final boolean[] dormantAtEnd = new boolean[unitCount];
         final boolean[] endedAtFixedPoint = new boolean[unitCount];
         final double[] finalEnergy = new double[unitCount];
-        Arrays.fill(finalEnergy, KernelConfig.INITIAL_ENERGY);
+        Arrays.fill(finalEnergy, initialEnergy);
         for (int unit = 0; unit < unitCount; unit++) {
             final int actionIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y;
             finalAbsAction[unit] = Math.abs(prevOutputs[actionIdx]);
@@ -329,7 +332,7 @@ public final class DynamicsObserver {
                 finalEnergyTotal,
                 finalEnergySink,
                 creditedInitialEnergy,
-                KernelConfig.INITIAL_ENERGY,
+                initialEnergy,
                 initialReservoir,
                 finalReservoir,
                 cumulativeInflow,
