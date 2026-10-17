@@ -157,7 +157,7 @@ class ReproductionClaimTest {
         final int world = 40;
         final int founders = 400;
         final Kernel kernel = new Kernel(GenomeFactory.random(11L, founders, 16),
-                Kernel.scatterFounders(founders, world),
+                Kernel.scatterFounders(0L, founders, world),
                 EngineConfig.v5Defaults(0L, world, 32).withChemical0Inflow(
                         InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
 

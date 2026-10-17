@@ -38,7 +38,7 @@ class BiomassTest {
         // arrange
         int worldWidth = 50;
         int founders = 200;
-        Kernel kernel = new Kernel(GenomeFactory.random(13L, founders, 8), Kernel.scatterFounders(founders, worldWidth), EngineConfig.v5Defaults(0L, worldWidth, 16), 1);
+        Kernel kernel = new Kernel(GenomeFactory.random(13L, founders, 8), Kernel.scatterFounders(0L, founders, worldWidth), EngineConfig.v5Defaults(0L, worldWidth, 16), 1);
 
         // act + assert
         for (int t = 0; t < 2000; t++) {

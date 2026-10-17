@@ -24,12 +24,14 @@ public final class IntakePhase implements Phase {
     private final double harvestCapacityPerConnection;
     private final double harvestHalfSaturation;
     private final double harvestMassExponent;
+    private final boolean sqrtHarvest;
 
     public IntakePhase(final WorldState state, final EngineConfig config) {
         this.state = state;
         this.harvestCapacityPerConnection = config.harvestCapacityPerConnection();
         this.harvestHalfSaturation = config.harvestHalfSaturation();
         this.harvestMassExponent = config.harvestMassExponent();
+        this.sqrtHarvest = harvestMassExponent == 0.5;
     }
 
     @Override
@@ -50,21 +52,39 @@ public final class IntakePhase implements Phase {
     @Override
     public void run(final int from, final int to, final int chunk) {
         final double[] energy = state.energy;
+        final double[] mass = state.mass;
         final int[] position = state.position;
         final double[] cellChem = state.cellChem;
 
-        for (int unit = from; unit < to; unit++) {
-            if (energy[unit] <= 0.0) {
-                continue;
+        if (sqrtHarvest) {
+            for (int unit = from; unit < to; unit++) {
+                if (energy[unit] <= 0.0) {
+                    continue;
+                }
+                final double drive = harvestDrive(unit);
+                if (drive <= 0.0) {
+                    continue;
+                }
+                final int cell = position[unit];
+                final double intake = Math.min(drive * Math.sqrt(mass[unit]), cellChem[cell]);
+                energy[unit] += intake;
+                cellChem[cell] -= intake;
             }
-            final double demand = harvestDemand(unit);
-            if (demand <= 0.0) {
-                continue;
+        } else {
+            for (int unit = from; unit < to; unit++) {
+                if (energy[unit] <= 0.0) {
+                    continue;
+                }
+                final double drive = harvestDrive(unit);
+                if (drive <= 0.0) {
+                    continue;
+                }
+                final int cell = position[unit];
+                final double intake = Math.min(drive * StrictMath.pow(mass[unit], harvestMassExponent),
+                        cellChem[cell]);
+                energy[unit] += intake;
+                cellChem[cell] -= intake;
             }
-            final int cell = position[unit];
-            final double intake = Math.min(demand, cellChem[cell]);
-            energy[unit] += intake;
-            cellChem[cell] -= intake;
         }
     }
 
@@ -86,8 +106,13 @@ public final class IntakePhase implements Phase {
      * </ul>
      * A non-finite output is unreadable garbage, not a harvest action, so it
      * demands nothing; {@code max(0, …)} also means you cannot un-eat.
+     * <p>
+     * This returns the demand per unit of {@code mass^α}: the caller multiplies by the mass term,
+     * which is exact {@code sqrt} when {@code α = 1/2} and {@link StrictMath#pow} otherwise, fixed
+     * once at construction so the per-unit loop never tests the exponent. {@code α = 1/2} is the
+     * default, and {@code sqrt} is correctly rounded on every machine.
      */
-    private double harvestDemand(final int unit) {
+    private double harvestDrive(final int unit) {
         final float[] outputsPrev = state.outputsPrev;
         final int[] harvestConnCount = state.harvestConnCount;
 
@@ -101,8 +126,7 @@ public final class IntakePhase implements Phase {
         if (!Double.isFinite(output) || output <= 0.0) {
             return 0.0;
         }
-        final double harvestCapacity = harvestCapacityPerConnection * transporters
-                * Math.pow(state.mass[unit], harvestMassExponent);
+        final double harvestCapacity = harvestCapacityPerConnection * transporters;
         // capacity · output/(HALF+output), rearranged to avoid overflow when
         // output is a huge (divergent) finite value.
         return harvestCapacity / (1.0 + harvestHalfSaturation / output);

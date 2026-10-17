@@ -34,7 +34,8 @@ class NoiseTest {
             final int slot = i * 3;
             final int tick = i * 5;
             final int index = i * 11;
-            long h = Noise.mix(seed + Noise.GOLDEN_GAMMA * (slot + 1L));
+            final long stream = Noise.mix(seed + Noise.GOLDEN_GAMMA * Noise.STREAM_MUTATION);
+            long h = Noise.mix(stream + Noise.GOLDEN_GAMMA * (slot + 1L));
             h = Noise.mix(h + Noise.GOLDEN_GAMMA * (tick + 1L));
             h = Noise.mix(h + Noise.GOLDEN_GAMMA * (index + 1L));
             final double expected = (h >>> 11) * 0x1.0p-53;

@@ -54,7 +54,7 @@ public class Main {
         EngineConfig engine = config.engine().withMaxGenes(maxGenes);
         int worldWidth = engine.worldWidth();
         int maxUnits = worldWidth * worldWidth;
-        int[] founderCells = Kernel.scatterFounders(genomes.length, worldWidth);
+        int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, worldWidth);
         Kernel kernel = new Kernel(genomes, founderCells, engine, config.threads());
         DynamicsObserver observer = new DynamicsObserver(config.units(), connections, engine);
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;

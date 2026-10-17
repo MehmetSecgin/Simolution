@@ -19,12 +19,14 @@ public final class EvaluatePhase implements Phase {
     private final double chemicalZeroCapacity;
     private final double selfEnergyScale;
     private final double selfMassScale;
+    private final long seed;
 
     public EvaluatePhase(final WorldState state, final EngineConfig config) {
         this.state = state;
         this.chemicalZeroCapacity = config.chemicals().get(0).capacity();
         this.selfEnergyScale = config.selfEnergyScale();
         this.selfMassScale = config.selfMassScale();
+        this.seed = config.seed();
     }
 
     @Override
@@ -95,7 +97,7 @@ public final class EvaluatePhase implements Phase {
             final int idx = base + NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE;
             switch (SENSOR_ROLES[s]) {
                 case CONST -> outputsNext[idx] = 1.0f;
-                case RAND -> outputsNext[idx] = (float) Noise.sample(Noise.LEGACY_RNG_SEED, unit, state.tick);
+                case RAND -> outputsNext[idx] = (float) Noise.sample(seed, unit, state.tick);
                 // a unit senses only the cell it currently occupies (contract v3 §3)
                 case CHEMICAL_HERE -> outputsNext[idx] = (float) Math.min(1.0, cellChem[position[unit]] / chemicalZeroCapacity);
                 case SELF_ENERGY -> outputsNext[idx] = (float) Math.min(1.0, energy[unit] / selfEnergyScale);

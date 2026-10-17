@@ -28,7 +28,7 @@ class CheckpointCodecTest {
     private static final EngineConfig CONFIG = EngineConfig.v5Defaults(7L, WORLD, GENES * 2);
 
     private static Kernel newKernel() {
-        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(FOUNDERS, WORLD), CONFIG, 1);
+        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(CONFIG.seed(), FOUNDERS, WORLD), CONFIG, 1);
     }
 
     private static byte[] write(final Kernel kernel) throws IOException {

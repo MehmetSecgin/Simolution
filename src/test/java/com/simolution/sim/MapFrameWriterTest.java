@@ -63,7 +63,7 @@ class MapFrameWriterTest {
     void windowModeEmitsEveryTickOnlyInsideTheWindow() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, 0, 3, 5);
         for (int i = 0; i < 8; i++) {
             k.tick();
@@ -80,7 +80,7 @@ class MapFrameWriterTest {
     void noWindowEveryTickByDefault() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         // targetFrames 0 -> sample every tick (default)
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, 0, -1, -1);
         for (int i = 0; i < 10; i++) {
@@ -98,7 +98,7 @@ class MapFrameWriterTest {
     void positiveTargetFramesDownsamples() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         // 10 ticks, 5 target frames -> sample-every 2 -> ticks 2,4,6,8,10
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 10, 5, -1, -1);
         for (int i = 0; i < 10; i++) {
@@ -117,7 +117,7 @@ class MapFrameWriterTest {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
         StringWriter catalog = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, catalog, 4, 8, 0, 1, 5);
         for (int i = 0; i < 6; i++) {
             k.tick();
@@ -140,7 +140,7 @@ class MapFrameWriterTest {
     void noMassOrActionOrNodeOutputsInFrame() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(7L, 9, 12), Kernel.scatterFounders(9, 6), EngineConfig.v5Defaults(0L, 6, 12), 1);
+        Kernel k = new Kernel(GenomeFactory.random(7L, 9, 12), Kernel.scatterFounders(0L, 9, 6), EngineConfig.v5Defaults(0L, 6, 12), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 6, 8, 0, 1, 4);
         for (int i = 0; i < 5; i++) {
             k.tick();
@@ -161,7 +161,7 @@ class MapFrameWriterTest {
     void chunkIndexOffsetsPointAtChunkStarts() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         MapFrameWriter w = new MapFrameWriter(frames, idx, new GenomeCatalogWriter(new StringWriter()),
                 4, 6, 0, 1, 4, EngineConfig.v5Defaults(0L, 4, 8));
         for (int i = 0; i < 5; i++) {
@@ -198,7 +198,7 @@ class MapFrameWriterTest {
     void resourceFieldIsRunLengthEncoded() throws Exception {
         ByteArrayOutputStream frames = new ByteArrayOutputStream();
         StringWriter idx = new StringWriter();
-        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
+        Kernel k = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), EngineConfig.v5Defaults(0L, 4, 8), 1);
         MapFrameWriter w = writer(frames, idx, new StringWriter(), 4, 8, 0, 1, 1);
         k.tick();
         w.maybeFrame(k.snapshot());

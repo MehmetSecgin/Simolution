@@ -54,6 +54,7 @@ public final class ReproductionPhase implements Phase {
     private final double logKeepStruct;
     private final double indelRateDup;
     private final double indelRateDel;
+    private final long seed;
 
     public ReproductionPhase(final WorldState state, final EngineConfig config) {
         this.state = state;
@@ -66,6 +67,7 @@ public final class ReproductionPhase implements Phase {
         this.logKeepStruct = StrictMath.log(1 - config.mutationRateStruct());
         this.indelRateDup = config.indelRateDup();
         this.indelRateDel = config.indelRateDel();
+        this.seed = config.seed();
     }
 
     @Override
@@ -101,7 +103,7 @@ public final class ReproductionPhase implements Phase {
             if (childCell < 0) {
                 continue;
             }
-            final long prefix = Noise.mutationPrefix(Noise.LEGACY_RNG_SEED, parent, tick);
+            final long prefix = Noise.mutationPrefix(seed, parent, tick);
             final double buildCost = buildCostBase
                     + buildCostPerGene * childLength(geneCount[parent], prefix);
             if (energy[parent] <= buildCost) {
@@ -158,7 +160,7 @@ public final class ReproductionPhase implements Phase {
             final int count = geneCount[parent];
             System.arraycopy(genes, parent * maxGenes, genes, child * maxGenes, count);
             geneCount[child] = mutate(genes, child * maxGenes, count,
-                    Noise.mutationPrefix(Noise.LEGACY_RNG_SEED, parent, state.tick));
+                    Noise.mutationPrefix(seed, parent, state.tick));
             SlotCompiler.compile(state, child);
             finishChild(child, cell, parent, childEnergy, childMass);
 

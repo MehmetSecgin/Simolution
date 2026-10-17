@@ -25,7 +25,7 @@ class DeterminismMatrixTest {
 
     private static Kernel kernel(final EngineConfig config, final int founders, final int threads) {
         return new Kernel(GenomeFactory.random(SEED, founders, GENES),
-                Kernel.scatterFounders(founders, config.worldWidth()), config, threads);
+                Kernel.scatterFounders(config.seed(), founders, config.worldWidth()), config, threads);
     }
 
     private static EngineConfig config(final int world) {

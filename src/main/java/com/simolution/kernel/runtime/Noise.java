@@ -21,8 +21,14 @@ public final class Noise {
      */
     public static final long GOLDEN_GAMMA = 0x9E3779B97F4A7C15L;
 
-    /** The seed RAND, mutation and founder placement key off; the engine seed does not feed them yet. */
-    public static final long LEGACY_RNG_SEED = 0L;
+    /** Domain tag of the RAND sensor stream. */
+    public static final long STREAM_RAND = 1;
+
+    /** Domain tag of the birth mutation stream. */
+    public static final long STREAM_MUTATION = 2;
+
+    /** Domain tag of the founder placement stream. */
+    public static final long STREAM_PLACEMENT = 3;
 
     private Noise() {}
 
@@ -39,7 +45,7 @@ public final class Noise {
      * down to {@code [-1, 1)}.
      */
     public static double sample(long seed, int unitIndex, int tick) {
-        long h = mix(seed + GOLDEN_GAMMA * (unitIndex + 1L));
+        long h = mix(stream(seed, STREAM_RAND) + GOLDEN_GAMMA * (unitIndex + 1L));
         h = mix(h + GOLDEN_GAMMA * (tick + 1L));
         return (h >>> 11) * 0x1.0p-52 - 1.0;
     }
@@ -65,7 +71,7 @@ public final class Noise {
      * {@link #mutationUniformFromPrefix}.
      */
     public static long mutationPrefix(long seed, int parentSlot, int birthTick) {
-        final long h = mix(seed + GOLDEN_GAMMA * (parentSlot + 1L));
+        final long h = mix(stream(seed, STREAM_MUTATION) + GOLDEN_GAMMA * (parentSlot + 1L));
         return mix(h + GOLDEN_GAMMA * (birthTick + 1L));
     }
 
@@ -100,13 +106,21 @@ public final class Noise {
      * placement (ADR 0022): the scatter that assigns each founder its starting
      * cell. Keyed by {@code (seed, index)} where index walks the Fisher-Yates
      * draws. Domain-separated from {@link #sample} and {@link #mutationUniform}
-     * by an XOR salt on the second mix step, so a placement draw never collides
+     * by {@link #STREAM_PLACEMENT}, so a placement draw never collides
      * with sensor noise or a mutation flip. Same key → same layout, always.
      */
     public static double placementUniform(long seed, int index) {
-        long h = mix(seed + GOLDEN_GAMMA * (index + 1L));
-        h = mix(h ^ 0x5A5A5A5A5A5A5A5AL);
+        final long h = mix(stream(seed, STREAM_PLACEMENT) + GOLDEN_GAMMA * (index + 1L));
         return (h >>> 11) * 0x1.0p-53;
+    }
+
+    /**
+     * Every keyed draw starts here: the run seed mixed with the stream's domain tag. Streams
+     * tagged differently never share a key, so RAND noise, mutation flips and founder placement
+     * stay independent for any seed, and each follows the run seed.
+     */
+    private static long stream(long seed, long tag) {
+        return mix(seed + GOLDEN_GAMMA * tag);
     }
 
     /**

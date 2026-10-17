@@ -33,7 +33,7 @@ class RunLifecycleTest {
     private static final int EVERY = 50;
 
     private static Kernel newKernel(final EngineConfig config) {
-        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(FOUNDERS, WORLD), config, 1);
+        return new Kernel(GenomeFactory.random(7L, FOUNDERS, GENES), Kernel.scatterFounders(config.seed(), FOUNDERS, WORLD), config, 1);
     }
 
     private static byte[] bytes(final Kernel kernel) throws IOException {

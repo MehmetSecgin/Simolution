@@ -170,7 +170,7 @@ public final class Kernel implements AutoCloseable {
      * <p>
      * A partial Fisher-Yates shuffle over the identity permutation
      * {@code [0, W²)} drives the draws, keyed off the placement RNG
-     * ({@link Noise#placementUniform}, seeded by {@link Noise#LEGACY_RNG_SEED}
+     * ({@link Noise#placementUniform}, keyed by the run seed
      * like RAND and mutation). This replaces the old slot==cell fill, which
      * packed founders into a contiguous row-major strip at one edge and imposed
      * an artificial density gradient on every run. The scatter is uniform and
@@ -178,7 +178,7 @@ public final class Kernel implements AutoCloseable {
      * policy, not a kernel law, so it lives here as a static helper the harness
      * calls, leaving the constructor to take explicit cells.
      */
-    public static int[] scatterFounders(final int seededCount, final int worldWidth) {
+    public static int[] scatterFounders(final long seed, final int seededCount, final int worldWidth) {
         final int cellCount = worldWidth * worldWidth;
         final int[] cell = new int[cellCount];
         for (int i = 0; i < cellCount; i++) {
@@ -186,7 +186,7 @@ public final class Kernel implements AutoCloseable {
         }
         final int[] founderCell = new int[seededCount];
         for (int i = 0; i < seededCount; i++) {
-            final double u = Noise.placementUniform(Noise.LEGACY_RNG_SEED, i);
+            final double u = Noise.placementUniform(seed, i);
             final int j = i + (int) (u * (cellCount - i));
             final int tmp = cell[i];
             cell[i] = cell[j];

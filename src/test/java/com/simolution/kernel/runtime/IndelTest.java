@@ -32,7 +32,7 @@ class IndelTest {
     // post-tuning indel rates (ADR 0035, 1e-4/gene) to fire both operators. This
     // tests the indel *mechanism*, not population survival under scarcity.
     private static Kernel evolvingKernel() {
-        return new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), Kernel.scatterFounders(UNITS, WORLD),
+        return new Kernel(GenomeFactory.random(SEED, UNITS, FOUNDER_GENES), Kernel.scatterFounders(0L, UNITS, WORLD),
                 EngineConfig.v5Defaults(0L, WORLD, MAX_GENES)
                         .withChemical0Inflow(InflowConfig.field(8.0, InflowConfig.Combine.MAX)), 1);
     }

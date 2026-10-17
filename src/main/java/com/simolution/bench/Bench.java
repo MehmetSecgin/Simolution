@@ -56,7 +56,7 @@ public final class Bench {
     private static Row runOnce(final RunConfig config, final String name) {
         final int[][] genomes = GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
         final CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        final int[] founderCells = Kernel.scatterFounders(genomes.length, config.worldWidth());
+        final int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, config.worldWidth());
         final Kernel kernel = new Kernel(genomes, founderCells, config.engine(), config.threads());
         final DynamicsObserver observer = new DynamicsObserver(config.units(), connections, config.engine());
         final TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
