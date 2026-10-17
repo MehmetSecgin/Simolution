@@ -6,9 +6,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.genome.GeneBuilder;
-import com.simolution.kernel.genome.GenomeCompiler;
-import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.logging.ConsoleTableLogger;
 import com.simolution.kernel.runtime.Kernel;
@@ -17,11 +14,12 @@ import com.simolution.sim.BirthLogWriter;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.DynamicsSummary;
 import com.simolution.sim.EventLogWriter;
+import com.simolution.sim.Founders;
 import com.simolution.sim.GenomeCatalogWriter;
-import com.simolution.sim.GenomeFactory;
 import com.simolution.sim.MapFrameWriter;
 import com.simolution.sim.MetricsWriter;
 import com.simolution.sim.RunConfig;
+import com.simolution.sim.RunPaths;
 import com.simolution.sim.RunReport;
 import com.simolution.sim.SnapshotDump;
 import com.simolution.sim.StructuralAnalyzer;
@@ -40,55 +38,45 @@ public class Main {
         }
         RunConfig config = RunConfig.parse(args);
 
-        int[][] genomes = config.demo()
-                ? new int[][] {demoGenome()}
-                : GenomeFactory.random(config.seed(), config.units(), config.genesPerUnit());
-
-        CompiledConnection[] connections = GenomeCompiler.compileAll(genomes);
-        StructuralStats structure = StructuralAnalyzer.analyze(connections, config.units());
-
-        int maxGenes = config.maxGenes();
-        for (int[] genome : genomes) {
-            maxGenes = Math.max(maxGenes, genome.length);
-        }
-        EngineConfig engine = config.engine().withMaxGenes(maxGenes);
+        Founders founders = Founders.create(config);
+        StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.units());
+        EngineConfig engine = founders.engine();
         int worldWidth = engine.worldWidth();
-        int maxUnits = worldWidth * worldWidth;
-        int[] founderCells = Kernel.scatterFounders(config.seed(), genomes.length, worldWidth);
+        int maxUnits = founders.slotCount();
+        int[][] genomes = founders.genomes();
+        int[] founderCells = founders.cells();
         DynamicsObserver observer = new DynamicsObserver();
         ConsoleTableLogger trace = config.trace() ? new ConsoleTableLogger() : null;
         int unitsToTrace = Math.min(config.units(), MAX_TRACED_UNITS);
 
         TimeSeriesReport timeSeries = new TimeSeriesReport(config.ticks());
 
+        RunPaths paths = null;
         MapFrameWriter mapWriter = null;
         GenomeCatalogWriter catalogWriter = null;
         BirthLogWriter birthLog = null;
         if (config.outPath() != null) {
-            Path out = Path.of(config.outPath());
-            if (out.getParent() != null) {
-                Files.createDirectories(out.getParent());
-            }
-            Files.writeString(sibling(out, ".layout.json"), NodeLayout.toJson());
+            paths = new RunPaths(Path.of(config.outPath()));
+            paths.createParentDirectory();
+            Files.writeString(paths.layoutJson(), NodeLayout.toJson());
             catalogWriter = new GenomeCatalogWriter(
                     new java.io.OutputStreamWriter(
-                            new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".catalog.gz"))),
+                            new java.util.zip.GZIPOutputStream(Files.newOutputStream(paths.catalog())),
                             java.nio.charset.StandardCharsets.UTF_8));
             birthLog = new BirthLogWriter(
                     new java.io.OutputStreamWriter(
-                            new java.util.zip.GZIPOutputStream(Files.newOutputStream(sibling(out, ".births.csv.gz"))),
+                            new java.util.zip.GZIPOutputStream(Files.newOutputStream(paths.births())),
                             java.nio.charset.StandardCharsets.UTF_8),
                     catalogWriter);
             if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
-                Path framesPath = sibling(out, ".frames.zst");
                 mapWriter = new MapFrameWriter(
-                        Files.newOutputStream(framesPath),
-                        Files.newBufferedWriter(sibling(out, ".frames.idx")), catalogWriter,
+                        Files.newOutputStream(paths.framesZst()),
+                        Files.newBufferedWriter(paths.framesIdx()), catalogWriter,
                         worldWidth, config.ticks(), config.mapFrames(), config.mapFrom(), config.mapTo(), engine);
             }
         }
 
-        Kernel kernel = new Kernel(genomes, founderCells, engine, config.threads());
+        Kernel kernel = founders.newKernel(config.threads());
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
         RunDirectory runDirectory = null;
@@ -97,7 +85,7 @@ public class Main {
         long finalDigest;
         try {
             if (config.observe()) {
-                obsDir = obsDir(Path.of(config.outPath()));
+                obsDir = paths.obsDir();
                 Files.createDirectories(obsDir);
                 eventLog = new EventLogWriter(Files.newBufferedWriter(obsDir.resolve("events.jsonl")),
                         maxUnits, genomes.length, founderCells, engine);
@@ -158,25 +146,22 @@ public class Main {
         System.out.println();
         System.out.println("(wall clock: " + elapsedMillis + " ms — console only, never part of the report)");
 
-        if (config.outPath() != null) {
-            Path out = Path.of(config.outPath());
-            if (out.getParent() != null) {
-                Files.createDirectories(out.getParent());
-            }
+        if (paths != null) {
+            Path out = paths.report();
             Files.writeString(out, report);
             System.out.println("report written to " + out);
 
-            Path series = sibling(out, ".timeseries.csv");
+            Path series = paths.timeSeries();
             Files.writeString(series, timeSeries.render());
             System.out.println("time series written to " + series);
 
-            Path birthsGz = sibling(out, ".births.csv.gz");
+            Path birthsGz = paths.births();
             System.out.println("lineage / births store written to " + birthsGz
                     + " (query: duckdb -c \"SELECT * FROM '" + birthsGz + "'\")");
 
             if (config.mapFrames() >= 0 || config.mapFrom() >= 0) {
-                Path framesZst = sibling(out, ".frames.zst");
-                Path catalogGz = sibling(out, ".catalog.gz");
+                Path framesZst = paths.framesZst();
+                Path catalogGz = paths.catalog();
                 System.out.println("spatial map frames written to " + framesZst + " (chunked zstd; genome catalog: " + catalogGz + ")");
                 System.out.println("  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails these files)");
                 System.out.println("  bake offline:     python3 tools/mapviz.py " + framesZst + "  (self-contained .map.html)");
@@ -184,13 +169,6 @@ public class Main {
         }
     }
 
-    /**
-     * Replay surface (report-v8): {@code --replay <obsDir> --at <T> [--snapshot-out <file>] [--threads N]}.
-     * Reconstructs tick T from the recorded run (checkpoint + forward ticks) and
-     * writes a {@link SnapshotDump} (lattice + per-unit table + evolved circuits) —
-     * the input {@code tools/timetravel.py} renders into an HTML state page. With
-     * no {@code --snapshot-out}, the dump goes to stdout.
-     */
     private static void runReplay(final String[] args) throws IOException {
         String obs = null;
         Integer at = null;
@@ -222,49 +200,5 @@ public class Main {
             Files.writeString(out, dump);
             System.out.println("snapshot at tick " + at + " written to " + out);
         }
-    }
-
-    private static Path obsDir(final Path reportPath) {
-        final String name = reportPath.getFileName().toString();
-        final int dot = name.lastIndexOf('.');
-        final String base = dot < 0 ? name : name.substring(0, dot);
-        final Path parent = reportPath.getParent();
-        final String dirName = base + ".obs";
-        return parent == null ? Path.of(dirName) : parent.resolve(dirName);
-    }
-
-    private static Path sibling(final Path reportPath, final String suffix) {
-        String name = reportPath.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        String base = dot < 0 ? name : name.substring(0, dot);
-        Path parent = reportPath.getParent();
-        String siblingName = base + suffix;
-        return parent == null ? Path.of(siblingName) : parent.resolve(siblingName);
-    }
-
-    private static int[] demoGenome() {
-        short wConstToAdd = 2048;
-        short wAddToDelay = 512;
-        short wDelayToAdd = 512;
-        short wAddToAction = 512;
-
-        return new int[] {
-                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw(wConstToAdd)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                           .toInternal(NodeLayout.Internal.DELAY)
-                           .weightRaw(wAddToDelay)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
-                           .toInternal(NodeLayout.Internal.ADD)
-                           .weightRaw(wDelayToAdd)
-                           .build(),
-                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
-                           .toAction(NodeLayout.Action.Y)
-                           .weightRaw(wAddToAction)
-                           .build()
-        };
     }
 }

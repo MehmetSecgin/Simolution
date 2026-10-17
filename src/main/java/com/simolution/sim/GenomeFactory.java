@@ -1,5 +1,7 @@
 package com.simolution.sim;
 
+import com.simolution.kernel.genome.GeneBuilder;
+import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.Noise;
 
 /**
@@ -28,5 +30,31 @@ public final class GenomeFactory {
             }
         }
         return genomes;
+    }
+
+    public static int[] demo() {
+        short constToAdd = 2048;
+        short addToDelay = 512;
+        short delayToAdd = 512;
+        short addToAction = 512;
+
+        return new int[] {
+                GeneBuilder.fromSensor(NodeLayout.Sensor.CONST)
+                           .toInternal(NodeLayout.Internal.ADD)
+                           .weightRaw(constToAdd)
+                           .build(),
+                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
+                           .toInternal(NodeLayout.Internal.DELAY)
+                           .weightRaw(addToDelay)
+                           .build(),
+                GeneBuilder.fromInternal(NodeLayout.Internal.DELAY)
+                           .toInternal(NodeLayout.Internal.ADD)
+                           .weightRaw(delayToAdd)
+                           .build(),
+                GeneBuilder.fromInternal(NodeLayout.Internal.ADD)
+                           .toAction(NodeLayout.Action.Y)
+                           .weightRaw(addToAction)
+                           .build()
+        };
     }
 }
