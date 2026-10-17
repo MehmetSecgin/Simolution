@@ -7,7 +7,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
+import com.simolution.kernel.layout.NodeCatalog;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.layout.NodeSpec.Kind;
 import com.simolution.support.EnergyAudit;
 import com.simolution.support.Genes;
 import com.simolution.support.Ticks;
@@ -17,7 +19,7 @@ class BiomassTest {
 
     private static final EngineConfig DEFAULTS = EngineConfig.defaults(0L, 1, 1);
 
-    private static final int SELF_MASS_IDX = NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.SELF_MASS;
+    private static final int SELF_MASS_IDX = NodeLayout.SENSOR_OFFSET + NodeCatalog.V5.indexOf(Kind.SENSOR, "SELF_MASS");
     private static final int ALWAYS_ON_RAW = 8192;
 
     @Test

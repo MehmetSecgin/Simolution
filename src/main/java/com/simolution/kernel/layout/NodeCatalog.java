@@ -14,17 +14,17 @@ public final class NodeCatalog {
 
     public static final NodeCatalog V5 = new NodeCatalog(
             List.of(
-                    NodeSpec.sensor("CONST", Role.CONST),
-                    NodeSpec.sensor("RAND", Role.RAND),
+                    NodeSpec.node("CONST", Role.CONST),
+                    NodeSpec.node("RAND", Role.RAND),
                     NodeSpec.chemicalSensor("LOCAL_RESOURCE", 0),
-                    NodeSpec.sensor("SELF_ENERGY", Role.SELF_ENERGY),
-                    NodeSpec.sensor("SELF_MASS", Role.SELF_MASS)),
+                    NodeSpec.node("SELF_ENERGY", Role.SELF_ENERGY),
+                    NodeSpec.node("SELF_MASS", Role.SELF_MASS)),
             List.of(
-                    NodeSpec.internal("ADD", Role.ADD),
-                    NodeSpec.internal("MUL", Role.MUL),
-                    NodeSpec.internal("CLAMP", Role.CLAMP),
-                    NodeSpec.internal("DELAY", Role.DELAY),
-                    NodeSpec.internal("THRESH", Role.THRESH)),
+                    NodeSpec.node("ADD", Role.ADD),
+                    NodeSpec.node("MUL", Role.MUL),
+                    NodeSpec.node("CLAMP", Role.CLAMP),
+                    NodeSpec.node("DELAY", Role.DELAY),
+                    NodeSpec.node("THRESH", Role.THRESH)),
             List.of(
                     NodeSpec.action("ACTION_Y"),
                     NodeSpec.action("HARVEST"),

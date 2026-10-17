@@ -15,17 +15,10 @@ public final class NodeLayout {
 
     private static final NodeCatalog CATALOG = NodeCatalog.V5;
 
-    public static final int SENSOR_JUNK_COUNT = CATALOG.junk(Kind.SENSOR);
-    public static final int INTERNAL_JUNK_COUNT = CATALOG.junk(Kind.INTERNAL);
-    public static final int ACTION_JUNK_COUNT = CATALOG.junk(Kind.ACTION);
-
     public static final class Sensor {
 
         public static final int CONST = NodeCatalog.V5.indexOf(Kind.SENSOR, "CONST");
         public static final int RAND = NodeCatalog.V5.indexOf(Kind.SENSOR, "RAND");
-        public static final int LOCAL_RESOURCE = NodeCatalog.V5.indexOf(Kind.SENSOR, "LOCAL_RESOURCE");
-        public static final int SELF_ENERGY = NodeCatalog.V5.indexOf(Kind.SENSOR, "SELF_ENERGY");
-        public static final int SELF_MASS = NodeCatalog.V5.indexOf(Kind.SENSOR, "SELF_MASS");
 
         public static final int MEANINGFUL_COUNT = NodeCatalog.V5.nodes(Kind.SENSOR).size();
 

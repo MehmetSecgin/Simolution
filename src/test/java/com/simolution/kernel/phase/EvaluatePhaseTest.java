@@ -29,7 +29,7 @@ class EvaluatePhaseTest {
         final EngineConfig config = EngineConfig.defaults(0L, WORLD_WIDTH, 4)
                 .withChemicals(List.of(chemical("first", 100.0), chemical("second", 40.0)));
         final List<NodeSpec> sensors = List.of(
-                NodeSpec.sensor("CONST", NodeSpec.Role.CONST),
+                NodeSpec.node("CONST", NodeSpec.Role.CONST),
                 NodeSpec.chemicalSensor("FIRST_HERE", 0),
                 NodeSpec.chemicalSensor("SECOND_HERE", 1));
 
