@@ -22,6 +22,7 @@ run inflow --config "$REPO/examples/baseline.json" --units 150 --ticks 400 --see
 run cycle --units 50 --ticks 300 --seed 5 --world 60 --resource-cycle --cycle-period 200 --cycle-radius 10 --cycle-peak 5 --out cycle/run.txt
 run demo
 run digest --units 20 --ticks 30 --seed 1 --world 20 --digest-every-tick
+run trace --units 5 --ticks 5 --seed 1 --world 10 --trace
 mkdir -p "$OUT/replay"
 run replay/file --replay full/run.obs --at 450 --snapshot-out replay/snap-450.txt
 run replay/stdout --replay full/run.obs --at 450
