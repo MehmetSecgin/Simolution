@@ -5,7 +5,9 @@
 <module name="Checker">
     <property name="charset" value="UTF-8"/>
     <property name="severity" value="error"/>
+    <module name="SuppressWarningsFilter"/>
     <module name="TreeWalker">
+        <module name="SuppressWarningsHolder"/>
         <module name="FinalLocalVariable">
             <property name="validateEnhancedForLoopVariable" value="false"/>
         </module>
