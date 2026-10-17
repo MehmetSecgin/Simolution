@@ -34,3 +34,4 @@ run errors/bogus-flag --bogus
 run errors/inflow-unknown-key --inflow "disk wat=1"
 run errors/inflow-unknown-key-population --units 20 --ticks 20 --seed 1 --world 20 --inflow "disk wat=1"
 run errors/inflow-repeated-key-population --units 20 --ticks 20 --seed 1 --world 20 --inflow "disk r=5 peak=3 r=7"
+run errors/missing-value --units
