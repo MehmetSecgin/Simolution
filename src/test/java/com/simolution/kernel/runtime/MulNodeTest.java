@@ -3,12 +3,15 @@ package com.simolution.kernel.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
+
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneBuilder;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.state.WorldState;
 
 class MulNodeTest {
 
@@ -23,6 +26,19 @@ class MulNodeTest {
                           .toInternal(NodeLayout.Internal.MUL)
                           .weightRaw(raw)
                           .build();
+    }
+
+    private static int junkToMul(short raw) {
+        return GeneBuilder.fromSensor(NodeLayout.Sensor.MEANINGFUL_COUNT)
+                          .toInternal(NodeLayout.Internal.MUL)
+                          .weightRaw(raw)
+                          .build();
+    }
+
+    private static int mulInDegreeOf(Kernel kernel, int slot) throws ReflectiveOperationException {
+        Field field = Kernel.class.getDeclaredField("state");
+        field.setAccessible(true);
+        return ((WorldState) field.get(kernel)).mulInDegree[slot];
     }
 
     private static double mulOutputAfterTwoTicks(int... genome) {
@@ -97,6 +113,38 @@ class MulNodeTest {
 
         // assert
         assertEquals(weight(rawPositive) * weight(rawNegative), output, 1.0e-6);
+    }
+
+    @Test
+    void realPlusJunkInputCountsJunkInDegreeAndOutputsZero() throws ReflectiveOperationException {
+        // arrange
+        int[] genome = {constToMul((short) 8192), junkToMul((short) 8192)};
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+
+        // act
+        kernel.tick();
+        kernel.tick();
+
+        // assert
+        assertEquals(2, mulInDegreeOf(kernel, 0));
+        assertEquals(1, kernel.connectionsOf(0).length);
+        assertEquals(0.0, kernel.snapshot().outputs[MUL_IDX], 0.0);
+    }
+
+    @Test
+    void junkOnlyInputCountsInDegreeAndOutputsZero() throws ReflectiveOperationException {
+        // arrange
+        int[] genome = {junkToMul((short) 8192)};
+        Kernel kernel = new Kernel(new int[][] {genome}, new int[] {0}, EngineConfig.v5Defaults(0L, 1, 32));
+
+        // act
+        kernel.tick();
+        kernel.tick();
+
+        // assert
+        assertEquals(1, mulInDegreeOf(kernel, 0));
+        assertEquals(0, kernel.connectionsOf(0).length);
+        assertEquals(0.0, kernel.snapshot().outputs[MUL_IDX], 0.0);
     }
 
     @Test
