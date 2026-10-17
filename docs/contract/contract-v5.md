@@ -1,6 +1,6 @@
 # Contract v5 — biomass (Pirt size physics)
 
-> Superseded in part by [contract-v9](contract-v9.md) §2 (reproduction placement order, replaces the order in §5) and §6 (pipeline rule, §8).
+> Superseded in part by [contract-v9](contract-v9.md) §2 (reproduction placement order, replaces the order in §5, including step 2's slot claim) and §6 (pipeline rule, §8).
 
 Delta over [contract-v4](contract-v4.md). Adds **biomass** as a distinct per-unit
 state variable: a unit now has a *size* (`mass[slot]`) separate from its energy.

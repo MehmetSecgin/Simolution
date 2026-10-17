@@ -17,6 +17,8 @@ Nothing else in v0 to v8 changes. Exactly these statements stop holding:
 | Superseded text | Replaced by |
 |---|---|
 | contract-v3 §9, motility: "two units to the same free cell resolved by ascending slot order", and the implied chain rule (a cell vacated earlier in the same scan is enterable) | §1 |
+| contract-v3 §5, determinism bullet: "parents are scanned in ascending slot order; each places its child in the lowest-indexed free Moore neighbour; the child is installed immediately so a later parent in the same tick sees the cell occupied" (a losing parent no longer takes its next free neighbour) | §2 |
+| contract-v2 §11, "Determinism under simultaneous births": parents processed in ascending slot order, each claims the lowest free slot (now winners only, in ascending slot order, after an affordability dropout) | §2 |
 | contract-v5 §5, reproduction: "units scanned in ascending slot order, child installed immediately", the placement order (room, claim a free slot, build the genome, pay), and a failed build burning a slot | §2 |
 | contract-v4 §4, determinism: mutation keyed `(seed, childSlot, birthTick, opIndex)` with one draw per point-mutation bit | §3 |
 | the "pipeline is locked, new mechanics only append" rule and its phase listings (contract-v2 §11, contract-v3 §6, contract-v5 §8, contract-v8) | §6 |

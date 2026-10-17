@@ -1,6 +1,6 @@
 # Kernel v2 Contract — Reproduction & Mutation (evolution proper)
 
-> Superseded in part by [contract-v9](contract-v9.md) §6: the "pipeline is locked" rule (§11) is retired.
+> Superseded in part by [contract-v9](contract-v9.md): §2 supersedes "Determinism under simultaneous births" in §11, and §6 retires the "pipeline is locked" rule in §11.
 
 ## 0. Scope
 
