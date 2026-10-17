@@ -21,7 +21,7 @@ class RunConfigTest {
         RunConfig cfg = RunConfig.parse(new String[] {
                 "--units", "100", "--world", "100", "--inflow", "noise seed=1 peak=5"
         });
-        assertEquals(1, cfg.engine().chemicals().get(0).inflow().sources().length);
+        assertEquals(1, cfg.engine().chemicals().get(0).inflow().sources().size());
         RunConfig uniform = RunConfig.parse(new String[] { "--units", "100", "--world", "100" });
         assertEquals(InflowConfig.uniform(1.0), uniform.engine().chemicals().get(0).inflow());
     }

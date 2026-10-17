@@ -1,9 +1,19 @@
 package com.simolution.kernel.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
@@ -62,7 +72,7 @@ class InflowConfigTest {
         for (int cell = 0; cell < w * w; cell++) {
             int x = cell % w, y = cell / w;
             double naive = Math.max(0.5,
-                    Math.max(disk.at(x, y, 0, w), noise.at(x, y, 0, w)));
+                    Math.max(disk.capAt(x, y, 0, w), noise.capAt(x, y, 0, w)));
             assertEquals(naive, compiled.cap(cell, 0), 0.0, "cell " + cell);
         }
     }
@@ -122,12 +132,12 @@ class InflowConfigTest {
         InflowSource.Ring ring = new InflowSource.Ring(0.5, 0.5, 40.0, 1.0, 10.0, 4.0);
         int cx = 60, cy = 60;
         // at tick 0 the crest sits at the centre (d=0); a ring 20 cells out is in a trough
-        assertTrue(ring.at(cx, cy, 0, w) > 0.0, "crest at centre at tick 0");
-        assertEquals(0.0, ring.at(cx + 20, cy, 0, w), 1e-9, "trough 20 cells out at tick 0");
+        assertTrue(ring.capAt(cx, cy, 0, w) > 0.0, "crest at centre at tick 0");
+        assertEquals(0.0, ring.capAt(cx + 20, cy, 0, w), 1e-9, "trough 20 cells out at tick 0");
         // by tick 20 the crest has expanded to radius ~20 → now lit there, centre in trough
-        assertTrue(ring.at(cx + 20, cy, 20, w) > 0.0, "crest reached r=20 at tick 20");
+        assertTrue(ring.capAt(cx + 20, cy, 20, w) > 0.0, "crest reached r=20 at tick 20");
         // isotropic: same response along any axis at equal radius
-        assertEquals(ring.at(cx + 20, cy, 20, w), ring.at(cx, cy + 20, 20, w), 1e-9, "radially symmetric");
+        assertEquals(ring.capAt(cx + 20, cy, 20, w), ring.capAt(cx, cy + 20, 20, w), 1e-9, "radially symmetric");
     }
 
     @Test
@@ -148,15 +158,15 @@ class InflowConfigTest {
         int litLow = 0, litHigh = 0;
         for (int cell = 0; cell < w * w; cell++) {
             int x = cell % w, y = cell / w;
-            if (low.at(x, y, 0, w) > 0) litLow++;
-            if (high.at(x, y, 0, w) > 0) litHigh++;
+            if (low.capAt(x, y, 0, w) > 0) litLow++;
+            if (high.capAt(x, y, 0, w) > 0) litHigh++;
         }
         assertTrue(litLow > litHigh, "lower threshold lights more cells");
 
         InflowSource.Noise stat = new InflowSource.Noise(5L, 0.08, 0.3, 1.0, 4.0, 0);
-        assertEquals(stat.at(3, 4, 0, w), stat.at(3, 4, 9999, w), 0.0, "anim=0 frozen");
+        assertEquals(stat.capAt(3, 4, 0, w), stat.capAt(3, 4, 9999, w), 0.0, "anim=0 frozen");
         InflowSource.Noise anim = new InflowSource.Noise(5L, 0.08, 0.3, 1.0, 4.0, 8000);
-        assertNotEquals(anim.at(3, 4, 0, w), anim.at(3, 4, 4000, w), "anim>0 morphs with tick");
+        assertNotEquals(anim.capAt(3, 4, 0, w), anim.capAt(3, 4, 4000, w), "anim>0 morphs with tick");
     }
 
     @Test
@@ -176,6 +186,64 @@ class InflowConfigTest {
                         new InflowSource.Disk(0.7, 0.3, 6, 5.0, 1000, 0,
                                 InflowSource.Motion.DRIFT, 0.01, 0.0, 0))), 1);
         assertAuditHolds(k);
+    }
+
+    @Test
+    void capValuesAreBitIdenticalToBefore() throws IOException {
+        // arrange
+        int w = 40;
+        List<String> expected = Files.readAllLines(Path.of("src/test/resources/inflow-caps-pre-readability.txt"));
+        List<String> actual = new ArrayList<>();
+        Random random = new Random(5);
+        int[][] triples = new int[64][];
+        for (int i = 0; i < triples.length; i++) {
+            triples[i] = new int[] { random.nextInt(w), random.nextInt(w), random.nextInt(5000) };
+        }
+
+        // act
+        for (Map.Entry<String, InflowSource> source : capCaseSources().entrySet()) {
+            for (int[] t : triples) {
+                actual.add(source.getKey() + " " + t[0] + " " + t[1] + " " + t[2] + " "
+                        + Double.toHexString(source.getValue().capAt(t[0], t[1], t[2], w)));
+            }
+        }
+
+        // assert
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    void jsonRoundTripIsUnchangedForEverySourceKind() {
+        // arrange
+        InflowConfig inflow = InflowConfig.field(0.2, InflowConfig.Combine.ADD,
+                capCaseSources().values().toArray(new InflowSource[0]));
+        EngineConfig config = EngineConfig.defaults(1L, 40, 16).withResourceInflow(inflow);
+
+        // act
+        String json = ConfigJson.write(config);
+
+        // assert
+        assertEquals(config, ConfigJson.read(json));
+        assertEquals(inflow.sources(), ConfigJson.read(json).chemicals().get(0).inflow().sources());
+        assertTrue(json.contains("\"m0\"") && json.contains("\"m1\"") && json.contains("\"motionPeriod\""));
+        assertFalse(json.contains("orbitRadiusFraction") || json.contains("driftX") || json.contains("driftY"));
+    }
+
+    private static Map<String, InflowSource> capCaseSources() {
+        int[] cells = new int[229];
+        for (int i = 0; i < cells.length; i++) {
+            cells[i] = i * 7;
+        }
+        Map<String, InflowSource> sources = new LinkedHashMap<>();
+        sources.put("diskStatic", new InflowSource.Disk(0.3, 0.6, 9.0, 5.0, 0, 0, InflowSource.Motion.STATIC, 0.0, 0.0, 0));
+        sources.put("diskOrbit", new InflowSource.Disk(0.5, 0.5, 7.0, 6.0, 300, 17, InflowSource.Motion.ORBIT, 0.25, 0.0, 500));
+        sources.put("diskDrift", new InflowSource.Disk(0.9, 0.1, 8.0, 4.0, 150, -30, InflowSource.Motion.DRIFT, 0.03, -0.02, 0));
+        sources.put("rectStatic", new InflowSource.Rect(0.2, 0.1, 0.7, 0.8, 3.0, 0, 0, 0.0, 0.0));
+        sources.put("rectDrifting", new InflowSource.Rect(0.1, 0.0, 0.3, 1.0, 5.0, 200, 11, 0.05, -0.01));
+        sources.put("points", new InflowSource.Points(cells, 4.5, 90, 5));
+        sources.put("noiseAnimated", new InflowSource.Noise(11L, 0.08, 0.4, 2.5, 6.0, 700));
+        sources.put("ring", new InflowSource.Ring(0.4, 0.6, 12.0, 0.05, 6.0, 4.0));
+        return sources;
     }
 
     private static void assertAuditHolds(Kernel k) {

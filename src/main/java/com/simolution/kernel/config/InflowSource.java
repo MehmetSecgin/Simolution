@@ -1,115 +1,104 @@
 package com.simolution.kernel.config;
 
-/**
- * One source of the resource-inflow field (contract v7). The inflow cap at a cell
- * is a pure function {@code f(x, y, tick)}; a source draws part of that field, and
- * {@link InflowConfig} combines a list of them (MAX or ADD) over a baseline. The
- * disk is no longer privileged — it is one shape among rectangles, explicit
- * coordinate masks, and seeded noise maps.
- * <p>
- * Every source is a pure, deterministic function of {@code (x, y, tick, worldWidth)}.
- * {@link #isStatic()} reports whether the source is time-invariant so
- * {@link CompiledInflowField} can bake it once into a precomputed layer (the hot
- * path then reads an array instead of re-evaluating).
- */
+import java.util.Arrays;
+import java.util.Objects;
+
 public sealed interface InflowSource permits
         InflowSource.Disk, InflowSource.Rect, InflowSource.Points, InflowSource.Noise, InflowSource.Ring {
 
-    /** This source's inflow-cap contribution at integer cell {@code (x, y)} on {@code tick}. */
-    double at(int x, int y, int tick, int worldWidth);
+    double capAt(int x, int y, int tick, int worldWidth);
 
-    /** True if the source never varies with {@code tick} (bakeable into the static layer). */
     boolean isStatic();
 
-    /** Centre motion of a {@link Disk} over time. All pure functions of {@code tick}. */
     enum Motion { STATIC, ORBIT, DRIFT }
 
-    /**
-     * A circular patch centred at {@code (fx·W, fy·W)} (fractional coordinates, so a
-     * spec is world-size-independent). {@code periodTicks > 0} pulses the cap
-     * {@code 0 → peak → 0} as a triangle wave; {@code motion} drifts or orbits the
-     * centre. Toroidal-aware membership: the disk wraps across lattice edges.
-     */
     record Disk(double fx, double fy, double radius, double peak,
                 int periodTicks, int phaseTicks,
                 Motion motion, double m0, double m1, int motionPeriod) implements InflowSource {
 
+        public double orbitRadiusFraction() {
+            return m0;
+        }
+
+        public double driftX() {
+            return m0;
+        }
+
+        public double driftY() {
+            return m1;
+        }
+
         @Override
-        public double at(final int x, final int y, final int tick, final int worldWidth) {
-            final double cx;
-            final double cy;
-            switch (motion) {
-                case ORBIT -> {
-                    final double ang = 2.0 * StrictMath.PI * tick / motionPeriod;
-                    cx = fx * worldWidth + m0 * worldWidth * StrictMath.cos(ang);
-                    cy = fy * worldWidth + m0 * worldWidth * StrictMath.sin(ang);
-                }
-                case DRIFT -> {
-                    cx = fx * worldWidth + m0 * tick;
-                    cy = fy * worldWidth + m1 * tick;
-                }
-                default -> {
-                    cx = fx * worldWidth;
-                    cy = fy * worldWidth;
-                }
-            }
-            final double dx = wrapDelta(x - cx, worldWidth);
-            final double dy = wrapDelta(y - cy, worldWidth);
-            if (dx * dx + dy * dy > radius * radius) {
-                return 0.0;
-            }
-            return peak * triangle(tick, periodTicks, phaseTicks);
+        public double capAt(final int x, final int y, final int tick, final int worldWidth) {
+            final double dx = wrapDelta(x - centreX(tick, worldWidth), worldWidth);
+            final double dy = wrapDelta(y - centreY(tick, worldWidth), worldWidth);
+            return dx * dx + dy * dy > radius * radius ? 0.0 : pulse(peak, tick, periodTicks, phaseTicks);
         }
 
         @Override
         public boolean isStatic() {
             return periodTicks == 0 && motion == Motion.STATIC;
         }
+
+        private double centreX(final int tick, final int worldWidth) {
+            return switch (motion) {
+                case ORBIT -> fx * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.cos(orbitAngle(tick));
+                case DRIFT -> fx * worldWidth + driftX() * tick;
+                case STATIC -> fx * worldWidth;
+            };
+        }
+
+        private double centreY(final int tick, final int worldWidth) {
+            return switch (motion) {
+                case ORBIT -> fy * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.sin(orbitAngle(tick));
+                case DRIFT -> fy * worldWidth + driftY() * tick;
+                case STATIC -> fy * worldWidth;
+            };
+        }
+
+        private double orbitAngle(final int tick) {
+            return 2.0 * StrictMath.PI * tick / motionPeriod;
+        }
     }
 
-    /**
-     * An axis-aligned rectangular region with fractional corners; optional pulse and
-     * optional toroidal drift {@code (vx, vy)} in cells/tick. A drifting band wraps
-     * across lattice edges, so a vertical stripe ({@code fy0=0, fy1=1}) with
-     * {@code vx>0} sweeps left → right → left forever.
-     */
     record Rect(double fx0, double fy0, double fx1, double fy1, double peak,
                 int periodTicks, int phaseTicks, double vx, double vy) implements InflowSource {
 
         @Override
-        public double at(final int x, final int y, final int tick, final int worldWidth) {
-            if (vx == 0.0 && vy == 0.0) {
-                final double x0 = fx0 * worldWidth;
-                final double y0 = fy0 * worldWidth;
-                final double x1 = fx1 * worldWidth;
-                final double y1 = fy1 * worldWidth;
-                if (x < x0 || x > x1 || y < y0 || y > y1) {
-                    return 0.0;
-                }
-                return peak * triangle(tick, periodTicks, phaseTicks);
-            }
-            final double wx = (fx1 - fx0) * worldWidth;
-            final double wy = (fy1 - fy0) * worldWidth;
-            if (!inBand(x, fx0 * worldWidth + vx * tick, wx, worldWidth)
-                    || !inBand(y, fy0 * worldWidth + vy * tick, wy, worldWidth)) {
-                return 0.0;
-            }
-            return peak * triangle(tick, periodTicks, phaseTicks);
+        public double capAt(final int x, final int y, final int tick, final int worldWidth) {
+            final boolean covered = vx == 0.0 && vy == 0.0
+                    ? coversStaticBox(x, y, worldWidth)
+                    : coversDriftingBand(x, y, tick, worldWidth);
+            return covered ? pulse(peak, tick, periodTicks, phaseTicks) : 0.0;
         }
 
         @Override
         public boolean isStatic() {
             return periodTicks == 0 && vx == 0.0 && vy == 0.0;
         }
+
+        private boolean coversStaticBox(final int x, final int y, final int worldWidth) {
+            final double x0 = fx0 * worldWidth;
+            final double y0 = fy0 * worldWidth;
+            final double x1 = fx1 * worldWidth;
+            final double y1 = fy1 * worldWidth;
+            return !(x < x0 || x > x1 || y < y0 || y > y1);
+        }
+
+        private boolean coversDriftingBand(final int x, final int y, final int tick, final int worldWidth) {
+            final double bandWidthX = (fx1 - fx0) * worldWidth;
+            final double bandWidthY = (fy1 - fy0) * worldWidth;
+            return inBand(x, fx0 * worldWidth + vx * tick, bandWidthX, worldWidth)
+                    && inBand(y, fy0 * worldWidth + vy * tick, bandWidthY, worldWidth);
+        }
     }
 
-    /** An explicit set of cell indices ({@code y·W + x}); the "give coordinates" case. */
     record Points(int[] cells, double peak, int periodTicks, int phaseTicks) implements InflowSource {
 
         @Override
         public boolean equals(final Object o) {
             return o instanceof Points other
-                    && java.util.Arrays.equals(cells, other.cells)
+                    && Arrays.equals(cells, other.cells)
                     && Double.compare(peak, other.peak) == 0
                     && periodTicks == other.periodTicks
                     && phaseTicks == other.phaseTicks;
@@ -117,15 +106,15 @@ public sealed interface InflowSource permits
 
         @Override
         public int hashCode() {
-            return java.util.Objects.hash(java.util.Arrays.hashCode(cells), peak, periodTicks, phaseTicks);
+            return Objects.hash(Arrays.hashCode(cells), peak, periodTicks, phaseTicks);
         }
 
         @Override
-        public double at(final int x, final int y, final int tick, final int worldWidth) {
+        public double capAt(final int x, final int y, final int tick, final int worldWidth) {
             final int cell = y * worldWidth + x;
             for (final int c : cells) {
                 if (c == cell) {
-                    return peak * triangle(tick, periodTicks, phaseTicks);
+                    return pulse(peak, tick, periodTicks, phaseTicks);
                 }
             }
             return 0.0;
@@ -137,19 +126,11 @@ public sealed interface InflowSource permits
         }
     }
 
-    /**
-     * A seeded {@link ValueNoise} map thresholded into emergent regions
-     * (Minecraft-style worldgen). The noise {@code n ∈ [0,1)} is sampled at
-     * {@code (x·frequency, y·frequency, z)}; {@code (n − threshold)·gain} clamped to
-     * {@code [0,1]} scales {@code peak}, so {@code threshold} sets coverage and
-     * {@code gain} sets edge sharpness. {@code animPeriod > 0} feeds a slow time axis
-     * {@code z = tick/animPeriod}, morphing the field; {@code 0} freezes it (static).
-     */
     record Noise(long seed, double frequency, double threshold, double gain,
                  double peak, int animPeriod) implements InflowSource {
 
         @Override
-        public double at(final int x, final int y, final int tick, final int worldWidth) {
+        public double capAt(final int x, final int y, final int tick, final int worldWidth) {
             final double z = animPeriod == 0 ? 0.0 : (double) tick / animPeriod;
             final double n = ValueNoise.at(seed, x * frequency, y * frequency, z);
             double t = (n - threshold) * gain;
@@ -168,19 +149,11 @@ public sealed interface InflowSource permits
         }
     }
 
-    /**
-     * Concentric radial traveling wave from {@code (fx·W, fy·W)}: rings of crest
-     * half-width {@code width}, spaced {@code wavelength} cells apart, expanding
-     * outward at {@code speed} cells/tick ({@code speed < 0} contracts inward).
-     * A cell's cap is {@code peak} scaled by a triangular ridge of its distance to
-     * the nearest crest — so resource arrives as expanding ripples a unit must
-     * chase in every direction, not a predictable front. Toroidal-aware distance.
-     */
     record Ring(double fx, double fy, double wavelength, double speed,
                 double peak, double width) implements InflowSource {
 
         @Override
-        public double at(final int x, final int y, final int tick, final int worldWidth) {
+        public double capAt(final int x, final int y, final int tick, final int worldWidth) {
             final double dx = wrapDelta(x - fx * worldWidth, worldWidth);
             final double dy = wrapDelta(y - fy * worldWidth, worldWidth);
             final double d = Math.sqrt(dx * dx + dy * dy);
@@ -197,13 +170,11 @@ public sealed interface InflowSource permits
         }
     }
 
-    /**
-     * Triangle pulse in {@code [0, 1]}: rises 0 → 1 over the first half of
-     * {@code periodTicks} and falls 1 → 0 over the second, offset by
-     * {@code phaseTicks}. {@code periodTicks == 0} is steady (always 1). A run with
-     * phase 0 starts at the trough and fills — the contract-v6 convention, kept
-     * byte-identical.
-     */
+    static double pulse(final double peak, final int tick, final int periodTicks, final int phaseTicks) {
+        return peak * triangle(tick, periodTicks, phaseTicks);
+    }
+
+    // Phase 0 starts at the trough; periodTicks == 0 is steady (always 1).
     static double triangle(final int tick, final int periodTicks, final int phaseTicks) {
         if (periodTicks == 0) {
             return 1.0;
@@ -216,11 +187,6 @@ public sealed interface InflowSource permits
         return Math.max(0.0, wave);
     }
 
-    /**
-     * True if integer coordinate {@code coord} lies in a band of width {@code width}
-     * cells whose (possibly off-grid) left edge is {@code leftEdge}, on a toroidal
-     * width-{@code W} axis. {@code width >= W} spans the whole axis.
-     */
     static boolean inBand(final int coord, final double leftEdge, final double width, final int worldWidth) {
         if (width >= worldWidth) {
             return true;
@@ -229,7 +195,6 @@ public sealed interface InflowSource permits
         return fwd <= width;
     }
 
-    /** Signed toroidal offset of {@code d} on a width-{@code W} axis, in {@code (−W/2, W/2]}. */
     static double wrapDelta(final double d, final int worldWidth) {
         final double half = worldWidth / 2.0;
         double r = d;

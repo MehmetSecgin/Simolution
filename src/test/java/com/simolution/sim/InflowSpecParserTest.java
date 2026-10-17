@@ -22,20 +22,20 @@ class InflowSpecParserTest {
 
         assertEquals(InflowConfig.Combine.ADD, cfg.combine());
         assertEquals(0.2, cfg.baseline(), 0.0);
-        assertEquals(4, cfg.sources().length);
+        assertEquals(4, cfg.sources().size());
 
-        InflowSource.Disk disk = assertInstanceOf(InflowSource.Disk.class, cfg.sources()[0]);
+        InflowSource.Disk disk = assertInstanceOf(InflowSource.Disk.class, cfg.sources().get(0));
         assertEquals(22.0, disk.radius(), 0.0);
         assertEquals(2000, disk.periodTicks());
 
-        InflowSource.Rect rect = assertInstanceOf(InflowSource.Rect.class, cfg.sources()[1]);
+        InflowSource.Rect rect = assertInstanceOf(InflowSource.Rect.class, cfg.sources().get(1));
         assertEquals(0.3, rect.fx1(), 0.0);
 
-        InflowSource.Points pts = assertInstanceOf(InflowSource.Points.class, cfg.sources()[2]);
+        InflowSource.Points pts = assertInstanceOf(InflowSource.Points.class, cfg.sources().get(2));
         assertEquals(3, pts.cells().length);
         assertEquals(250, pts.cells()[1]);
 
-        InflowSource.Noise noise = assertInstanceOf(InflowSource.Noise.class, cfg.sources()[3]);
+        InflowSource.Noise noise = assertInstanceOf(InflowSource.Noise.class, cfg.sources().get(3));
         assertEquals(42L, noise.seed());
         assertEquals(8000, noise.animPeriod());
     }
@@ -43,13 +43,13 @@ class InflowSpecParserTest {
     @Test
     void parsesDiskMotion() {
         InflowSource.Disk orbit = assertInstanceOf(InflowSource.Disk.class,
-                InflowSpecParser.parse("disk orbit=0.15,4000").sources()[0]);
+                InflowSpecParser.parse("disk orbit=0.15,4000").sources().get(0));
         assertEquals(InflowSource.Motion.ORBIT, orbit.motion());
         assertEquals(0.15, orbit.m0(), 0.0);
         assertEquals(4000, orbit.motionPeriod());
 
         InflowSource.Disk drift = assertInstanceOf(InflowSource.Disk.class,
-                InflowSpecParser.parse("disk drift=0.01,-0.02").sources()[0]);
+                InflowSpecParser.parse("disk drift=0.01,-0.02").sources().get(0));
         assertEquals(InflowSource.Motion.DRIFT, drift.motion());
         assertEquals(-0.02, drift.m1(), 0.0);
     }
@@ -57,7 +57,7 @@ class InflowSpecParserTest {
     @Test
     void noiseSourceWithoutSeedDefaultsToZero() {
         InflowSource.Noise noise = assertInstanceOf(InflowSource.Noise.class,
-                InflowSpecParser.parse("noise peak=5").sources()[0]);
+                InflowSpecParser.parse("noise peak=5").sources().get(0));
         assertEquals(0L, noise.seed());
     }
 
@@ -65,7 +65,7 @@ class InflowSpecParserTest {
     void lastRepeatedKeyWins() {
         // act
         InflowSource.Disk disk = assertInstanceOf(InflowSource.Disk.class,
-                InflowSpecParser.parse("disk r=5 r=9").sources()[0]);
+                InflowSpecParser.parse("disk r=5 r=9").sources().get(0));
 
         // assert
         assertEquals(9.0, disk.radius(), 0.0);
@@ -75,7 +75,7 @@ class InflowSpecParserTest {
     void aliasesShareOneLastWinsSlot() {
         // act
         InflowSource.Rect rect = assertInstanceOf(InflowSource.Rect.class,
-                InflowSpecParser.parse("rect fx0=0.2 fx=0.4 fy=0.1 fy0=0.3").sources()[0]);
+                InflowSpecParser.parse("rect fx0=0.2 fx=0.4 fy=0.1 fy0=0.3").sources().get(0));
 
         // assert
         assertEquals(0.4, rect.fx0(), 0.0);
@@ -86,7 +86,7 @@ class InflowSpecParserTest {
     void motionKeysOverwriteOnlyTheComponentsTheySet() {
         // act
         InflowSource.Disk disk = assertInstanceOf(InflowSource.Disk.class,
-                InflowSpecParser.parse("disk drift=0.01,-0.02 orbit=0.15,4000").sources()[0]);
+                InflowSpecParser.parse("disk drift=0.01,-0.02 orbit=0.15,4000").sources().get(0));
 
         // assert
         assertEquals(InflowSource.Motion.ORBIT, disk.motion());
