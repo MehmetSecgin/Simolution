@@ -16,7 +16,7 @@ It is a pure refactor. No behaviour, output format, CLI flag, JSON key or checkp
 
 ## Constraints
 
-- Every step keeps `runs/baseline.txt` byte-identical (`state-digest: 78644e65e8086e45`) and every other output byte-identical too: the sidecars beside `--out` (layout, catalog, births, frames, frames index, time series), the `--observe` directory (run.json, events, metrics, checkpoints), replay snapshots, demo and trace console output, and error messages.
+- Every step keeps `runs/baseline.txt` byte-identical (`state-digest: 78644e65e8086e45`) and every other output byte-identical too: the sidecars beside `--out` (layout, catalog, births, frames, frames index, time series), the `--observe` directory (run.json, events, metrics, checkpoints), replay snapshots, trace console output, and error messages.
 - Zero allocation per tick, no streams, boxing or lambdas in per-tick paths. Small private helpers are fine.
 - StrictMath for transcendental functions in kernel code.
 - No back-compat shims: when a type changes, every call site changes, tests included.
@@ -44,7 +44,9 @@ Stages 6 and 8 get their own plan later. Stage 6 waits because the parallel-clai
 
 ## Decided
 
-- `LatestFrame` and `RunDirectory.createBranch` stay: the web app will use them, even though nothing in production calls them yet.
+- `LatestFrame` and `RunDirectory.createBranch` stay: the web app will use them, even though nothing in production calls them yet. Later ruling: removed, see the two lines below.
+- The owner later retired demo mode (R11), so there is no demo console output to keep.
+- The owner later ruled that test-only and unused production code is removed, `LatestFrame` and `createBranch` included (ADR 0048).
 - `EngineConfig` is grouped into `World`, `Founder`, `Metabolism`, `Harvest`, `Motility`, `Growth`, `Sensing`, `Reproduction`, `Mutation`. JSON stays flat through a private wire record inside `ConfigJson`. `v5Defaults` becomes `defaults`.
 - `GeneDecoder.MAX_WEIGHT` is not a bound (raw -32768 decodes to -4.00012). It becomes `NOMINAL_MAX_WEIGHT`, and the test bound is corrected. No behaviour change.
 - Missing CLI flag values fail with "`<flag>` needs a value" instead of an `ArrayIndexOutOfBoundsException`. This is the only intended change to a user-visible message.

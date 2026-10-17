@@ -115,7 +115,7 @@ com.simolution
     │   ├── GeneLayout        the 32-bit gene layout once: shifts, masks and the named field accessors
     │   ├── GeneDecoder       gene → local source/destination index, weight; modulo ID wrap; weight scaling (`NOMINAL_MAX_WEIGHT` is nominal, raw -32768 decodes just past it)
     │   ├── SlotCompiler      writes a slot's flat connection region (source/destination/weight arrays), junk-source connections pruned; once per slot at start, at birth and at restore, no allocation
-    │   └── GenomeCompiler    int[] genes → CompiledConnection[] (harness structure stats and tests)
+    │   └── GenomeCompiler    int[] genes → CompiledConnection[] (founder structure stats)
     ├── state
     │   ├── WorldState        every state array and scalar, allocated once; `fields()` declares each as a FieldSpec (ADR 0038)
     │   ├── FieldSpec         name, dimension, persistence (SAVED/DERIVED/SCRATCH), birth rule, death rule

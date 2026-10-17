@@ -4,7 +4,7 @@
 
 **Context.** After the readability refactor some members in `src/main` had no caller, or only a test called them: `LatestFrame`, `RunDirectoryWriter.createBranch`, `CheckpointCodec.readBranch`, `GeneBuilder`, `Kernel.connectionsOf`, `Kernel.phases`, `Noise.mutationUniform`, `StateDigest.of`, three `EngineConfig.with…` copies, `NodeSpec.kind`, `WorldState.birthChildCell` and a few layout constants.
 
-**Decision.** Delete them. If all tests were deleted, nothing in `src/main` would be unused. A test that needs a helper owns it under `src/test` (`GeneBuilder` and the gene packing moved there, next to the package-private `GeneLayout`). A test that only exercised a deleted member is deleted. The rule is one line in AGENTS.md Conventions.
+**Decision.** Delete them. If all tests were deleted, nothing in `src/main` would be unused. A test that needs a helper owns it under `src/test` (`GeneBuilder` and the gene packing moved there, next to `GeneLayout`, whose field accessors are package-private). A test that only exercised a deleted member is deleted. The rule is one line in AGENTS.md Conventions.
 
 **Why.** Test-only code in production hides what the program really does, and the web app can re-add what it needs from git history with a real caller behind it. Every deletion kept `runs/baseline.txt`, the golden outputs and the checkpoint bytes identical.
 
