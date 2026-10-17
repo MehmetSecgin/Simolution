@@ -35,8 +35,9 @@ Phase `movement` has two steps.
    and `MOVE_N - MOVE_S` past the deadzone `θ`, one Moore step, toroidal wrap) and is valid only if
    the target cell is **free at the start of the phase** and
    `energy > MOVE_COST_BASE + MOVE_COST_PER_MASS · mass`. Otherwise the unit has no intent.
-2. **Resolve**, serially, in ascending slot order: the first intent on a target cell wins. Winners
-   move and pay the cost to the sink; losers stay put and pay nothing.
+2. **Resolve**: among the intents on a target cell the lowest slot wins (the first intent in
+   ascending slot order). Winners move and pay the cost to the sink; losers stay put and pay
+   nothing.
 
 Consequences, all binding:
 
@@ -57,7 +58,7 @@ What changes is the order of the steps and who wins a contested resource.
    `energy > buildCost` for the child it would build. The child genome length, and so
    `buildCost`, is known from the parent's mutation key alone (§3), before any slot exists. A
    parent that cannot afford its child **drops out before any claim: it pays nothing and burns no slot**.
-2. **Resolve**, serially, in ascending parent slot: the first claim on a child cell wins
+2. **Resolve**: among the claims on a child cell the first in ascending parent slot wins
    (**lowest parent wins**); losers pay nothing and retry nothing this tick.
 3. **Assign slots.** Winners, in ascending parent slot, take free slots in **ascending slot order**.
    A slot is free when its energy is `<= 0` at phase start, so a slot freed by a death earlier in
@@ -131,7 +132,7 @@ Each phase declares one shape, which fixes what it may touch:
 |---|---|---|
 | per-unit | its own slot, its own cell's fields | fixed chunks over slots |
 | per-cell | its own cell, next buffer | fixed chunks over cells |
-| claim | proposals into per-unit scratch in parallel; winners in a serial resolve | propose in chunks, resolve in fixed order |
+| claim | proposals into per-unit scratch in parallel; winners by the lowest-slot rule | propose in chunks, resolve in chunked passes with prefixes in chunk order |
 | serial | anything | caller thread, chunk 0 |
 
 ## 7. Thread-count independence (the determinism contract)
@@ -144,8 +145,11 @@ How it is held:
 - **Fixed chunks.** Chunk `c` of an extent covers `[c·4096, min(extent, (c+1)·4096))`. The chunk
   size is an engine constant; boundaries depend on the extent only, never on the thread count.
 - **Ordered totals.** Phases that add to a scalar (sink, inflow, intake, cost) add into their own
-  chunk's entry of a partial array; `finish` sums the partials in ascending chunk index. Claim
-  resolves run serially in ascending slot order. Scheduling of chunks over threads is free
+  chunk's entry of a partial array; `finish` sums the partials in ascending chunk index.
+  Reproduction sums its build costs in birth-list order (ascending parent slot). Claim winners
+  are the lowest claiming slot (a minimum, so independent of the order claims arrive in), and
+  winners take free slots by prefix sums over per-chunk counts in ascending chunk index.
+  Scheduling of chunks over threads is free
   (an atomic chunk counter); nothing observable depends on it.
 - **State digest.** `StateDigest` folds the scalars, then every saved array chunk by chunk, and
   combines the chunk hashes in ascending chunk index, so it is the same for any thread count. It

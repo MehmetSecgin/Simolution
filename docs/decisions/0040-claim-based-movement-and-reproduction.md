@@ -23,3 +23,5 @@ The expensive part (reading outputs, finding a target, computing the child genom
 ## Consequence
 
 The resolve passes stay serial, so they cap parallel speed-up (see the stopping-rule result in [engine-v6-bench](../notes/engine-v6-bench.md)). The baseline moved once, explained in [report-v15](../specs/report-v15.md).
+
+The resolves were made parallel later, in [0046](0046-parallel-claim-resolution.md).

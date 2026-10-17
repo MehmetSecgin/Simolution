@@ -114,6 +114,35 @@ Command (recording in `build/`, not in the repo): `java -Xmx4g -XX:StartFlightRe
 
 Self-time hotspots: `ReproductionPhase.mutate` 13.0%, `DiffusionPhase.run` 11.0%, `PropagatePhase.run` 10.0%, `ReproductionPhase.freeMooreNeighbour` 7.8%, `ParallelRunner.runInline` 7.1%. Nothing is above 20%. Reproduction as a whole (propose plus resolve, 32.6%) is the largest cost centre, and the dry-run length computation in the propose step is the one piece of it that does the same work twice (once in `run` for the build cost, once in `finish` to write the genome).
 
+## after parallel claims
+
+Changes ([ADR 0046](../decisions/0046-parallel-claim-resolution.md)): movement and reproduction resolve in parallel passes (winner by atomic minimum, child slots by prefix over per-chunk counts), snapshot totals on demand, and the child-length dry run skipped for parents above the cost ceiling. `runs/baseline.txt` is byte-identical at threads 1, 3 and 4 (digest `78644e65e8086e45`).
+
+Same machine and command as "v6 (after)". Three rounds, each one `./gradlew bench` per thread count, run back to back; each cell is that bench's median of 3 timed runs.
+
+| config | threads | round 1 ticks/s | round 2 | round 3 |
+|---|---|---|---|---|
+| dense200 | 1 | 653 | 658 | 676 |
+| dense200 | 3 | | 1005 | 1031 |
+| dense200 | 4 | 1012 | 1031 | 1022 |
+| big500 | 1 | 91 | 91 | 96 |
+| big500 | 3 | | 217 | 209 |
+| big500 | 4 | 237 | 241 | 257 |
+
+| Rule 2, big500 | before | round 1 | round 2 | round 3 |
+|---|---|---|---|---|
+| 4 threads over 1 | 2.07x (186 / 90) | 2.60x | 2.65x | 2.68x |
+
+A fresh run of the unchanged v6 code just before these rounds gave 96 and 183 ticks/s (1.91x), so the gain is not machine drift. The worst cross-round pairing (237 at 4 threads over 96 at 1) is 2.47x; the one-thread figure moves between 91 and 96 run to run. At 3 threads (the CX33 default) big500 reaches 2.2 to 2.4x.
+
+**Verdict: rule 2 met** (2.60x to 2.68x per round, 2.5x required).
+
+### JFR profile, `big500`, 1 thread, after
+
+1050 samples. The serial share is now the harness plus O(chunks) steps: `TimeSeriesReport.sample` 4.7% (it samples every tick of a 1000-tick run, a full pass over energy plus the reservoir sum), `DynamicsObserver.observe` 1.4%, the final digest 1.0%. The claim work moved into the parallel part: `ReproductionPhase.run` 13.6% (the length dry run `childLength` 12.4%), `ReproductionPhase.resolve` 9.5% (`install` 7.5%, `judge` 2.0%), `MovementPhase.run` 7.5%, `MovementPhase.resolve` 2.8%, `CellClaim.claim` 7.2% (one random `cellWinner` access per proposal, mostly a cache miss). `Kernel.snapshot` no longer shows up.
+
+The ceiling skip rarely fires on `big500`: most dividers sit just above their own build cost, so the dry run still runs for them. Removing it byte-identically needs a per-parent genome scratch (`maxGenes` ints per slot); geometric sampling of indel draws would remove it but changes the mutation stream (a contract change). Both are left out.
+
 ## CX33 sanity run
 
 Not done yet: this session had no access to the Hetzner CX33. Command to run on it, from a checkout of this branch, then add the rows here:
