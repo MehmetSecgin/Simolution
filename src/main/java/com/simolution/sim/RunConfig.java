@@ -221,8 +221,7 @@ public record RunConfig(
         double peak = 6.0;
         int period = 0;
         int phase = 0;
-        Long seed = null;
-        String configPath = null;
+        long seed = 0L;
         double freq = 0.05;
         double thr = 0.5;
         double gain = 1.0;

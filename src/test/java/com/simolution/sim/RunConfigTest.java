@@ -73,6 +73,13 @@ class RunConfigTest {
     }
 
     @Test
+    void noiseSourceWithoutSeedDefaultsToZero() {
+        InflowSource.Noise noise = assertInstanceOf(InflowSource.Noise.class,
+                RunConfig.parseInflowSpec("noise peak=5").sources()[0]);
+        assertEquals(0L, noise.seed());
+    }
+
+    @Test
     void mapFramesDefaultsOff() {
         assertEquals(-1, RunConfig.parse(new String[] {"--out", "x.txt"}).mapFrames());
         assertEquals(0, RunConfig.parse(new String[] {"--out", "x.txt", "--map-frames", "0"}).mapFrames());
