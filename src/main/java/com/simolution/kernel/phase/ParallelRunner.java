@@ -1,9 +1,8 @@
 package com.simolution.kernel.phase;
 
 import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * Runs the phase list on a fixed pool of persistent threads (engine v6 design §5.8).
@@ -16,30 +15,49 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code threads == 1} run on the caller, chunk by chunk in ascending order; with one thread
  * no worker is ever started.
  * <p>
- * The caller takes part as one of the {@code threads}. One {@link CyclicBarrier} over all
- * threads brackets each split phase: the caller publishes the phase and crosses it to release
- * the workers, everyone claims chunks, and everyone crosses it again to join before the
- * caller runs {@link Phase#finish()}. Memory visibility rests on the barrier's contract:
- * actions before {@code await()} in one thread happen-before actions after the matching
- * {@code await()} returns in every other thread. So the phase reference and chunk count
- * written by the caller before the release are seen by the workers, and every array write a
- * worker makes in a chunk is seen by the caller (and by all threads in later phases) after
- * the join. Plain fields suffice for everything but the chunk counter.
+ * <b>Handshake.</b> The caller takes part as one of the {@code threads}. For a split phase it
+ * writes the phase, extent, chunk count, resets the chunk counter and sets {@code remaining}
+ * to the worker count, then publishes by incrementing the volatile {@code generation} and
+ * unparking every worker. Each worker waits for a generation it has not seen, claims chunks,
+ * and decrements {@code remaining}; the worker that brings it to zero unparks the caller. The
+ * caller claims chunks too, then waits for {@code remaining == 0} before it runs
+ * {@link Phase#finish()}. That wait is the one barrier between phases; the release is a
+ * single volatile publish. Waiters spin briefly ({@link Thread#onSpinWait()}) and then
+ * {@link LockSupport#park}; nothing in the handshake allocates (unlike {@code CyclicBarrier}
+ * and {@code Phaser}, which allocate a generation or wait node per crossing).
  * <p>
- * Nothing is allocated per tick. A {@link Throwable} thrown by a phase on any thread is
- * recorded, stops further chunk claims, and is rethrown on the caller after the join, so a
- * failure never leaves a thread stuck at the barrier. Interrupting the caller while it waits
- * breaks the barrier (interrupting any waiter breaks a {@link CyclicBarrier}), the workers
- * exit, and every later split phase throws. Workers are daemon threads, so a runner that is
- * never closed cannot keep the JVM alive; {@link #close()} stops them and waits for them.
+ * <b>Visibility.</b> The caller's plain writes happen before its volatile write of
+ * {@code generation}, which happens before a worker's volatile read that sees the new value,
+ * so a released worker sees the published phase. A worker's chunk writes happen before its
+ * {@code decrementAndGet} on {@code remaining}; the atomic read-modify-writes form one chain,
+ * so the caller's read of zero happens after every worker's writes, and every thread sees
+ * them in later phases. Only {@code generation} and the two counters need to be volatile.
+ * <p>
+ * <b>No lost wakeup.</b> A waiter re-checks its condition (a volatile read) before every
+ * {@code park}, and the signaller makes the condition true before it calls {@code unpark}.
+ * If the unpark lands before the park, the thread's permit makes that park return at once; if
+ * it lands after, it wakes the parked thread. Either way the waiter re-checks and proceeds.
+ * Spurious returns from {@code park} are absorbed by the same loop.
+ * <p>
+ * <b>Failures and shutdown.</b> A {@link Throwable} thrown by a phase on any thread is
+ * recorded, stops further chunk claims, and every thread still reaches the join, so the caller
+ * rethrows it (wrapped, with the phase name) instead of hanging; the runner stays usable.
+ * Interrupts are not honoured inside a phase: the waits run to completion and the caller's
+ * interrupt status is left set. Workers are daemon threads, so a runner that is never closed
+ * cannot keep the JVM alive; {@link #close()} releases them with {@code closing} set and
+ * joins them, after which split phases are refused.
  */
 public final class ParallelRunner implements PhaseRunner, AutoCloseable {
 
+    private static final int SPINS = 1 << 12;
+
     private final int threads;
     private final Thread[] workers;
-    private final CyclicBarrier barrier;
     private final AtomicInteger nextChunk = new AtomicInteger();
+    private final AtomicInteger remaining = new AtomicInteger();
 
+    private volatile int generation;
+    private Thread caller;
     private Phase current;
     private int extent;
     private int chunkCount;
@@ -52,7 +70,6 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
         }
         this.threads = threads;
         this.workers = new Thread[threads - 1];
-        this.barrier = threads > 1 ? new CyclicBarrier(threads) : null;
         for (int i = 0; i < workers.length; i++) {
             workers[i] = Thread.ofPlatform().daemon().name("simolution-worker-" + (i + 1)).start(this::workerLoop);
         }
@@ -87,18 +104,39 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
         if (closing) {
             throw new IllegalStateException("runner is closed");
         }
+        caller = Thread.currentThread();
         current = phase;
         extent = n;
         chunkCount = Chunks.count(n);
-        nextChunk.set(0);
         failure = null;
-        await();
+        nextChunk.set(0);
+        remaining.set(workers.length);
+        release();
         claimChunks();
-        await();
+        awaitWorkers();
         current = null;
         final Throwable thrown = failure;
         if (thrown != null) {
             throw new IllegalStateException("phase " + phase.name() + " failed", thrown);
+        }
+    }
+
+    private void release() {
+        generation++;
+        for (final Thread worker : workers) {
+            LockSupport.unpark(worker);
+        }
+    }
+
+    private void awaitWorkers() {
+        int spins = SPINS;
+        while (remaining.get() != 0) {
+            if (spins > 0) {
+                spins--;
+                Thread.onSpinWait();
+            } else {
+                LockSupport.park(this);
+            }
         }
     }
 
@@ -119,28 +157,26 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
     }
 
     private void workerLoop() {
-        try {
-            while (true) {
-                barrier.await();
-                if (closing) {
-                    return;
+        int seen = 0;
+        while (true) {
+            int spins = SPINS;
+            int now;
+            while ((now = generation) == seen) {
+                if (spins > 0) {
+                    spins--;
+                    Thread.onSpinWait();
+                } else {
+                    LockSupport.park(this);
                 }
-                claimChunks();
-                barrier.await();
             }
-        } catch (final InterruptedException | BrokenBarrierException e) {
-            return;
-        }
-    }
-
-    private void await() {
-        try {
-            barrier.await();
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted while waiting for phase workers", e);
-        } catch (final BrokenBarrierException e) {
-            throw new IllegalStateException("phase workers are gone (barrier broken)", e);
+            seen = now;
+            if (closing) {
+                return;
+            }
+            claimChunks();
+            if (remaining.decrementAndGet() == 0) {
+                LockSupport.unpark(caller);
+            }
         }
     }
 
@@ -151,14 +187,7 @@ public final class ParallelRunner implements PhaseRunner, AutoCloseable {
             return;
         }
         closing = true;
-        try {
-            barrier.await();
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-        } catch (final BrokenBarrierException e) {
-            return;
-        }
+        release();
         for (final Thread worker : workers) {
             try {
                 worker.join();

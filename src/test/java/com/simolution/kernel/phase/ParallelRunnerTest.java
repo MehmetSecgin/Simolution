@@ -4,13 +4,18 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
-@Timeout(10)
+import com.simolution.kernel.config.EngineConfig;
+import com.simolution.kernel.runtime.Kernel;
+import com.simolution.sim.GenomeFactory;
+
+@Timeout(60)
 class ParallelRunnerTest {
 
     private static final int EXTENT = 5 * Chunks.SIZE + 7;
@@ -94,5 +99,50 @@ class ParallelRunnerTest {
 
         // act + assert
         assertThrows(IllegalStateException.class, () -> runner.runTick(List.of(new Recording(-1))));
+    }
+
+    /**
+     * The first few thousand ticks can allocate a few hundred bytes while the JIT settles (also
+     * seen with one thread, before engine v6 B1), so the test looks for one fully clean
+     * 1000-tick window. Any per-tick allocation, such as a barrier node per crossing, puts at
+     * least 16 bytes into every window and fails it.
+     */
+    @Test
+    void steadyStateTickAllocatesNothingWithFourThreads() {
+        // arrange
+        final com.sun.management.ThreadMXBean bean =
+                (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+        final int world = 128;
+        final int founders = 1200;
+        try (Kernel kernel = new Kernel(GenomeFactory.random(7L, founders, 32),
+                Kernel.scatterFounders(founders, world), EngineConfig.v5Defaults(7L, world, 64), 4)) {
+            kernel.step(500);
+            final long[] ids = Thread.getAllStackTraces().keySet().stream()
+                    .filter(t -> t == Thread.currentThread() || t.getName().startsWith("simolution-worker-"))
+                    .mapToLong(Thread::threadId)
+                    .toArray();
+            assertEquals(4, ids.length);
+
+            // act
+            final long[] windows = new long[10];
+            int measured = 0;
+            while (measured < windows.length && (measured == 0 || windows[measured - 1] != 0L)) {
+                final long before = allocated(bean, ids);
+                kernel.step(1000);
+                windows[measured++] = allocated(bean, ids) - before;
+            }
+
+            // assert
+            assertEquals(0L, windows[measured - 1],
+                    "no 1000-tick window without allocation on caller + workers: " + java.util.Arrays.toString(windows));
+        }
+    }
+
+    private static long allocated(final com.sun.management.ThreadMXBean bean, final long[] ids) {
+        long total = 0L;
+        for (final long id : ids) {
+            total += bean.getThreadAllocatedBytes(id);
+        }
+        return total;
     }
 }
