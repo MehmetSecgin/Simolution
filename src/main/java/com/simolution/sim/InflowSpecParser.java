@@ -8,7 +8,7 @@ import com.simolution.kernel.config.InflowSource;
 
 public final class InflowSpecParser {
 
-    private static final double CENTER = 0.5;
+    private static final double CENTRE = 0.5;
     private static final double FAR_EDGE = 1.0;
     private static final double PEAK = 6.0;
 
@@ -106,8 +106,8 @@ public final class InflowSpecParser {
 
     private static final class Params {
 
-        private double fx = CENTER;
-        private double fy = CENTER;
+        private double fx = CENTRE;
+        private double fy = CENTRE;
         private double fx1 = FAR_EDGE;
         private double fy1 = FAR_EDGE;
         private double radius = 10.0;

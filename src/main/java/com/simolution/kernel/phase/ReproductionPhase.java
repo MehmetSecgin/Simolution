@@ -64,8 +64,9 @@ import com.simolution.kernel.state.WorldState;
  * the sink in exactly the order the serial resolve did, and updates {@code birthsTotal} and
  * {@code maxGeneration}.
  * <p>
- * The birth list ({@code birthParent}, {@code birthChild}, {@code birthCount}) is ascending in parent and child slot alike. Entries of {@code birthChild}
- * at or past {@code birthCount} hold leftover free slots and mean nothing.
+ * The birth list ({@code birthParent}, {@code birthChild}, {@code birthCount}) is ascending
+ * in parent and child slot alike. Entries of {@code birthChild} at or past {@code birthCount}
+ * hold leftover free slots and mean nothing.
  * <p>
  * Shape is {@link Shape#CLAIM}.
  */

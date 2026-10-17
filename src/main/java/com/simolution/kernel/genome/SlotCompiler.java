@@ -45,8 +45,11 @@ public final class SlotCompiler {
         int cursor = start;
         for (int g = 0; g < count; g++) {
             final int gene = state.genes[base + g];
+            if (GeneDecoder.destinationNodeIndex(gene) != MUL_NODE) {
+                continue;
+            }
             final int src = GeneDecoder.sourceNodeIndex(gene);
-            if (GeneDecoder.destinationNodeIndex(gene) == MUL_NODE && isStored(src)) {
+            if (isStored(src)) {
                 storeConnection(state, cursor++, src, MUL_NODE, gene);
             }
         }

@@ -41,20 +41,20 @@ public record RunConfig(
     public static RunConfig parse(final String[] args) {
         final RunOptions options = RunOptions.read(args);
         options.validate();
-        return population(options);
+        return fromOptions(options);
     }
 
-    private static RunConfig population(final RunOptions options) {
+    private static RunConfig fromOptions(final RunOptions options) {
         final int founders = requireNonNullElse(options.founders, DEFAULT_FOUNDERS);
         final int genes = requireNonNullElse(options.genes, DEFAULT_GENES);
-        final EngineConfig engine = populationEngine(options, founders, genes);
+        final EngineConfig engine = engineFrom(options, founders, genes);
         requireFoundersFit(engine.world().worldWidth(), founders);
         return new RunConfig(founders, requireNonNullElse(options.ticks, DEFAULT_TICKS),
                 genes, options.trace, options.reportPath, options.mapSampling(),
                 observation(options), withInflow(engine, options), options.threadCount(), options.digestEveryTick);
     }
 
-    private static EngineConfig populationEngine(final RunOptions options, final int founders, final int genes) {
+    private static EngineConfig engineFrom(final RunOptions options, final int founders, final int genes) {
         if (options.configPath != null) {
             return applyOverrides(loadConfig(options.configPath), options.seed, options.world, options.maxGenes);
         }

@@ -16,12 +16,12 @@ public final class GenomeFactory {
 
     private GenomeFactory() {}
 
-    public static int[][] random(long seed, int units, int genesPerUnit) {
+    public static int[][] random(long seed, int founderCount, int genesPerFounder) {
         long genomeSeed = seed ^ GENOME_SALT;
-        int[][] genomes = new int[units][genesPerUnit];
+        int[][] genomes = new int[founderCount][genesPerFounder];
 
-        for (int unit = 0; unit < units; unit++) {
-            for (int gene = 0; gene < genesPerUnit; gene++) {
+        for (int unit = 0; unit < founderCount; unit++) {
+            for (int gene = 0; gene < genesPerFounder; gene++) {
                 long h = Noise.mix(genomeSeed + Noise.GOLDEN_GAMMA * (unit + 1L));
                 h = Noise.mix(h + Noise.GOLDEN_GAMMA * (gene + 1L));
                 genomes[unit][gene] = (int) (h ^ (h >>> 32));

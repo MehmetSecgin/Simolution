@@ -35,15 +35,15 @@ public final class StructuralAnalyzer {
         }
     }
 
-    public static StructuralStats analyze(final CompiledConnection[] connections, final int unitCount) {
+    public static StructuralStats analyze(final CompiledConnection[] connections, final int founderCount) {
         final WeightTally weights = new WeightTally();
-        final boolean[] reachable = new boolean[unitCount];
-        final boolean[] randWired = new boolean[unitCount];
+        final boolean[] reachable = new boolean[founderCount];
+        final boolean[] randWired = new boolean[founderCount];
         long meaningful = 0;
         long duplicates = 0;
 
         int from = 0;
-        for (int unit = 0; unit < unitCount; unit++) {
+        for (int unit = 0; unit < founderCount; unit++) {
             final int to = endOfUnit(connections, from, unit);
             weights.addAll(connections, from, to);
             final UnitWiring wiring = wiringOf(connections, from, to);

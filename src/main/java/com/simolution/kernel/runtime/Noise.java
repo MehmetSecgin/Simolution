@@ -54,7 +54,7 @@ public final class Noise {
     /**
      * Mutation decisions draw deterministic pseudo-random doubles in {@code [0, 1)} keyed by the
      * birth event {@code (seed, parentSlot, birthTick)} and a per-stream {@code index} (contract v2 §9;
-     * parent-keyed since engine v6 design §5.6, so the child genome is known before its slot is).
+     * parent-keyed (contract-v9 §3), so the child genome is known before its slot is).
      * Domain-separated from {@link #sample} by the stream tag {@link #STREAM_MUTATION}, so a
      * child's mutation stream never collides with any unit's sensor noise. Same key, same flips,
      * always, so a run's entire genealogy is reproducible.
