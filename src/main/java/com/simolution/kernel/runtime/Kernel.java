@@ -6,7 +6,6 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.SlotCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.layout.NodeLayout;
-import com.simolution.kernel.phase.Chunks;
 import com.simolution.kernel.phase.ClearPhase;
 import com.simolution.kernel.phase.DecayPhase;
 import com.simolution.kernel.phase.DiffusionPhase;
@@ -266,9 +265,8 @@ public final class Kernel implements AutoCloseable {
                 unitOffset + state.connSrc[i], unitOffset + state.connDst[i], state.connWeight[i]);
     }
 
-    /** Totals are {@link Chunks#orderedSum chunk-ordered sums}, so they do not depend on the thread count. */
     public KernelSnapshot snapshot() {
-        return new KernelSnapshot(state, Chunks.orderedSum(state.cellChem), Chunks.orderedSum(state.mass));
+        return new KernelSnapshot(state);
     }
 
     /** {@link StateDigest} of the current state, folded on this kernel's own runner. */

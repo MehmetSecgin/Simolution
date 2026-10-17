@@ -43,7 +43,7 @@ public final class TimeSeriesReport {
            .append(',').append(snapshot.birthsTotal)
            .append(',').append(snapshot.maxGeneration)
            .append(',').append(unitEnergy)
-           .append(',').append(snapshot.reservoir)
+           .append(',').append(snapshot.reservoir())
            .append('\n');
     }
 

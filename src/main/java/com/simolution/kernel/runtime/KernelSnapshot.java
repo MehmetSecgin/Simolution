@@ -1,7 +1,13 @@
 package com.simolution.kernel.runtime;
 
+import com.simolution.kernel.phase.Chunks;
 import com.simolution.kernel.state.WorldState;
 
+/**
+ * A read view of the state after a tick. Scalars are copied; arrays are the live kernel arrays,
+ * so read them before the kernel ticks again. The two totals are computed on demand, since most
+ * ticks no reader asks for them.
+ */
 public final class KernelSnapshot {
     public final WorldState state;
     public final int tick;
@@ -10,7 +16,6 @@ public final class KernelSnapshot {
     public final double[] energy;
     public final double[] damage;
     public final double energySink;
-    public final double reservoir;
     public final double[] resourceField;
     public final int worldWidth;
     public final int[] position;
@@ -25,11 +30,10 @@ public final class KernelSnapshot {
     public final int[] geneCount;
     public final int maxGenes;
     public final double[] mass;
-    public final double massTotal;
     public final double creditedInitialMass;
     public final int[] activeThisTick;
 
-    public KernelSnapshot(WorldState state, double reservoir, double massTotal) {
+    public KernelSnapshot(WorldState state) {
         this.state = state;
         this.tick = state.tick;
         this.outputs = state.outputsPrev;
@@ -37,7 +41,6 @@ public final class KernelSnapshot {
         this.energy = state.energy;
         this.damage = state.damage;
         this.energySink = state.energySink;
-        this.reservoir = reservoir;
         this.resourceField = state.cellChem;
         this.worldWidth = state.worldWidth;
         this.position = state.position;
@@ -52,8 +55,17 @@ public final class KernelSnapshot {
         this.geneCount = state.geneCount;
         this.maxGenes = state.maxGenes;
         this.mass = state.mass;
-        this.massTotal = massTotal;
         this.creditedInitialMass = state.creditedInitialMass;
         this.activeThisTick = state.activeThisTick;
+    }
+
+    /** Resource held by every cell field, as a {@link Chunks#orderedSum chunk-ordered sum}. */
+    public double reservoir() {
+        return Chunks.orderedSum(resourceField);
+    }
+
+    /** Biomass of every slot (dead slots hold 0), as a {@link Chunks#orderedSum chunk-ordered sum}. */
+    public double massTotal() {
+        return Chunks.orderedSum(mass);
     }
 }

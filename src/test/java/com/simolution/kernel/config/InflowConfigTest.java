@@ -187,7 +187,7 @@ class InflowConfigTest {
             for (double e : s.energy) {
                 held += e;
             }
-            held += s.reservoir + s.massTotal + s.energySink;
+            held += s.reservoir() + s.massTotal() + s.energySink;
             double credited = s.creditedInitialEnergy + s.initialResourceTotal
                     + s.creditedInitialMass + s.cumulativeInflow;
             assertEquals(credited, held, 1.0e-2, "audit at tick " + s.tick);

@@ -51,9 +51,9 @@ public final class DynamicsObserver {
         final int finalPopulation = last == null ? 0 : livingCount(last);
         final int distinctLineagesAlive = last == null ? 0 : distinctLineagesAlive(last);
         final double finalEnergyTotal = last == null ? 0.0 : sum(last.energy);
-        final double finalMassTotal = last == null ? 0.0 : last.massTotal;
+        final double finalMassTotal = last == null ? 0.0 : last.massTotal();
         final double finalMassMax = last == null ? 0.0 : maxLivingMass(last);
-        final double finalReservoir = last == null ? 0.0 : last.reservoir;
+        final double finalReservoir = last == null ? 0.0 : last.reservoir();
 
         return new DynamicsSummary(
                 ticksObserved,

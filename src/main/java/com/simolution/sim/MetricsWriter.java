@@ -57,12 +57,13 @@ public final class MetricsWriter implements Closeable {
         }
         final long births = snapshot.birthsTotal;
         final long deaths = founderCount + births - population;
-        final double fieldTotal = snapshot.reservoir;
+        final double fieldTotal = snapshot.reservoir();
+        final double massTotal = snapshot.massTotal();
         final double sink = snapshot.energySink;
         final double inflow = snapshot.cumulativeInflow;
         final double auditError = (snapshot.creditedInitialEnergy + snapshot.initialResourceTotal
                 + snapshot.creditedInitialMass + inflow)
-                - (energyTotal + fieldTotal + sink + snapshot.massTotal);
+                - (energyTotal + fieldTotal + sink + massTotal);
 
         line.setLength(0);
         line.append(snapshot.tick).append(',')
@@ -76,7 +77,7 @@ public final class MetricsWriter implements Closeable {
             .append(inflow).append(',')
             .append(auditError).append(',')
             .append(snapshot.maxGeneration).append(',')
-            .append(snapshot.massTotal).append('\n');
+            .append(massTotal).append('\n');
         out.write(line.toString());
         out.flush();
     }

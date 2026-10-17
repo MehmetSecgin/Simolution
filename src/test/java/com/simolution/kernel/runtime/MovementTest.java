@@ -57,7 +57,7 @@ class MovementTest {
             KernelSnapshot s = kernel.snapshot();
             assertEquals(expected, s.position[0], "east step at tick " + s.tick);
             // conservation holds with MOVE_COST flowing unit -> sink (contract v3 §7)
-            double held = totalEnergy(s) + totalField(s) + s.massTotal + s.energySink;
+            double held = totalEnergy(s) + totalField(s) + s.massTotal() + s.energySink;
             assertEquals(credited + s.cumulativeInflow, held, 1.0e-6,
                     "energy conserved through movement at tick " + s.tick);
         }

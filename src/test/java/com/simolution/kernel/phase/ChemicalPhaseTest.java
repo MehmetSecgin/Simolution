@@ -47,7 +47,7 @@ class ChemicalPhaseTest {
         }
         assertTrue(productTotal > 0.0, "chemical 1 must receive the decayed share of chemical 0");
         assertEquals(snapshot.initialResourceTotal + snapshot.cumulativeInflow,
-                snapshot.reservoir + snapshot.energySink, 1.0e-9);
+                snapshot.reservoir() + snapshot.energySink, 1.0e-9);
     }
 
     @Test

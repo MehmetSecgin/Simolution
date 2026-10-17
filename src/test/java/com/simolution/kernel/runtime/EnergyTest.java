@@ -51,7 +51,7 @@ class EnergyTest {
         for (int i = 0; i < 500; i++) {
             kernel.tick();
             KernelSnapshot snapshot = kernel.snapshot();
-            double held = totalEnergy(snapshot) + snapshot.reservoir + snapshot.massTotal + snapshot.energySink;
+            double held = totalEnergy(snapshot) + snapshot.reservoir() + snapshot.massTotal() + snapshot.energySink;
             assertEquals(credited + snapshot.cumulativeInflow, held, 1.0e-2,
                     "units + reservoir + mass + sink must equal initial + inflow at tick " + snapshot.tick);
         }
