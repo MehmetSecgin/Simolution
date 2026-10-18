@@ -127,7 +127,7 @@ final class RunSession {
                 }
             }
             end(RunState.FINISHED);
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException | RuntimeException | Error e) {
             fail(e);
         }
     }
@@ -157,7 +157,7 @@ final class RunSession {
         become(RunState.PAUSED);
     }
 
-    private synchronized void fail(final Exception e) {
+    private synchronized void fail(final Throwable e) {
         try {
             artifacts.fail(String.valueOf(e.getMessage()));
         } catch (IOException | RuntimeException suppressed) {

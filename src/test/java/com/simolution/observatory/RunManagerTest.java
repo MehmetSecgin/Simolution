@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -151,6 +152,32 @@ class RunManagerTest {
         assertEquals("stopped", states.getLast());
         assertEquals(RunState.STOPPED, state(dir));
         assertEquals(RunState.STOPPED, RunStatus.read(new RunPaths(store.path(dir)).status()).status());
+    }
+
+    @Test
+    void anErrorFailsItsRunAndTheWorkerRunsTheNext() throws Exception {
+        // arrange
+        final AtomicBoolean thrown = new AtomicBoolean();
+        final EventStream events = new EventStream() {
+            @Override
+            public void send(final String event, final Object payload) {
+                if (event.equals("progress") && thrown.compareAndSet(false, true)) {
+                    throw new Error("boom");
+                }
+            }
+        };
+        manager.close();
+        manager = new RunManager(store, temp.resolve("configs"), events, 2);
+
+        // act
+        final String broken = manager.create(ObservatoryWorld.request("broken", 50, immortal(7))).dir();
+        final String next = manager.create(ObservatoryWorld.request("next", 50, immortal(8))).dir();
+
+        // assert
+        awaitState(next, RunState.FINISHED);
+        final RunStatus failed = RunStatus.read(new RunPaths(store.path(broken)).status());
+        assertEquals(RunState.FAILED, failed.status());
+        assertEquals("boom", failed.error());
     }
 
     @Test
