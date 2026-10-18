@@ -36,8 +36,11 @@ Next: sensors that read beyond the own cell, several resources with separate har
 # reproducible benchmark (fixed configs: small, dense200, big500; ticks/s per thread count)
 ./gradlew bench --args="--threads 4"     # numbers and the stopping-rule check: docs/notes/engine-v6-bench.md
 
-# the Observatory (ADR 0057): HTTP server in the engine's JVM over runs/, on loopback; start, pause, stop,
-# branch, re-run and seek runs from the browser. Runs it starts are ordinary run directories.
+# the Observatory (ADRs 0057, 0058): the one viewer. An HTTP server in the engine's JVM over runs/,
+# on loopback. Start runs from a config in examples/ plus overrides, follow them live, scrub to any
+# tick (frames while dragging, an exact seek on release), inspect a unit's fields and circuit,
+# branch from any tick with changed settings, re-run with the same seed as a determinism twin, and
+# compare 2 to 4 runs. Runs it starts are ordinary run directories; CLI runs under runs/ open too.
 ./gradlew observatory    # then open http://localhost:8090 (a taken port exits: pass --port)
 
 # patchy + cyclic resource (contract-v6): a central disk pulses 0->peak->0 (period in ticks),
@@ -53,34 +56,18 @@ Next: sensors that read beyond the own cell, several resources with separate har
 #   catalog.gz, births.csv.gz and report.txt. Map frames are opt-in (below).
 #   `--out runs/x.txt` is refused: --out names a directory.
 
-# bake the spatial map (report-v14) into a SELF-CONTAINED rich viewer: the same
-# genome panel + circuit inspector + colour by genome as the live view, frames + catalog
-# inlined, opens anywhere (even file://). The run writes chunked-zstd <dir>/frames.zst
-# (lean row `u <cell> <slot> <genomeId> <lineage>`) + <dir>/frames.idx + the gzipped <dir>/catalog.gz
-# when --out is set and frames are requested
+# map frames: the run writes chunked-zstd <dir>/frames.zst (row `u <cell> <slot> <genomeId> <lineage>`)
+# + <dir>/frames.idx + the gzipped <dir>/catalog.gz when frames are requested
 # (--map-frames N: negative/absent = off [default], 0 = every tick, N>0 = N frames;
-#  --map-from T0 --map-to T1: a frame EVERY tick only within [T0,T1]). Then:
-python3 tools/mapviz.py runs/foo/frames.zst   # writes runs/foo/frames.map.html (offline)
+#  --map-from T0 --map-to T1: a frame EVERY tick only within [T0,T1]). Observatory runs always write
+#  every tick; a CLI run without frames still opens in the Observatory, which seeks instead.
 
 # checkpoints (ADR 0043): run.json's runId is the SHA-256 of the first checkpoint; ckpt/<tick>.ckpt
 # is self-sufficient, versioned format 3 with the state digest in the header; tick 0 at
-# creation (the branch tick for a branch), then every --checkpoint-every ticks.
+# creation (the branch tick for a branch), then every --checkpoint-every ticks. Checkpoints from
+# another engine version or format are refused. Seek, branch and re-run happen in the Observatory.
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo --checkpoint-every 500"
-# seek: reconstruct any tick (nearest checkpoint at or before T, then step forward). Works for
-# any thread count and for inflow runs (the checkpoint carries the full config):
-./gradlew run --args="--replay runs/foo --at 600 --snapshot-out runs/foo/snap-600.txt"
-python3 tools/timetravel.py runs/foo/snap-600.txt   # writes snap-600.html
-# Checkpoints from another engine version or format are refused.
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
-
-# watch a run LIVE while it ticks (report-v14): the viewer (live.html) loads the tiny
-# .frames.idx (chunk index) + whole .catalog.gz, then HTTP-Range-fetches ONE zstd chunk
-# (256 frames) on scrub and fzstd-decodes it client-side — O(one chunk) browser RAM on any
-# run. NB this needs a Range-capable static server: the stdlib `python3 -m http.server`
-# IGNORES Range (returns the whole file), so use scripts/serve.py (a stdlib subclass that
-# answers 206); the served viewer also needs fzstd.min.js beside it. serve-live.sh does both.
-bash scripts/serve-live.sh   # runs a sim in the background, serves runs/ on :8090 via serve.py
-# then open http://localhost:8090  (or any run: python3 scripts/serve.py 8090 runs, open <base>.html)
 
 # lineage / "what happened to who": every --out run writes <dir>/births.csv.gz
 # (tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated).
@@ -104,7 +91,7 @@ Requires JDK 26 (`.sdkmanrc` pins `26.0.1.0+8-open`; `sdk env` activates it).
 
 ```
 com.simolution
-├── Main                      entry point: reads like the run (`RunConfig` → `Founders` → observers → `SimulationRun` → report), `--replay` goes to `ReplayCommand`
+├── Main                      entry point: reads like the run (`RunConfig` → `Founders` → observers → `SimulationRun` → report)
 ├── bench.Bench               reproducible benchmark (`./gradlew bench`): small / dense200 / big500, median of 3 timed runs
 └── kernel
     ├── config
@@ -141,7 +128,6 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── SimulationRun / RunResult the tick loop: tick, snapshot, every `TickObserver` in order; final digest and elapsed time
 ├── RunArtifacts / RunPaths   opens the `--out` run directory (docs/specs/run-directory-v1.md), lists its observers, `finish` writes report.txt and status.json; `RunPaths` names every file inside the directory
 ├── RunConsole                report and timing lines on stdout
-├── ReplayCommand             `--replay <dir> --at T`: seek and dump a snapshot
 ├── StructuralAnalyzer/Stats  wiring-derived stats of the founders: junk load, reachability, weights
 ├── DynamicsObserver/Summary  running aggregates over snapshots (activity, populations, energy, mass) into grouped summary records; no per-unit state, no trajectory
 ├── RunReport                 byte-deterministic report-v15 text in one method per section (aggregates + distributions + reproduction)
@@ -150,7 +136,6 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── BirthLogWriter            <base>.births.csv.gz: one row per birth from the engine's birth list (lineage/generation/parent exact, genome ids from the shared catalog); DuckDB-queryable lineage store
 ├── EventLogWriter            events.jsonl: births from the birth list, deaths/extinctions derived from snapshot deltas, seeded from the start state (a branch logs no false events); mutation bits by child↔parent gene diff (no kernel hook)
 ├── MetricsWriter             metrics.csv: per-tick aggregates incl. top lineage and its share, streamed, O(1)/tick
-├── SnapshotDump              one-shot tick-T state page (lattice + per-unit + evolved circuits) for tools/timetravel.py
 └── run
     ├── RunManifest / RunStatus / RunState / RunOrigin   run.json, status.json and their states (Jackson)
     ├── RunDirectoryWriter    run.json (carries the run id) + ckpt/<tick>.ckpt, `checkpointIfDue`; a first checkpoint after tick 0 needs a parent
@@ -281,4 +266,5 @@ Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://
 12. ~~report-v10 (surface mass)~~ done: `## mass` report section, `final_mass` (units.csv) + `mass_total` (metrics.csv) columns, `mass` on map-frame `u` lines, colour-by-mass in `tools/mapviz.py` + `live.html`.
 13. ~~Fluctuating/patchy inflow~~ done (contract-v6 ADR 0029 + contract-v7 ADR 0034): v6 opt-in central pulsing disk (now an `--inflow` disk, ADR 0050); **v7 generalized to a programmable inflow field**: composable `InflowSource`s (disk w/ ORBIT/DRIFT motion, rect, explicit points, seeded value-noise worldgen) combined MAX/ADD over a baseline, `--inflow "<spec>"` DSL, static-source bake. Closes multiple/moving patches. Remaining: seed-from-evolved-founder, fractal/Perlin noise octaves.
 14. ~~Engine v6~~ done (contract-v9, ADRs 0038 to 0045, report-v15): state declared once (`WorldState`/`FieldSpec`), node layout generated from `NodeCatalog` and exported as `.layout.json`, flat connection arrays with junk pruning, the tick as a declared list of shaped phases run by a fixed-chunk `ParallelRunner`, claim-based movement and reproduction, parent-keyed skip-sampled mutation, all randomness keyed by the run seed, chemical table, per-run `EngineConfig` from JSON, self-sufficient versioned checkpoints with seek, chunked state digest. Benchmarks and the stopping-rule result (rule 2, 4-thread scaling on big500, not met) are in [docs/notes/engine-v6-bench.md](docs/notes/engine-v6-bench.md); the CX33 run is pending.
-15. Later: sensors beyond the own cell (gradients), several resources with separate harvesting, secretions and quorum (CROWDING/EMIT), corpse release and decomposers, sub-gene/selfish-DNA/whole-genome-duplication indel variants, multi-cell bodies (contract-v5 omissions), the web app (design §9).
+15. Later: sensors beyond the own cell (gradients), several resources with separate harvesting, secretions and quorum (CROWDING/EMIT), corpse release and decomposers, sub-gene/selfish-DNA/whole-genome-duplication indel variants, multi-cell bodies (contract-v5 omissions).
+16. ~~The Observatory~~ done (run-directory-v1, ADRs 0055 to 0058): one run directory for the CLI and the server, branch restore, the in-JVM Observatory (run list, run view, compare) replacing `live.html`, `mapviz.py`, `timetravel.py`, the serve scripts and `--replay`.

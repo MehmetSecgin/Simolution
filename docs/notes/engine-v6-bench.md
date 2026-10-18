@@ -152,3 +152,14 @@ Not done yet: this session had no access to the Hetzner CX33. Command to run on 
 ```
 
 Shared vCPUs make timings noisy, so these rows are a sanity check and the table above is the reference.
+
+## Observatory throughput
+
+The Observatory runs one run at a time on all 12 cores with every sidecar on: frames every tick, events, births, catalog, metrics and checkpoints every 500 ticks. The design's check compares it with the CLI writing the same sidecars (`--out <dir> --map-frames 0 --checkpoint-every 500`, all cores). CLI: tick-loop wall clock from the console, median of 3. Observatory: ticks per second between the first progress sample and the end, polled over the API, after one warm-up run; all runs give the same final digest. Seed 42, `examples/baseline.json` with the world side and max genes of the bench config.
+
+| config | `./gradlew bench --threads 12` (no sidecars) | CLI, same sidecars | Observatory | Observatory / CLI |
+|---|---|---|---|---|
+| small (W=64, 200 founders, 2000 ticks) | 14084 | 2833 | 6813 | 240% |
+| dense200 (W=200, 4000 founders, 3000 ticks) | 837 | 178 | 176 | 99% |
+
+The check (at least 90% of the CLI with the same sidecars) is met. On `small` the long-lived server's warm JIT beats a fresh CLI JVM. Against the bare bench the sidecars cost most of the time: on `dense200` the engine alone takes 3.7 s, events, births, catalog, metrics and checkpoints bring it to 11.8 s (`events.jsonl` alone is 231 MB for 3000 ticks), and every-tick frames to 16.9 s.

@@ -8,7 +8,6 @@ import com.simolution.kernel.logging.ConsoleTableLogger;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.Founders;
-import com.simolution.sim.ReplayCommand;
 import com.simolution.sim.RunArtifacts;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunReport;
@@ -26,10 +25,6 @@ public final class Main {
     private Main() {}
 
     static void main(final String[] args) throws IOException {
-        if (ReplayCommand.requested(args)) {
-            ReplayCommand.run(args);
-            return;
-        }
         final RunConfig config = RunConfig.parse(args);
         final Founders founders = Founders.create(config);
         final StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());

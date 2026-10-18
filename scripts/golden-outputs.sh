@@ -22,9 +22,6 @@ run inflow --config "$REPO/examples/baseline.json" --units 150 --ticks 400 --see
 run cycle --units 50 --ticks 300 --seed 5 --world 60 --inflow "disk r=10 peak=5 period=200" --out cycle
 run digest --units 20 --ticks 30 --seed 1 --world 20 --digest-every-tick
 run trace --units 5 --ticks 5 --seed 1 --world 10 --trace
-mkdir -p "$OUT/replay"
-run replay/file --replay full --at 450 --snapshot-out replay/snap-450.txt
-run replay/stdout --replay full --at 450
 run errors/out-names-a-file --out run.txt
 run errors/map-from-alone --map-from 5
 run errors/threads-zero --threads 0

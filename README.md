@@ -68,24 +68,20 @@ Requires **JDK 26** (`.sdkmanrc` pins `26.0.1.0+8-open`).
 ./gradlew build   # full verification
 
 # a real population run — byte-deterministic report + sidecars
-./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/run.txt"
+./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/run"
 ```
 
 Useful flags: `--units N --ticks T --seed S --world W --genes G --max-genes G2`, `--threads N` (worker threads, default all cores; never changes results), `--config <file.json>` (the full per-run constants, see `examples/baseline.json`), `--digest-every-tick` (debug), plus a patchy, breathing resource world: `--inflow "disk r=22 peak=10 period=2000"` (a central disk pulsing 0→10→0 every 2000 ticks; the DSL composes many sources).
 
 ## Watch a run
 
-An `--out` run with `--map-frames 0` (every tick; `N` for N frames) streams a compact spatial history (`.frames.zst` + genome `.catalog.gz`). Explore it in the browser:
+`--out runs/<dir>` writes one run directory: config, checkpoints, metrics, events, the lineage store and, with `--map-frames 0`, a compact frame of every tick. Explore runs in the Observatory, a local web app:
 
 ```sh
-# bake a self-contained, offline viewer (opens anywhere, even file://)
-python3 tools/mapviz.py runs/run.frames.zst    # -> runs/run.map.html
-
-# or follow a run LIVE while it ticks
-bash scripts/serve-live.sh                      # serves runs/ on :8090
+./gradlew observatory    # then open http://localhost:8090
 ```
 
-The viewer is what produced the images above: scrub the lattice (colour by genome), click any cell to inspect its **evolved circuit** as a force-directed graph, and walk a lineage's genome diffs over its `.births.csv.gz` (DuckDB-queryable). `--observe` writes a run directory with self-sufficient versioned checkpoints: seek to any tick (`--replay <dir> --at T`) on any thread count.
+Start runs from a config plus a few overrides and follow them live, scrub to any tick and click a unit to see its fields and **evolved circuit**, branch from any tick with changed settings, re-run with the same seed to prove the result is byte-identical, and compare up to four runs side by side. The lineage store (`births.csv.gz`) stays DuckDB-queryable for deep questions.
 
 <p align="center">
   <img src="docs/images/lattice.png" width="460" alt="A single tick at peak, full resolution">
@@ -99,7 +95,7 @@ Same engine version + same config + same seed → **byte-identical state, on any
 
 ## Performance
 
-`./gradlew bench --args="--threads N"` runs three fixed worlds (seed 42, observer and time series on every tick, no `--out`) and prints ticks/s. Apple M2 Pro, 12 cores, JDK 26, `-Xmx4g`, median of 3 timed runs. Engine v6 changed the dynamics (claim phases, new mutation keying), so v5 and v6 rows are not one identical workload.
+`./gradlew bench --args="--threads N"` runs three fixed worlds (seed 42, observer on every tick, no `--out`) and prints ticks/s. Apple M2 Pro, 12 cores, JDK 26, `-Xmx4g`, median of 3 timed runs. Engine v6 changed the dynamics (claim phases, new mutation keying), so v5 and v6 rows are not one identical workload.
 
 | world | v5, 1 thread | v6, 1 thread | v6, 4 threads |
 |---|---|---|---|
