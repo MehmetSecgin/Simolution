@@ -250,7 +250,7 @@ Spotless (Eclipse JDT) owns layout and imports, Checkstyle owns `final` and `var
 
 ## Branching
 
-Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://github.com/MehmetSecgin/Simolution) (`origin`). No `main` trunk and no PR flow — one long-lived branch **per milestone**, named after it (`kernel-v0.1`, `kernel-v1-energy-intake`, …); all milestone branches are pushed and the latest (`kernel-v5-biomass`) is the GitHub default. Start each new milestone branch off the previous milestone's tip; leave the old branch frozen as a marker of that finished slice. The no-`main` convention stands — do not create `main` or open PRs; just push the milestone branch.
+Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://github.com/MehmetSecgin/Simolution) (`origin`). `main` is the trunk and the GitHub default: all work lands there, no PR flow. Each finished milestone gets an annotated tag on `main` (`v0.1`, `v1`, … `v6`) with a one-line summary; `git checkout v3` shows how that version worked. Tag names never equal a branch name. The old milestone branches (`kernel-v0.1`, `kernel-v1-energy-intake`, … `kernel-v6-engine`) stay frozen on `origin`; never commit to them (ADR 0054).
 
 ## Roadmap (from specs, in order)
 
