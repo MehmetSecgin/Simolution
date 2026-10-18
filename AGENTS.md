@@ -13,7 +13,7 @@ Biology in force:
 - **Resource decay** (contract-v8) dissipates part of every cell's field to the sink each tick; the field starts empty.
 - **Layout.** `NodeLayout.TOTAL` = 24 (sensors 7, internals 8, actions 9 including junk), generated from `NodeCatalog` and exported as `<base>.layout.json`.
 
-Next: sensors that read beyond the own cell, several resources with separate harvesting, secretions, corpses that release their body stores, each with its own contract.
+Next: new biology in the order of Roadmap item 15, each with its own contract.
 
 ## Commands
 
@@ -188,6 +188,7 @@ Historical / non-binding:
 
 - [docs/specs/v0/kernel-v0-vertical-slice.md](docs/specs/v0/kernel-v0-vertical-slice.md) — superseded by v0.1 slice
 - [docs/notes/kernel-v0.1-planning.md](docs/notes/kernel-v0.1-planning.md) — planning conversation; module breakdown rationale
+- [docs/notes/biology-research.md](docs/notes/biology-research.md): read before designing new biology. Real mechanisms (microbes, fungi, slime molds, ants, environmental stress) reduced to physical primitives and ranked by new strategies per new law, with cited topic files and an illustrated page (`biology-atlas.html`)
 
 If code and a binding spec disagree, the spec wins. If a change requires the spec to change, update the spec in the same PR and say so.
 
@@ -267,5 +268,5 @@ Solo repo, published **public** at [github.com/MehmetSecgin/Simolution](https://
 12. ~~report-v10 (surface mass)~~ done: `## mass` report section, `final_mass` (units.csv) + `mass_total` (metrics.csv) columns, `mass` on map-frame `u` lines, colour-by-mass in `tools/mapviz.py` + `live.html`.
 13. ~~Fluctuating/patchy inflow~~ done (contract-v6 ADR 0029 + contract-v7 ADR 0034): v6 opt-in central pulsing disk (now an `--inflow` disk, ADR 0050); **v7 generalized to a programmable inflow field**: composable `InflowSource`s (disk w/ ORBIT/DRIFT motion, rect, explicit points, seeded value-noise worldgen) combined MAX/ADD over a baseline, `--inflow "<spec>"` DSL, static-source bake. Closes multiple/moving patches. Remaining: seed-from-evolved-founder, fractal/Perlin noise octaves.
 14. ~~Engine v6~~ done (contract-v9, ADRs 0038 to 0045, report-v15): state declared once (`WorldState`/`FieldSpec`), node layout generated from `NodeCatalog` and exported as `.layout.json`, flat connection arrays with junk pruning, the tick as a declared list of shaped phases run by a fixed-chunk `ParallelRunner`, claim-based movement and reproduction, parent-keyed skip-sampled mutation, all randomness keyed by the run seed, chemical table, per-run `EngineConfig` from JSON, self-sufficient versioned checkpoints with seek, chunked state digest. Benchmarks and the stopping-rule result (rule 2, 4-thread scaling on big500, not met) are in [docs/notes/engine-v6-bench.md](docs/notes/engine-v6-bench.md); the CX33 run is pending.
-15. Later: sensors beyond the own cell (gradients), several resources with separate harvesting, secretions and quorum (CROWDING/EMIT), corpse release and decomposers, sub-gene/selfish-DNA/whole-genome-duplication indel variants, multi-cell bodies (contract-v5 omissions).
+15. Next, ranked in [docs/notes/biology-research.md](docs/notes/biology-research.md): emitting chemicals with per-chemical local and gradient sensors, corpses that release their body stores, chemicals that act on bodies (damage, digestion), by-products and rate versus yield as further resources, then body traits (temperature, tags, stress-coupled mutation). Later: sub-gene/selfish-DNA/whole-genome-duplication indel variants, multi-cell bodies (contract-v5 omissions).
 16. ~~The Observatory~~ done (run-directory-v1, ADRs 0055 to 0058): one run directory for the CLI and the server, branch restore, the in-JVM Observatory (run list, run view, compare) replacing `live.html`, `mapviz.py`, `timetravel.py`, the serve scripts and `--replay`.
