@@ -38,7 +38,7 @@ import com.simolution.kernel.state.FieldSpec.Persist;
  */
 public final class CheckpointCodec {
 
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
 
     private static final byte[] MAGIC = {'S', 'I', 'M', 'O'};
     private static final int MAX_STRING_BYTES = 1 << 26;

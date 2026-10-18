@@ -41,7 +41,6 @@ public class WorldState {
     public final int[] position;
     public final int[] cellOccupant;
     public final float[] delayMemory;
-    public final double[] unitChem;
 
     public float[] outputsPrev;
     public float[] outputsNext;
@@ -108,7 +107,6 @@ public class WorldState {
         this.cellOccupant = new int[slots];
         Arrays.fill(cellOccupant, -1);
         this.delayMemory = new float[totalNodes];
-        this.unitChem = new double[chemCount * slots];
 
         this.outputsPrev = new float[totalNodes];
         this.outputsNext = new float[totalNodes];
@@ -201,7 +199,6 @@ public class WorldState {
                 new FieldSpec("cellOccupant", Dim.CELL, saved, explicit, OnDeath.KEEP, cellOccupant),
                 new FieldSpec("outputsPrev", Dim.UNIT_NODE, saved, zeroed, OnDeath.KEEP, outputsPrev),
                 new FieldSpec("delayMemory", Dim.UNIT_NODE, saved, zeroed, OnDeath.KEEP, delayMemory),
-                new FieldSpec("unitChem", Dim.UNIT_CHEM, saved, explicit, OnDeath.KEEP, unitChem),
                 new FieldSpec("connSrc", Dim.GENE, derived, explicit, OnDeath.KEEP, connSrc),
                 new FieldSpec("connDst", Dim.GENE, derived, explicit, OnDeath.KEEP, connDst),
                 new FieldSpec("connWeight", Dim.GENE, derived, explicit, OnDeath.KEEP, connWeight),

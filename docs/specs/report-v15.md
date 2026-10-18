@@ -102,7 +102,7 @@ Changed, kept lines:
 - `final-energy-total`: B2 (`4413.70` to `4415.68`), then B3 (`4415.52`) and B4 (`4415.71`).
 - `intake-total`: B2 (`9510531.059413247`), B3 (`9510531.140385117`), B4 (`9510526.46283758`). It is `initial-reservoir + cumulative-inflow - final-reservoir`, so it follows `final-reservoir` (B1 changes it only below printed precision).
 - `signal-propagations-total`: B2 (`360492` to `360694`), B3 (`363011`), B4 (`361326`) under the v5 founder-wiring counter; B5 changes the definition (all living units from `activeThisTick`) and the value to `522202`.
-- `state-digest`: B2, B3 and B4 change the state the old chain hashed (`c2f989cbde86b100`, `ecf95a7ffd9a3819`, `dde4869ed9842b3b`); B5 replaces the definition (`78644e65e8086e45`).
+- `state-digest`: B2, B3 and B4 change the state the old chain hashed (`c2f989cbde86b100`, `ecf95a7ffd9a3819`, `dde4869ed9842b3b`); B5 replaces the definition (`78644e65e8086e45`). ADR 0053 drops the unused `unitChem` field from the digested state (`c0f052e9d43f300c`).
 
 Unchanged by every stage: `ticks-with-any-activity` (999), `max-generation`, `final-population`,
 `distinct-lineages-alive`, `initial-energy-total`, `initial-reservoir`, `cumulative-inflow`, the

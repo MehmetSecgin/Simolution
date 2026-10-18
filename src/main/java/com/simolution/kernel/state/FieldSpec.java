@@ -23,7 +23,7 @@ public record FieldSpec(
      * ({@code k * slots + slot}), per slot gene region ({@code slot * maxGenes + g}), per
      * work chunk ({@link com.simolution.kernel.phase.Chunks}).
      */
-    public enum Dim { UNIT, CELL, UNIT_NODE, CELL_CHEM, UNIT_CHEM, GENE, CHUNK }
+    public enum Dim { UNIT, CELL, UNIT_NODE, CELL_CHEM, GENE, CHUNK }
 
     /**
      * {@code SAVED} is written to checkpoints, {@code DERIVED} is rebuilt from the genes

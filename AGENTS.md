@@ -58,7 +58,7 @@ python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.ht
 
 # run directory (engine v6, ADR 0043): optional, off by default. --observe with --out writes
 # <base>.obs/ = run.json (runId = SHA-256 of the first checkpoint, engine version, parent),
-# ckpt/<tick>.ckpt (self-sufficient, versioned checkpoint format 2 with the state digest in
+# ckpt/<tick>.ckpt (self-sufficient, versioned checkpoint format 3 with the state digest in
 # the header; tick 0 at creation, then every --checkpoint-every ticks, default 2000),
 # events.jsonl and metrics.csv. Sink-off runs stay byte-identical.
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo.txt --observe --checkpoint-every 500"
@@ -89,7 +89,7 @@ bash scripts/serve-live.sh   # runs a sim in the background, serves runs/ on :80
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
 `runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --world 100 --out runs/baseline.txt`
 after the change and diff it (`runs/baseline.txt` is the committed baseline, `state-digest:
-78644e65e8086e45`; only the report is tracked, the sidecars next to it are not). Output is
+c0f052e9d43f300c`; only the report is tracked, the sidecars next to it are not). Output is
 byte-deterministic and identical for any `--threads` value, so every changed line was caused by
 your change; the `state-digest` line is the digest of the whole final state (`StateDigest`) and
 catches drift below display rounding. Explain the diff (or its absence) when delivering.
@@ -119,7 +119,7 @@ com.simolution
     │   ├── WorldState        every state array and scalar, allocated once; `reservoir()`/`massTotal()` chunk-ordered sums; `fields()` declares each as a FieldSpec (ADR 0038)
     │   ├── FieldSpec         name, dimension, persistence (SAVED/DERIVED/SCRATCH), birth rule, death rule
     │   ├── StateDigest       parallel chunked digest of the SAVED state (ADR 0044)
-    │   └── CheckpointCodec   self-sufficient versioned checkpoint, format 2 (ADR 0043)
+    │   └── CheckpointCodec   self-sufficient versioned checkpoint, format 3 (ADR 0043, 0053)
     ├── phase
     │   ├── Phase / Shape     a declared step and its shape: PER_UNIT, PER_CELL, CLAIM, SERIAL (ADR 0039)
     │   ├── Chunks            fixed 4096-entry chunk boundaries and chunk-ordered sums

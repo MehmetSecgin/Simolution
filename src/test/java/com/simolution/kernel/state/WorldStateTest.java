@@ -49,7 +49,7 @@ class WorldStateTest {
             }
         }
         assertEquals(List.of("genes", "geneCount", "energy", "mass", "damage", "lineageId", "generation",
-                "position", "cellChem", "cellOccupant", "outputsPrev", "delayMemory", "unitChem"), saved);
+                "position", "cellChem", "cellOccupant", "outputsPrev", "delayMemory"), saved);
     }
 
     @Test

@@ -47,4 +47,4 @@ initial-mass-total: 100.0
 final-mass-total: 3.0
 final-mass-mean: 1.0
 final-mass-max: 1.0
-state-digest: 78644e65e8086e45
+state-digest: c0f052e9d43f300c
