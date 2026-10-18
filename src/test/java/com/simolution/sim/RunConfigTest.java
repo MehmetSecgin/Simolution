@@ -1,20 +1,12 @@
 package com.simolution.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.InflowConfig;
 
 class RunConfigTest {
-
-    @Test
-    void resourceCycleAndInflowAreMutuallyExclusive() {
-        assertThrows(IllegalArgumentException.class, () -> RunConfig.parse(new String[] {
-                "--units", "100", "--world", "100", "--resource-cycle", "--inflow", "disk r=10"
-        }));
-    }
 
     @Test
     void inflowFlagBuildsNonUniformConfig() {

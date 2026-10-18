@@ -18,13 +18,9 @@ class RunOptions {
     int checkpointEvery = RunConfig.DEFAULT_CHECKPOINT_EVERY;
     int threads = Runtime.getRuntime().availableProcessors();
     String inflowSpec;
-    Integer cyclePeriod;
-    Integer cycleRadius;
-    Double cyclePeak;
     boolean trace;
     boolean observe;
     boolean digestEveryTick;
-    boolean resourceCycle;
 
     private RunOptions() {
     }
@@ -44,11 +40,6 @@ class RunOptions {
     void validate() {
         if (observe && reportPath == null) {
             throw new IllegalArgumentException("--observe requires --out (the .obs/ dir sits beside it)");
-        }
-        if (resourceCycle && inflowSpec != null) {
-            throw new IllegalArgumentException(
-                    "--resource-cycle and --inflow are mutually exclusive "
-                            + "(--resource-cycle is sugar for a single central pulsing disk)");
         }
         if (mapFrom != null && (mapTo == null || mapTo < mapFrom)) {
             throw new IllegalArgumentException("--map-from requires --map-to >= --map-from");
@@ -73,7 +64,6 @@ class RunOptions {
             case "--trace" -> trace = true;
             case "--observe" -> observe = true;
             case "--digest-every-tick" -> digestEveryTick = true;
-            case "--resource-cycle" -> resourceCycle = true;
             default -> {
                 return false;
             }
@@ -97,9 +87,6 @@ class RunOptions {
             case "--checkpoint-every" -> checkpointEvery = cursor.intValue(flag);
             case "--threads" -> threads = cursor.intValue(flag);
             case "--inflow" -> inflowSpec = cursor.value(flag);
-            case "--cycle-period" -> cyclePeriod = cursor.intValue(flag);
-            case "--cycle-radius" -> cycleRadius = cursor.intValue(flag);
-            case "--cycle-peak" -> cyclePeak = cursor.doubleValue(flag);
             default -> throw new IllegalArgumentException("Unknown argument: " + flag);
         }
     }

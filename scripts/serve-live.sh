@@ -12,7 +12,7 @@ cp src/main/resources/live.html runs/index.html
 cp src/main/resources/fzstd.min.js runs/fzstd.min.js
 # stream a run into runs/live.frames.zst (+ runs/live.catalog.gz) in the background;
 # the served viewer tails both. --map-frames 0 = a frame EVERY tick.
-./gradlew run -q --args="--units 300 --ticks 8000 --seed 100 --world 100 --resource-cycle --cycle-period 2000 --cycle-radius 22 --cycle-peak 10 --map-frames 0 --out runs/live.txt" &
+./gradlew run -q --args="--units 300 --ticks 8000 --seed 100 --world 100 --inflow "disk r=22 peak=10 period=2000" --map-frames 0 --out runs/live.txt" &
 # Range-capable static server (scripts/serve.py) — the stdlib http.server ignores
 # Range, which would make the viewer pull the whole .frames file per request.
 exec python3 scripts/serve.py 8090 runs

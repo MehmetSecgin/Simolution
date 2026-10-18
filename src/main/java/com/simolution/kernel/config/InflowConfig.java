@@ -8,8 +8,6 @@ public record InflowConfig(
         Combine combine
 ) {
 
-    private static final double CENTRE = 0.5;
-
     public enum Combine {
         MAX {
             @Override
@@ -33,15 +31,6 @@ public record InflowConfig(
 
     public static InflowConfig field(final double baseline, final Combine combine, final InflowSource... sources) {
         return new InflowConfig(baseline, List.of(sources), combine);
-    }
-
-    public static InflowConfig cyclic(final int periodTicks, final int radius, final double peak) {
-        if (periodTicks < 1) {
-            throw new IllegalArgumentException("cyclic inflow periodTicks must be >= 1");
-        }
-        final InflowSource disk = new InflowSource.Disk(
-                CENTRE, CENTRE, radius, peak, periodTicks, 0, InflowSource.Motion.STATIC, 0.0, 0.0, 0);
-        return new InflowConfig(0.0, List.of(disk), Combine.MAX);
     }
 
     public CompiledInflowField compile(final int worldWidth) {

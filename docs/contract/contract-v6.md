@@ -62,10 +62,9 @@ barren periphery then drains (a grace period before the periphery dies).
 
 ## 5. CLI
 
-* `--resource-cycle` — enable (default off).
-* `--cycle-period N` — period in ticks (default 2000).
-* `--cycle-radius N` — central disk radius in cells (default `W/5`).
-* `--cycle-peak X` — peak inflow per central cell (default 6.0).
+The pulsing disk is one `--inflow` source (contract-v7): `--inflow "disk r=R peak=X period=N"`
+(centre defaults to the world centre, baseline 0, combine max). The `--resource-cycle`,
+`--cycle-period`, `--cycle-radius` and `--cycle-peak` flags were removed (ADR 0050).
 
 ## 6. What does not change
 

@@ -31,8 +31,4 @@ class ArgCursor {
     long longValue(final String flag) {
         return Long.parseLong(value(flag));
     }
-
-    double doubleValue(final String flag) {
-        return Double.parseDouble(value(flag));
-    }
 }

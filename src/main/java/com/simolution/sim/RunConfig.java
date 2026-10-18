@@ -9,7 +9,6 @@ import java.nio.file.Path;
 
 import com.simolution.kernel.config.ConfigJson;
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.config.InflowConfig;
 
 public record RunConfig(
         int founderCount,
@@ -28,8 +27,6 @@ public record RunConfig(
     static final int DEFAULT_FOUNDERS = 1;
     static final int DEFAULT_GENES = 32;
     static final int DEFAULT_CHECKPOINT_EVERY = 2000;
-    static final int DEFAULT_CYCLE_PERIOD = 2000;
-    static final double DEFAULT_CYCLE_PEAK = 6.0;
 
     private static final long DEFAULT_SEED = 0L;
     private static final int CELLS_PER_FOUNDER = 4;
@@ -72,23 +69,11 @@ public record RunConfig(
         if (options.inflowSpec != null) {
             return engine.withResourceInflow(InflowSpecParser.parse(options.inflowSpec));
         }
-        if (!options.resourceCycle) {
-            return engine;
-        }
-        final int radius =
-                options.cycleRadius == null ? defaultCycleRadius(engine.world().worldWidth()) : options.cycleRadius;
-        return engine.withResourceInflow(InflowConfig.cyclic(
-                requireNonNullElse(options.cyclePeriod, DEFAULT_CYCLE_PERIOD),
-                radius,
-                requireNonNullElse(options.cyclePeak, DEFAULT_CYCLE_PEAK)));
+        return engine;
     }
 
     private static int defaultMaxGenes(final int genesPerFounder) {
         return genesPerFounder * 2;
-    }
-
-    private static int defaultCycleRadius(final int worldWidth) {
-        return Math.max(1, worldWidth / 5);
     }
 
     private static Observation observation(final RunOptions options) {

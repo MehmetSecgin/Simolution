@@ -110,9 +110,8 @@ holds — `energy-audit-error` stays ~0 (verified on a noise + drifting-disk run
   ```
   Keys: `fx fy fx0 fy0 fx1 fy1 r peak period phase seed freq thr gain anim cells
   orbit=R,period drift=vx,vy`.
-* `--resource-cycle / --cycle-period / --cycle-radius / --cycle-peak` — kept as
-  **sugar** for a single central pulsing disk (the v6 surface). Mutually exclusive
-  with `--inflow`.
+* The v6 `--resource-cycle` flags were removed (ADR 0050); the same disk is
+  `--inflow "disk r=R peak=X period=N"`.
 
 ## 8. What does not change
 

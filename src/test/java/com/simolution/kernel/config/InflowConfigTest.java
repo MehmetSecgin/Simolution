@@ -3,7 +3,6 @@ package com.simolution.kernel.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
@@ -29,7 +28,7 @@ class InflowConfigTest {
     void cyclicPulsesCentreAndStarvesPeriphery() {
         final int w = 100, period = 2000, radius = 20;
         final double peak = 6.0;
-        final CompiledInflowField c = InflowConfig.cyclic(period, radius, peak).compile(w);
+        final CompiledInflowField c = Worlds.centralPulse(period, radius, peak).compile(w);
         final int centre = (w / 2) * w + (w / 2);
 
         assertEquals(0.0, c.cap(centre, 0), 1.0e-9, "centre at trough");
@@ -38,11 +37,6 @@ class InflowConfigTest {
 
         assertEquals(0.0, c.cap(0, period / 2), 0.0, "corner barren");
         assertEquals(0.0, c.cap(w * w - 1, period / 2), 0.0, "far corner barren");
-    }
-
-    @Test
-    void rejectsNonPositivePeriod() {
-        assertThrows(IllegalArgumentException.class, () -> InflowConfig.cyclic(0, 10, 1.0));
     }
 
     @Test
@@ -148,7 +142,7 @@ class InflowConfigTest {
     void cyclicRunConservesEnergy() {
         final int w = 60, founders = 100;
         final Kernel k = Worlds.randomKernel(3L, founders, 8,
-                EngineConfig.defaults(0L, w, 16).withResourceInflow(InflowConfig.cyclic(400, 10, 8.0)));
+                EngineConfig.defaults(0L, w, 16).withResourceInflow(Worlds.centralPulse(400, 10, 8.0)));
         assertAuditHolds(k);
     }
 

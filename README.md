@@ -71,7 +71,7 @@ Requires **JDK 26** (`.sdkmanrc` pins `26.0.1.0+8-open`).
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/run.txt"
 ```
 
-Useful flags: `--units N --ticks T --seed S --world W --genes G --max-genes G2`, `--threads N` (worker threads, default all cores; never changes results), `--config <file.json>` (the full per-run constants, see `examples/baseline.json`), `--digest-every-tick` (debug), plus a patchy, breathing resource world: `--resource-cycle --cycle-period 2000 --cycle-radius 22 --cycle-peak 10` (or the full `--inflow "<dsl>"`).
+Useful flags: `--units N --ticks T --seed S --world W --genes G --max-genes G2`, `--threads N` (worker threads, default all cores; never changes results), `--config <file.json>` (the full per-run constants, see `examples/baseline.json`), `--digest-every-tick` (debug), plus a patchy, breathing resource world: `--inflow "disk r=22 peak=10 period=2000"` (a central disk pulsing 0→10→0 every 2000 ticks; the DSL composes many sources).
 
 ## Watch a run
 

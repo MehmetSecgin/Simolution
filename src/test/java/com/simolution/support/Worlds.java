@@ -4,6 +4,7 @@ import java.util.stream.IntStream;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
+import com.simolution.kernel.config.InflowSource;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.GenomeFactory;
 
@@ -44,5 +45,10 @@ public final class Worlds {
     public static EngineConfig foodRich(final int worldWidth, final int maxGenes) {
         return EngineConfig.defaults(0L, worldWidth, maxGenes)
                 .withResourceInflow(InflowConfig.field(FOOD_RICH_INFLOW, InflowConfig.Combine.MAX));
+    }
+
+    public static InflowConfig centralPulse(final int periodTicks, final double radius, final double peak) {
+        return InflowConfig.field(0.0, InflowConfig.Combine.MAX, new InflowSource.Disk(
+                0.5, 0.5, radius, peak, periodTicks, 0, InflowSource.Motion.STATIC, 0.0, 0.0, 0));
     }
 }

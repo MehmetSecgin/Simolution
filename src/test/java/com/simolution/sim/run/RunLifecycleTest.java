@@ -19,7 +19,6 @@ import org.junit.jupiter.api.io.TempDir;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.support.CheckpointBytes;
 import com.simolution.support.Worlds;
@@ -65,7 +64,7 @@ class RunLifecycleTest {
     @Test
     void cyclicInflowRunCanBeSought(@TempDir final Path dir) throws IOException {
         final EngineConfig cyclic = EngineConfig.defaults(7L, WORLD, GENES * 2)
-                .withResourceInflow(InflowConfig.cyclic(200, 10, 10));
+                .withResourceInflow(Worlds.centralPulse(200, 10, 10));
 
         assertSeekMatchesUninterrupted(cyclic, dir);
     }
