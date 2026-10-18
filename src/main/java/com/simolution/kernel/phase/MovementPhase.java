@@ -103,8 +103,8 @@ public class MovementPhase implements Phase {
                 continue;
             }
             final int cell = position[unit];
-            final int nx = (((cell % w) + dx) % w + w) % w;
-            final int ny = (((cell / w) + dy) % w + w) % w;
+            final int nx = Math.floorMod(cell % w + dx, w);
+            final int ny = Math.floorMod(cell / w + dy, w);
             final int target = ny * w + nx;
             if (cellOccupant[target] >= 0) {
                 continue;

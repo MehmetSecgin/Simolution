@@ -14,8 +14,8 @@ public final class SlotCompiler {
         final int base = unit * state.maxGenes;
         final int count = state.geneCount[unit];
 
-        final int sumEnd = placeSumConnections(state, base, count);
-        final int mulEnd = placeMulConnections(state, sumEnd, base, count);
+        final int sumEnd = placeConnections(state, base, base, count, false);
+        final int mulEnd = placeConnections(state, sumEnd, base, count, true);
 
         state.sumStart[unit] = base;
         state.sumEnd[unit] = sumEnd;
@@ -25,32 +25,17 @@ public final class SlotCompiler {
         state.mulInDegree[unit] = mulInDegreeIncludingJunk(state, base, count);
     }
 
-    private static int placeSumConnections(final WorldState state, final int base, final int count) {
-        int cursor = base;
-        for (int g = 0; g < count; g++) {
-            final int gene = state.genes[base + g];
-            final int dst = GeneDecoder.destinationNodeIndex(gene);
-            if (dst == MUL_NODE) {
-                continue;
-            }
-            final int src = GeneDecoder.sourceNodeIndex(gene);
-            if (isStored(src)) {
-                storeConnection(state, cursor++, src, dst, gene);
-            }
-        }
-        return cursor;
-    }
-
-    private static int placeMulConnections(final WorldState state, final int start, final int base, final int count) {
+    // Junk outputs are exactly +0.0, so a junk-source connection never changes a sum
+    // (adding a signed zero to +0.0), a MUL top-two entry (strict compares) or activity.
+    private static int placeConnections(final WorldState state, final int start, final int base, final int count,
+            final boolean intoMul) {
         int cursor = start;
         for (int g = 0; g < count; g++) {
             final int gene = state.genes[base + g];
-            if (GeneDecoder.destinationNodeIndex(gene) != MUL_NODE) {
-                continue;
-            }
+            final int dst = GeneDecoder.destinationNodeIndex(gene);
             final int src = GeneDecoder.sourceNodeIndex(gene);
-            if (isStored(src)) {
-                storeConnection(state, cursor++, src, MUL_NODE, gene);
+            if ((dst == MUL_NODE) == intoMul && NodeLayout.isMeaningful(src)) {
+                storeConnection(state, cursor++, src, dst, gene);
             }
         }
         return cursor;
@@ -75,12 +60,6 @@ public final class SlotCompiler {
             }
         }
         return degree;
-    }
-
-    // Junk outputs are exactly +0.0, so a junk-source connection never changes a sum
-    // (adding a signed zero to +0.0), a MUL top-two entry (strict compares) or activity.
-    private static boolean isStored(final int src) {
-        return NodeLayout.isMeaningful(src);
     }
 
     private static void storeConnection(final WorldState state, final int index, final int src, final int dst,

@@ -62,8 +62,7 @@ public class GrowthPhase implements Phase {
             if (energy[unit] <= 0.0) {
                 continue;
             }
-            final int growIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
-                    + (NodeLayout.Action.GROW * NodeLayout.Action.INSTANCES_PER_TYPE);
+            final int growIdx = NodeLayout.actionIndex(unit, NodeLayout.Action.GROW);
             final double output = outputsPrev[growIdx];
             if (!Double.isFinite(output) || output <= 0.0) {
                 continue;

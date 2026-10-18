@@ -20,11 +20,11 @@ public final class GeneBuilder {
             final boolean destinationAction,
             final int destinationId,
             final short weightRaw) {
-        return (sourceInternal ? 1 : 0) << GeneLayout.SOURCE_KIND_SHIFT
-                | (sourceId & GeneLayout.ID_MASK) << GeneLayout.SOURCE_ID_SHIFT
-                | (destinationAction ? 1 : 0) << GeneLayout.DESTINATION_KIND_SHIFT
-                | (destinationId & GeneLayout.ID_MASK) << GeneLayout.DESTINATION_ID_SHIFT
-                | (weightRaw & GeneLayout.WEIGHT_MASK);
+        return (sourceInternal ? 1 : 0) << GeneDecoder.SOURCE_KIND_SHIFT
+                | (sourceId & GeneDecoder.ID_MASK) << GeneDecoder.SOURCE_ID_SHIFT
+                | (destinationAction ? 1 : 0) << GeneDecoder.DESTINATION_KIND_SHIFT
+                | (destinationId & GeneDecoder.ID_MASK) << GeneDecoder.DESTINATION_ID_SHIFT
+                | (weightRaw & GeneDecoder.WEIGHT_MASK);
     }
 
     public record SourceStage(

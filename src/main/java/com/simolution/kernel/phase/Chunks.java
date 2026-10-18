@@ -13,7 +13,7 @@ public final class Chunks {
     private Chunks() {}
 
     public static int count(final int extent) {
-        return (extent + SIZE - 1) / SIZE;
+        return Math.ceilDiv(extent, SIZE);
     }
 
     /**

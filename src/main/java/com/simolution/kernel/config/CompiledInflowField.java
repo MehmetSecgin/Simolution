@@ -32,20 +32,7 @@ public class CompiledInflowField {
     }
 
     private static InflowSource[] select(final List<InflowSource> sources, final boolean wantStatic) {
-        int count = 0;
-        for (InflowSource s : sources) {
-            if (s.isStatic() == wantStatic) {
-                count++;
-            }
-        }
-        final InflowSource[] selected = new InflowSource[count];
-        int next = 0;
-        for (InflowSource s : sources) {
-            if (s.isStatic() == wantStatic) {
-                selected[next++] = s;
-            }
-        }
-        return selected;
+        return sources.stream().filter(s -> s.isStatic() == wantStatic).toArray(InflowSource[]::new);
     }
 
     private double[] bake(final InflowSource[] fixed) {

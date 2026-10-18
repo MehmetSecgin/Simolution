@@ -18,7 +18,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
@@ -87,7 +86,7 @@ class RunLifecycleTest {
         assertTrue(Files.notExists(dir.resolve("ckpt/120.ckpt")));
         final JsonNode json = new ObjectMapper().readTree(Files.readString(dir.resolve("run.json")));
         assertEquals(sha256Hex(Files.readAllBytes(dir.resolve("ckpt/0.ckpt"))), json.get("runId").asText());
-        assertEquals(EngineVersion.ID, json.get("engine").asText());
+        assertEquals(Kernel.ENGINE_VERSION, json.get("engine").asText());
         assertTrue(json.get("parent").isNull());
     }
 }

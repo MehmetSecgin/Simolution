@@ -5,7 +5,7 @@ package com.simolution.kernel.phase;
  * {@link com.simolution.kernel.state.WorldState} it was built over, inside the limits of
  * its {@link Shape}. {@code run} must allocate nothing.
  * <p>
- * A runner calls {@link #prepare()}, then {@link #run} over the whole {@code [0, extent())}
+ * A runner calls {@link #run} over the whole {@code [0, extent())}
  * range (split into {@link Chunks} for the shapes that allow it, {@code chunk} being the
  * chunk index), then, for each of the {@link #resolvePasses()} passes {@code p} in order,
  * {@link #prepareResolve(int) prepareResolve(p)} on the caller and
@@ -18,9 +18,6 @@ public interface Phase {
     String name();
 
     Shape shape();
-
-    default void prepare() {
-    }
 
     void run(int from, int to, int chunk);
 

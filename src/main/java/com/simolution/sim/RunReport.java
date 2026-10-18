@@ -1,7 +1,7 @@
 package com.simolution.sim;
 
-import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.config.EngineConfig;
+import com.simolution.kernel.runtime.Kernel;
 
 /** Same code, config and seed render a byte-identical report: no wall-clock data belongs here. */
 public final class RunReport {
@@ -29,7 +29,7 @@ public final class RunReport {
         final int worldWidth = engine.world().worldWidth();
         out.append("# Simolution run report\n");
         line(out, "schema", SCHEMA);
-        line(out, "kernel", EngineVersion.ID);
+        line(out, "kernel", Kernel.ENGINE_VERSION);
         line(out, "seed", engine.seed());
         line(out, "units", config.founderCount());
         line(out, "world-width", worldWidth);

@@ -33,7 +33,7 @@ class SeedTest {
         // arrange
         final int[] cells = Kernel.scatterFounders(0L, FOUNDERS, WORLD);
         final int randIndex = NodeLayout.SENSOR_OFFSET
-                + NodeLayout.Sensor.RAND * NodeLayout.Sensor.INSTANCES_PER_TYPE;
+                + NodeLayout.Sensor.RAND;
 
         // act
         final Kernel one = kernel(1L, cells);

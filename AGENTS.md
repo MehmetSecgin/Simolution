@@ -104,7 +104,6 @@ com.simolution
 ├── Main                      entry point: reads like the run (`RunConfig` → `Founders` → observers → `SimulationRun` → report), `--replay` goes to `ReplayCommand`
 ├── bench.Bench               reproducible benchmark (`./gradlew bench`): small / dense200 / big500, median of 3 timed runs
 └── kernel
-    ├── EngineVersion         the one engine version constant (report header, checkpoints, run.json)
     ├── config
     │   ├── EngineConfig      per-run law constants as one immutable record grouped into `World`, `Founder`, `Metabolism`, `Harvest`, `Motility`, `Growth`, `Sensing`, `Reproduction`, `Mutation` (plus the chemical table); `defaults(seed, worldWidth, maxGenes)` and `with…` copies; JSON stays flat through `ConfigJson` (`--config`)
     │   ├── ChemicalSpec      one diffusing field: inflow, capacity, initial, diffusion, decay, decay target (ADR 0042)
@@ -112,10 +111,9 @@ com.simolution
     ├── layout
     │   ├── NodeCatalog/NodeSpec  declared sensors, internals, actions + junk counts (ADR 0038)
     │   ├── NodeLayout        offsets, TOTAL, TYPE_COUNT and name lookup generated from the catalog; `toJson()` is `<base>.layout.json`
-    │   └── CompiledConnection {srcAbsIdx, dstAbsIdx, weight}   inspection view only (`Kernel.liveConnections`), not the engine's storage
+    │   └── CompiledConnection record {sourceAbsoluteIndex, destinationAbsoluteIndex, weight}   inspection view only (`Kernel.liveConnections`), not the engine's storage
     ├── genome
-    │   ├── GeneLayout        the 32-bit gene layout once: shifts, masks and the named field accessors
-    │   ├── GeneDecoder       gene → local source/destination index, weight; modulo ID wrap; weight scaling (`NOMINAL_MAX_WEIGHT` is nominal, raw -32768 decodes just past it)
+    │   ├── GeneDecoder       the 32-bit gene layout (shifts, masks, field accessors); gene → local source/destination index, weight; modulo ID wrap; weight scaling (`NOMINAL_MAX_WEIGHT` is nominal, raw -32768 decodes just past it)
     │   ├── SlotCompiler      writes a slot's flat connection region (source/destination/weight arrays), junk-source connections pruned; once per slot at start, at birth and at restore, no allocation
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (founder structure stats)
     ├── state
@@ -129,7 +127,7 @@ com.simolution
     │   ├── PhaseRunner / ParallelRunner   run the list; the parallel one uses a fixed pool, an atomic chunk counter and an allocation-free barrier
     │   └── Clear, Propagate, Evaluate, Swap, Intake, Inflow, Cost, Growth, Reproduction, Movement, Diffusion, Decay   the 12 phases of the tick, in that order (Reproduction and Movement are CLAIM, Swap is SERIAL)
     ├── runtime
-    │   ├── Kernel            builds the phase list and runs it: W×W toroidal lattice, slot = permanent storage identity, cell = position[slot]; `tick()`, `step(n)`, `snapshot()`, `stateDigest()`, `liveConnections()`, `close()` (stops workers). Population is derived (energy>0)
+    │   ├── Kernel            owns `ENGINE_VERSION` (report header, checkpoints, run.json); builds the phase list and runs it: W×W toroidal lattice, slot = permanent storage identity, cell = position[slot]; `tick()`, `step(n)`, `snapshot()`, `stateDigest()`, `liveConnections()`, `close()` (stops workers). Population is derived (energy>0)
     │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + mass + sink; the tick's birth list (`birthParent`, `birthChild`, `birthCount`) is published in `WorldState`
     │   └── Noise             stateless counter-based RNG with tagged streams (RAND 1, mutation 2, placement 3), all keyed by the run seed
     └── logging

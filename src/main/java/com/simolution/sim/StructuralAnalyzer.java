@@ -21,7 +21,7 @@ public final class StructuralAnalyzer {
 
         void addAll(final CompiledConnection[] connections, final int from, final int to) {
             for (int i = from; i < to; i++) {
-                final double weight = connections[i].weight;
+                final double weight = connections[i].weight();
                 absSum += Math.abs(weight);
                 absMax = Math.max(absMax, Math.abs(weight));
                 if (weight > 0.0) {
@@ -75,8 +75,8 @@ public final class StructuralAnalyzer {
         boolean randWired = false;
 
         for (int i = from; i < to; i++) {
-            final int srcLocal = connections[i].sourceAbsoluteIndex % NodeLayout.TOTAL;
-            final int dstLocal = connections[i].destinationAbsoluteIndex % NodeLayout.TOTAL;
+            final int srcLocal = connections[i].sourceAbsoluteIndex() % NodeLayout.TOTAL;
+            final int dstLocal = connections[i].destinationAbsoluteIndex() % NodeLayout.TOTAL;
 
             final int pairKey = srcLocal * NodeLayout.TOTAL + dstLocal;
             if (seenPair[pairKey]) {
@@ -97,7 +97,7 @@ public final class StructuralAnalyzer {
     private static int endOfUnit(final CompiledConnection[] connections, final int start, final int unit) {
         int i = start;
         while (i < connections.length
-                && connections[i].sourceAbsoluteIndex / NodeLayout.TOTAL == unit) {
+                && connections[i].sourceAbsoluteIndex() / NodeLayout.TOTAL == unit) {
             i++;
         }
         return i;

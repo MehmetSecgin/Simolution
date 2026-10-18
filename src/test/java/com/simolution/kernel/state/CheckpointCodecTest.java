@@ -11,7 +11,6 @@ import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 
-import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.state.FieldSpec.Persist;
@@ -95,7 +94,7 @@ class CheckpointCodecTest {
     @Test
     void refusesOtherEngineVersion() throws IOException {
         final byte[] bytes = write(newKernel());
-        final byte[] version = EngineVersion.ID.getBytes(StandardCharsets.UTF_8);
+        final byte[] version = Kernel.ENGINE_VERSION.getBytes(StandardCharsets.UTF_8);
         final int at = indexOf(bytes, version);
         bytes[at + version.length - 1] = (byte) '9';
 

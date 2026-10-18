@@ -9,7 +9,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
-import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.state.CheckpointCodec;
 
@@ -55,7 +54,7 @@ public class RunDirectoryWriter {
     }
 
     private static String runManifestJson(final String runId) {
-        return "{\"runId\": \"" + runId + "\", \"engine\": \"" + EngineVersion.ID + "\", \"parent\": null}\n";
+        return "{\"runId\": \"" + runId + "\", \"engine\": \"" + Kernel.ENGINE_VERSION + "\", \"parent\": null}\n";
     }
 
     private static byte[] checkpointBytes(final Kernel kernel) throws IOException {

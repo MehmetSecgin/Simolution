@@ -30,6 +30,12 @@ import com.simolution.kernel.state.WorldState;
  */
 public class Kernel implements AutoCloseable {
 
+    /**
+     * The one engine version constant. The report header, every checkpoint and every
+     * {@code run.json} read it, and a checkpoint is refused by an engine whose id differs.
+     */
+    public static final String ENGINE_VERSION = "v6";
+
     private final EngineConfig config;
     private final WorldState state;
     private final int unitCount;

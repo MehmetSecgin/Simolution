@@ -25,18 +25,6 @@ public sealed interface InflowSource permits
             int motionPeriod
     ) implements InflowSource {
 
-        public double orbitRadiusFraction() {
-            return m0;
-        }
-
-        public double driftX() {
-            return m0;
-        }
-
-        public double driftY() {
-            return m1;
-        }
-
         @Override
         public double capAt(final int x, final int y, final int tick, final int worldWidth) {
             final double angle = motion == Motion.ORBIT ? orbitAngle(tick) : 0.0;
@@ -52,16 +40,16 @@ public sealed interface InflowSource permits
 
         private double centreX(final int tick, final int worldWidth, final double angle) {
             return switch (motion) {
-                case ORBIT -> fx * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.cos(angle);
-                case DRIFT -> fx * worldWidth + driftX() * tick;
+                case ORBIT -> fx * worldWidth + m0 * worldWidth * StrictMath.cos(angle);
+                case DRIFT -> fx * worldWidth + m0 * tick;
                 case STATIC -> fx * worldWidth;
             };
         }
 
         private double centreY(final int tick, final int worldWidth, final double angle) {
             return switch (motion) {
-                case ORBIT -> fy * worldWidth + orbitRadiusFraction() * worldWidth * StrictMath.sin(angle);
-                case DRIFT -> fy * worldWidth + driftY() * tick;
+                case ORBIT -> fy * worldWidth + m0 * worldWidth * StrictMath.sin(angle);
+                case DRIFT -> fy * worldWidth + m1 * tick;
                 case STATIC -> fy * worldWidth;
             };
         }

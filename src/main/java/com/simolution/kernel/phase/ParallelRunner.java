@@ -82,7 +82,6 @@ public class ParallelRunner implements PhaseRunner, AutoCloseable {
     public void runTick(final List<Phase> phases) {
         for (int i = 0; i < phases.size(); i++) {
             final Phase phase = phases.get(i);
-            phase.prepare();
             final int n = phase.extent();
             if (phase.shape() == Shape.SERIAL) {
                 phase.run(0, n, 0);

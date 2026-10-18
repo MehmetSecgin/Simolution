@@ -55,9 +55,9 @@ public class DiffusionPhase implements Phase {
                 final int y = cell / w;
                 final int x = cell - y * w;
                 final int row = y * w;
-                final int up = (((y - 1) % w) + w) % w * w;
+                final int up = Math.floorMod(y - 1, w) * w;
                 final int down = ((y + 1) % w) * w;
-                final int left = (((x - 1) % w) + w) % w;
+                final int left = Math.floorMod(x - 1, w);
                 final int right = (x + 1) % w;
                 final double here = cellChem[offset + cell];
                 final double neighbours = cellChem[offset + row + left]

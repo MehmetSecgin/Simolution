@@ -52,15 +52,15 @@ public final class SnapshotDump {
 
     private static void appendWires(final StringBuilder out, final CompiledConnection[] liveConnections) {
         for (CompiledConnection c : liveConnections) {
-            final int slot = c.sourceAbsoluteIndex / NodeLayout.TOTAL;
-            final int srcLocal = c.sourceAbsoluteIndex % NodeLayout.TOTAL;
-            final int dstLocal = c.destinationAbsoluteIndex % NodeLayout.TOTAL;
+            final int slot = c.sourceAbsoluteIndex() / NodeLayout.TOTAL;
+            final int srcLocal = c.sourceAbsoluteIndex() % NodeLayout.TOTAL;
+            final int dstLocal = c.destinationAbsoluteIndex() % NodeLayout.TOTAL;
             out.append("wire ").append(slot)
                     .append(' ').append(srcLocal)
                     .append(' ').append(NodeLayout.localName(srcLocal))
                     .append(' ').append(dstLocal)
                     .append(' ').append(NodeLayout.localName(dstLocal))
-                    .append(' ').append(c.weight)
+                    .append(' ').append(c.weight())
                     .append('\n');
         }
     }

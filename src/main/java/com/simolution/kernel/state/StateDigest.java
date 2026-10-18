@@ -1,5 +1,6 @@
 package com.simolution.kernel.state;
 
+import java.lang.reflect.Array;
 import java.util.List;
 
 import com.simolution.kernel.phase.Chunks;
@@ -42,7 +43,7 @@ public class StateDigest implements Phase {
         int longest = 0;
         for (FieldSpec spec : state.fields()) {
             if (spec.persist() == Persist.SAVED) {
-                longest = Math.max(longest, lengthOf(spec.array()));
+                longest = Math.max(longest, Array.getLength(spec.array()));
             }
         }
         this.chunkHash = new long[Chunks.count(longest)];
@@ -63,7 +64,7 @@ public class StateDigest implements Phase {
                 continue;
             }
             array = spec.array();
-            length = lengthOf(array);
+            length = Array.getLength(array);
             runner.runTick(self);
             final int chunks = Chunks.count(length);
             for (int c = 0; c < chunks; c++) {
@@ -117,15 +118,5 @@ public class StateDigest implements Phase {
             default -> throw new IllegalStateException("cannot digest saved field of " + array.getClass());
         }
         chunkHash[chunk] = h;
-    }
-
-    private static int lengthOf(final Object array) {
-        return switch (array) {
-            case int[] a -> a.length;
-            case long[] a -> a.length;
-            case float[] a -> a.length;
-            case double[] a -> a.length;
-            default -> throw new IllegalStateException("cannot digest saved field of " + array.getClass());
-        };
     }
 }

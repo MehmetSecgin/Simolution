@@ -279,8 +279,7 @@ public class ReproductionPhase implements Phase {
     private boolean wantsToDivide(final int unit) {
         final float[] outputsPrev = state.outputsPrev;
 
-        final int reproduceIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
-                + (NodeLayout.Action.REPRODUCE * NodeLayout.Action.INSTANCES_PER_TYPE);
+        final int reproduceIdx = NodeLayout.actionIndex(unit, NodeLayout.Action.REPRODUCE);
         final double output = outputsPrev[reproduceIdx];
         return Double.isFinite(output) && output > 0.0;
     }
@@ -304,12 +303,12 @@ public class ReproductionPhase implements Phase {
         final int y = cell / w;
         int best = -1;
         for (int dy = -1; dy <= 1; dy++) {
-            final int ny = (((y + dy) % w) + w) % w;
+            final int ny = Math.floorMod(y + dy, w);
             for (int dx = -1; dx <= 1; dx++) {
                 if (dx == 0 && dy == 0) {
                     continue;
                 }
-                final int nx = (((x + dx) % w) + w) % w;
+                final int nx = Math.floorMod(x + dx, w);
                 final int ncell = ny * w + nx;
                 if (cellOccupant[ncell] < 0 && (best < 0 || ncell < best)) {
                     best = ncell;

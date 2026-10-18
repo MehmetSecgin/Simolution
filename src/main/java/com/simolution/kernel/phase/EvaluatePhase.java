@@ -96,7 +96,7 @@ public class EvaluatePhase implements Phase {
     private static NodeSpec.Role[] sensorRoles() {
         final NodeSpec.Role[] roles = new NodeSpec.Role[NodeLayout.Sensor.MEANINGFUL_COUNT];
         for (int s = 0; s < roles.length; s++) {
-            roles[s] = NodeLayout.spec(NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE).role();
+            roles[s] = NodeCatalog.V5.nodes(NodeSpec.Kind.SENSOR).get(s).role();
         }
         return roles;
     }
@@ -130,7 +130,7 @@ public class EvaluatePhase implements Phase {
         final int base = unit * NodeLayout.TOTAL;
 
         for (int s = 0; s < NodeLayout.Sensor.MEANINGFUL_COUNT; s++) {
-            final int idx = base + NodeLayout.SENSOR_OFFSET + s * NodeLayout.Sensor.INSTANCES_PER_TYPE;
+            final int idx = base + NodeLayout.SENSOR_OFFSET + s;
             switch (SENSOR_ROLES[s]) {
                 case CONST -> outputsNext[idx] = 1.0f;
                 case RAND -> outputsNext[idx] = (float) Noise.sample(seed, unit, state.tick);
@@ -144,7 +144,7 @@ public class EvaluatePhase implements Phase {
         }
 
         final int addIdx =
-                base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.ADD * NodeLayout.Internal.INSTANCES_PER_TYPE);
+                base + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD;
         outputsNext[addIdx] = accumulators[addIdx];
 
         // MUL by structural in-degree: 0 inputs -> 0; 1 input -> that signal
@@ -152,7 +152,7 @@ public class EvaluatePhase implements Phase {
         // lone input must pass through); 2+ inputs -> product of the two
         // strongest (slice section 2, ADR 0005)
         final int mulIdx =
-                base + NodeLayout.INTERNAL_OFFSET + (NodeLayout.Internal.MUL * NodeLayout.Internal.INSTANCES_PER_TYPE);
+                base + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.MUL;
         outputsNext[mulIdx] = switch (mulInDegree[unit]) {
             case 0 -> 0.0f;
             case 1 -> mulTop1[unit];
@@ -160,21 +160,21 @@ public class EvaluatePhase implements Phase {
         };
 
         final int clampIdx = base + NodeLayout.INTERNAL_OFFSET
-                + (NodeLayout.Internal.CLAMP * NodeLayout.Internal.INSTANCES_PER_TYPE);
+                + NodeLayout.Internal.CLAMP;
         final double clampIn = accumulators[clampIdx];
         outputsNext[clampIdx] = (float) Math.max(-1.0, Math.min(1.0, clampIn));
 
         final int delayIdx = base + NodeLayout.INTERNAL_OFFSET
-                + (NodeLayout.Internal.DELAY * NodeLayout.Internal.INSTANCES_PER_TYPE);
+                + NodeLayout.Internal.DELAY;
         outputsNext[delayIdx] = delayMemory[delayIdx];
         delayMemory[delayIdx] = accumulators[delayIdx];
 
         final int threshIdx = base + NodeLayout.INTERNAL_OFFSET
-                + (NodeLayout.Internal.THRESH * NodeLayout.Internal.INSTANCES_PER_TYPE);
+                + NodeLayout.Internal.THRESH;
         outputsNext[threshIdx] = accumulators[threshIdx] > 0.0f ? 1.0f : -1.0f;
 
         for (int a = 0; a < NodeLayout.Action.MEANINGFUL_COUNT; a++) {
-            final int idx = base + NodeLayout.ACTION_OFFSET + a * NodeLayout.Action.INSTANCES_PER_TYPE;
+            final int idx = base + NodeLayout.ACTION_OFFSET + a;
             outputsNext[idx] = accumulators[idx];
         }
     }

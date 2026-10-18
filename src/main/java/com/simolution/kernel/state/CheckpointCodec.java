@@ -8,10 +8,10 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.config.ConfigJson;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.SlotCompiler;
@@ -50,7 +50,7 @@ public final class CheckpointCodec {
         final WorldState state = kernel.state();
         data.write(MAGIC);
         data.writeInt(FORMAT_VERSION);
-        writeString(data, EngineVersion.ID);
+        writeString(data, Kernel.ENGINE_VERSION);
         writeString(data, ConfigJson.write(kernel.config()));
         writeString(data, NodeLayout.toJson());
         data.writeLong(kernel.stateDigest());
@@ -84,9 +84,10 @@ public final class CheckpointCodec {
                         "unsupported checkpoint format version " + format + ", this engine reads " + FORMAT_VERSION);
             }
             final String engine = readString(data);
-            if (!engine.equals(EngineVersion.ID)) {
+            if (!engine.equals(Kernel.ENGINE_VERSION)) {
                 throw new IllegalStateException(
-                        "checkpoint engine version " + engine + " differs from running engine " + EngineVersion.ID);
+                        "checkpoint engine version " + engine + " differs from running engine "
+                                + Kernel.ENGINE_VERSION);
             }
             final EngineConfig written = ConfigJson.read(readString(data));
             final String layout = readString(data);
@@ -146,27 +147,24 @@ public final class CheckpointCodec {
     }
 
     private static void writeArray(final DataOutputStream out, final FieldSpec spec) throws IOException {
+        out.writeInt(Array.getLength(spec.array()));
         switch (spec.array()) {
             case int[] a -> {
-                out.writeInt(a.length);
                 for (int v : a) {
                     out.writeInt(v);
                 }
             }
             case long[] a -> {
-                out.writeInt(a.length);
                 for (long v : a) {
                     out.writeLong(v);
                 }
             }
             case float[] a -> {
-                out.writeInt(a.length);
                 for (float v : a) {
                     out.writeFloat(v);
                 }
             }
             case double[] a -> {
-                out.writeInt(a.length);
                 for (double v : a) {
                     out.writeDouble(v);
                 }
@@ -177,27 +175,24 @@ public final class CheckpointCodec {
 
     private static void readArray(final DataInputStream in, final FieldSpec spec) throws IOException {
         final int length = in.readInt();
+        expectLength(spec, length, Array.getLength(spec.array()));
         switch (spec.array()) {
             case int[] a -> {
-                expectLength(spec, length, a.length);
                 for (int i = 0; i < length; i++) {
                     a[i] = in.readInt();
                 }
             }
             case long[] a -> {
-                expectLength(spec, length, a.length);
                 for (int i = 0; i < length; i++) {
                     a[i] = in.readLong();
                 }
             }
             case float[] a -> {
-                expectLength(spec, length, a.length);
                 for (int i = 0; i < length; i++) {
                     a[i] = in.readFloat();
                 }
             }
             case double[] a -> {
-                expectLength(spec, length, a.length);
                 for (int i = 0; i < length; i++) {
                     a[i] = in.readDouble();
                 }

@@ -1,7 +1,6 @@
 package com.simolution.kernel.layout;
 
 import com.simolution.kernel.genome.GeneDecoder;
-import com.simolution.kernel.genome.GeneLayout;
 import com.simolution.kernel.layout.NodeSpec.Kind;
 
 /**
@@ -25,9 +24,6 @@ public final class NodeLayout {
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + NodeCatalog.V5.junk(Kind.SENSOR);
 
-        public static final int INSTANCES_PER_TYPE = 1;
-        public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
-
         private Sensor() {}
     }
 
@@ -43,9 +39,6 @@ public final class NodeLayout {
 
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + NodeCatalog.V5.junk(Kind.INTERNAL);
-
-        public static final int INSTANCES_PER_TYPE = 1;
-        public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
 
         private Internal() {}
     }
@@ -66,18 +59,15 @@ public final class NodeLayout {
         public static final int TYPE_COUNT =
                 MEANINGFUL_COUNT + NodeCatalog.V5.junk(Kind.ACTION);
 
-        public static final int INSTANCES_PER_TYPE = 1;
-        public static final int COUNT = TYPE_COUNT * INSTANCES_PER_TYPE;
-
         private Action() {}
     }
 
     public static final int SENSOR_OFFSET = 0;
-    public static final int INTERNAL_OFFSET = SENSOR_OFFSET + Sensor.COUNT;
-    public static final int ACTION_OFFSET = INTERNAL_OFFSET + Internal.COUNT;
+    public static final int INTERNAL_OFFSET = SENSOR_OFFSET + Sensor.TYPE_COUNT;
+    public static final int ACTION_OFFSET = INTERNAL_OFFSET + Internal.TYPE_COUNT;
 
     public static final int TOTAL =
-            Sensor.COUNT + Internal.COUNT + Action.COUNT;
+            Sensor.TYPE_COUNT + Internal.TYPE_COUNT + Action.TYPE_COUNT;
 
     private static final NodeSpec[] SPECS = buildSpecs();
 
@@ -96,9 +86,8 @@ public final class NodeLayout {
         }
     }
 
-    /** The node's spec, or {@code null} for junk padding. */
-    public static NodeSpec spec(final int localIndex) {
-        return SPECS[localIndex];
+    public static int actionIndex(final int unit, final int action) {
+        return unit * TOTAL + ACTION_OFFSET + action;
     }
 
     /**
@@ -153,11 +142,11 @@ public final class NodeLayout {
                 .append("],\"internal\":[").append(INTERNAL_OFFSET + Internal.MEANINGFUL_COUNT).append(',')
                 .append(ACTION_OFFSET)
                 .append("],\"action\":[").append(ACTION_OFFSET + Action.MEANINGFUL_COUNT).append(',').append(TOTAL);
-        sb.append("]},\"gene\":{\"bits\":32,\"srcType\":{\"shift\":").append(GeneLayout.SOURCE_KIND_SHIFT)
+        sb.append("]},\"gene\":{\"bits\":32,\"srcType\":{\"shift\":").append(GeneDecoder.SOURCE_KIND_SHIFT)
                 .append(",\"width\":1}")
-                .append(",\"srcId\":{\"shift\":").append(GeneLayout.SOURCE_ID_SHIFT).append(",\"width\":7}")
-                .append(",\"dstType\":{\"shift\":").append(GeneLayout.DESTINATION_KIND_SHIFT).append(",\"width\":1}")
-                .append(",\"dstId\":{\"shift\":").append(GeneLayout.DESTINATION_ID_SHIFT).append(",\"width\":7}")
+                .append(",\"srcId\":{\"shift\":").append(GeneDecoder.SOURCE_ID_SHIFT).append(",\"width\":7}")
+                .append(",\"dstType\":{\"shift\":").append(GeneDecoder.DESTINATION_KIND_SHIFT).append(",\"width\":1}")
+                .append(",\"dstId\":{\"shift\":").append(GeneDecoder.DESTINATION_ID_SHIFT).append(",\"width\":7}")
                 .append(",\"weight\":{\"shift\":0,\"width\":16,\"signed\":true,\"scale\":")
                 .append(GeneDecoder.WEIGHT_PER_RAW_UNIT).append(",\"max\":").append(GeneDecoder.NOMINAL_MAX_WEIGHT)
                 .append("}}}");

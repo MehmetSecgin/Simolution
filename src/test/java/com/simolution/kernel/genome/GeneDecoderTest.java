@@ -3,6 +3,8 @@ package com.simolution.kernel.genome;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Random;
+
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.layout.CompiledConnection;
@@ -23,9 +25,9 @@ class GeneDecoderTest {
         final CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
         // assert
-        assertEquals(NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.CONST, connection.sourceAbsoluteIndex);
-        assertEquals(NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.DELAY, connection.destinationAbsoluteIndex);
-        assertEquals(-16384 * GeneDecoder.WEIGHT_PER_RAW_UNIT, connection.weight, 0.0);
+        assertEquals(NodeLayout.SENSOR_OFFSET + NodeLayout.Sensor.CONST, connection.sourceAbsoluteIndex());
+        assertEquals(NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.DELAY, connection.destinationAbsoluteIndex());
+        assertEquals(-16384 * GeneDecoder.WEIGHT_PER_RAW_UNIT, connection.weight(), 0.0);
     }
 
     @Test
@@ -40,9 +42,9 @@ class GeneDecoderTest {
         final CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
         // assert
-        assertEquals(NodeLayout.SENSOR_OFFSET + (127 % NodeLayout.Sensor.TYPE_COUNT), connection.sourceAbsoluteIndex);
+        assertEquals(NodeLayout.SENSOR_OFFSET + (127 % NodeLayout.Sensor.TYPE_COUNT), connection.sourceAbsoluteIndex());
         assertEquals(NodeLayout.INTERNAL_OFFSET + (127 % NodeLayout.Internal.TYPE_COUNT),
-                connection.destinationAbsoluteIndex);
+                connection.destinationAbsoluteIndex());
     }
 
     @Test
@@ -58,8 +60,10 @@ class GeneDecoderTest {
         final CompiledConnection connection = GeneDecoder.decode(gene, unitOffset);
 
         // assert
-        assertEquals(unitOffset + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD, connection.sourceAbsoluteIndex);
-        assertEquals(unitOffset + NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y, connection.destinationAbsoluteIndex);
+        assertEquals(unitOffset + NodeLayout.INTERNAL_OFFSET + NodeLayout.Internal.ADD,
+                connection.sourceAbsoluteIndex());
+        assertEquals(unitOffset + NodeLayout.ACTION_OFFSET + NodeLayout.Action.Y,
+                connection.destinationAbsoluteIndex());
     }
 
     @Test
@@ -74,7 +78,7 @@ class GeneDecoderTest {
             final CompiledConnection connection = GeneDecoder.decode(gene, 0);
 
             // assert
-            assertTrue(Math.abs(connection.weight) <= 32768 * GeneDecoder.WEIGHT_PER_RAW_UNIT,
+            assertTrue(Math.abs(connection.weight()) <= 32768 * GeneDecoder.WEIGHT_PER_RAW_UNIT,
                     "weight bounded for gene " + Integer.toHexString(gene));
         }
     }
@@ -91,14 +95,14 @@ class GeneDecoderTest {
             final int low16 = gene & 0xFFFF;
             final int expectedSource = srcType == 0
                     ? NodeLayout.SENSOR_OFFSET
-                            + (srcId % NodeLayout.Sensor.TYPE_COUNT) * NodeLayout.Sensor.INSTANCES_PER_TYPE
+                            + (srcId % NodeLayout.Sensor.TYPE_COUNT)
                     : NodeLayout.INTERNAL_OFFSET
-                            + (srcId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE;
+                            + (srcId % NodeLayout.Internal.TYPE_COUNT);
             final int expectedDestination = dstType == 0
                     ? NodeLayout.INTERNAL_OFFSET
-                            + (dstId % NodeLayout.Internal.TYPE_COUNT) * NodeLayout.Internal.INSTANCES_PER_TYPE
+                            + (dstId % NodeLayout.Internal.TYPE_COUNT)
                     : NodeLayout.ACTION_OFFSET
-                            + (dstId % NodeLayout.Action.TYPE_COUNT) * NodeLayout.Action.INSTANCES_PER_TYPE;
+                            + (dstId % NodeLayout.Action.TYPE_COUNT);
             final double expectedWeight = (short) low16 * (4.0 / 32767);
 
             // act
@@ -111,5 +115,42 @@ class GeneDecoderTest {
             assertEquals(expectedDestination, destination);
             assertEquals(expectedWeight, weight, 0.0);
         }
+    }
+
+    @Test
+    void packThenReadReturnsEveryField() {
+        // arrange
+        final Random random = new Random(7);
+
+        for (int i = 0; i < 10_000; i++) {
+            final boolean sourceInternal = random.nextBoolean();
+            final int sourceId = random.nextInt();
+            final boolean destinationAction = random.nextBoolean();
+            final int destinationId = random.nextInt();
+            final short weightRaw = (short) random.nextInt();
+
+            // act
+            final int gene = GeneBuilder.pack(sourceInternal, sourceId, destinationAction, destinationId, weightRaw);
+
+            // assert
+            assertEquals(sourceInternal, GeneDecoder.sourceIsInternal(gene));
+            assertEquals(sourceId & GeneDecoder.ID_MASK, GeneDecoder.sourceId(gene));
+            assertEquals(destinationAction, GeneDecoder.destinationIsAction(gene));
+            assertEquals(destinationId & GeneDecoder.ID_MASK, GeneDecoder.destinationId(gene));
+            assertEquals(weightRaw, GeneDecoder.weightRaw(gene));
+        }
+    }
+
+    @Test
+    void minRawWeightDecodesJustBeyondMinusFour() {
+        // arrange
+        final int gene = GeneBuilder.pack(false, 0, false, 0, Short.MIN_VALUE);
+
+        // act
+        final double weight = GeneDecoder.weight(gene);
+
+        // assert
+        assertEquals(-32768 * GeneDecoder.WEIGHT_PER_RAW_UNIT, weight, 0.0);
+        assertTrue(weight < -4.0);
     }
 }

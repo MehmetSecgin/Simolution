@@ -120,8 +120,7 @@ public class IntakePhase implements Phase {
         if (transporters == 0) {
             return 0.0;
         }
-        final int harvestIdx = unit * NodeLayout.TOTAL + NodeLayout.ACTION_OFFSET
-                + (NodeLayout.Action.HARVEST * NodeLayout.Action.INSTANCES_PER_TYPE);
+        final int harvestIdx = NodeLayout.actionIndex(unit, NodeLayout.Action.HARVEST);
         final double output = outputsPrev[harvestIdx];
         if (!Double.isFinite(output) || output <= 0.0) {
             return 0.0;

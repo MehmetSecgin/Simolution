@@ -20,20 +20,20 @@ public class NodeCatalog {
                     NodeSpec.node("SELF_ENERGY", Role.SELF_ENERGY),
                     NodeSpec.node("SELF_MASS", Role.SELF_MASS)),
             List.of(
-                    NodeSpec.node("ADD", Role.ADD),
-                    NodeSpec.node("MUL", Role.MUL),
-                    NodeSpec.node("CLAMP", Role.CLAMP),
-                    NodeSpec.node("DELAY", Role.DELAY),
-                    NodeSpec.node("THRESH", Role.THRESH)),
+                    NodeSpec.named("ADD"),
+                    NodeSpec.named("MUL"),
+                    NodeSpec.named("CLAMP"),
+                    NodeSpec.named("DELAY"),
+                    NodeSpec.named("THRESH")),
             List.of(
-                    NodeSpec.action("ACTION_Y"),
-                    NodeSpec.action("HARVEST"),
-                    NodeSpec.action("REPRODUCE"),
-                    NodeSpec.action("MOVE_N"),
-                    NodeSpec.action("MOVE_S"),
-                    NodeSpec.action("MOVE_E"),
-                    NodeSpec.action("MOVE_W"),
-                    NodeSpec.action("GROW")),
+                    NodeSpec.named("ACTION_Y"),
+                    NodeSpec.named("HARVEST"),
+                    NodeSpec.named("REPRODUCE"),
+                    NodeSpec.named("MOVE_N"),
+                    NodeSpec.named("MOVE_S"),
+                    NodeSpec.named("MOVE_E"),
+                    NodeSpec.named("MOVE_W"),
+                    NodeSpec.named("GROW")),
             2, 3, 1);
 
     private final List<NodeSpec> sensors;

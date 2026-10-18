@@ -1,7 +1,7 @@
 package com.simolution.kernel.layout;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import org.junit.jupiter.api.Test;
 
@@ -19,8 +19,8 @@ class NodeLayoutTest {
         assertEquals("LOCAL_RESOURCE", NodeLayout.localName(2));
         assertEquals("JUNK-S5", NodeLayout.localName(5));
         assertEquals(7, NodeLayout.Action.GROW);
-        assertNull(NodeLayout.spec(5));
-        assertEquals(NodeSpec.Role.CHEMICAL_HERE, NodeLayout.spec(2).role());
+        assertFalse(NodeLayout.isMeaningful(5));
+        assertEquals(NodeSpec.Role.CHEMICAL_HERE, NodeCatalog.V5.nodes(NodeSpec.Kind.SENSOR).get(2).role());
     }
 
     @Test
