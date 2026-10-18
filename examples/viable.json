@@ -1,0 +1,47 @@
+{
+  "seed" : 1,
+  "worldWidth" : 100,
+  "maxGenes" : 64,
+  "chemicals" : [ {
+    "name" : "resource",
+    "inflow" : {
+      "baseline" : 0.2,
+      "sources" : [ {
+        "type" : "noise",
+        "seed" : 7,
+        "frequency" : 0.04,
+        "threshold" : 0.55,
+        "gain" : 3.0,
+        "peak" : 4.0,
+        "animPeriod" : 0
+      } ],
+      "combine" : "MAX"
+    },
+    "capacity" : 100.0,
+    "initial" : 0.0,
+    "diffusionRate" : 0.1,
+    "decayRate" : 0.02
+  } ],
+  "initialEnergy" : 1000.0,
+  "basalCost" : 0.5,
+  "costPerPropagation" : 0.06,
+  "harvestCapacityPerConnection" : 5.0,
+  "harvestHalfSaturation" : 1.0,
+  "moveCostBase" : 0.2,
+  "moveCostPerMass" : 0.1,
+  "moveDeadzone" : 0.1,
+  "selfEnergyScale" : 2000.0,
+  "selfMassScale" : 10.0,
+  "initialMass" : 1.0,
+  "maintPerMass" : 0.5,
+  "growMax" : 5.0,
+  "growHalfSaturation" : 1.0,
+  "growYield" : 0.8,
+  "buildCost" : 10.0,
+  "buildCostPerGene" : 0.25,
+  "mutationRateWeight" : 2.5E-5,
+  "mutationRateStruct" : 5.0E-6,
+  "indelRateDup" : 1.0E-4,
+  "indelRateDel" : 1.0E-4,
+  "agingCost" : 5.0E-4
+}

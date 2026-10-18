@@ -27,6 +27,7 @@ Next: sensors that read beyond the own cell, several resources with separate har
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100"
 # flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --trace --out <dir>
 #        --config <file.json>  (EngineConfig as JSON, see examples/baseline.json; --seed/--world/--max-genes override it)
+#                              examples/viable.json with --units 1000 is the living reference world for new biology (ADR 0059)
 #        --threads N           (worker threads, default all cores; NEVER changes results, see contract-v9 §7)
 #        --digest-every-tick   (debug: prints `digest <tick> <hex>` after each tick; the report digest is end-of-run only)
 #        --map-frames N --map-from T0 --map-to T1   (map frames, see below)
