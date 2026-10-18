@@ -45,12 +45,13 @@ public class LatestFrame implements TickObserver {
     @Override
     public void observe(final WorldState snapshot) {
         final long now = System.nanoTime();
-        if (now - lastCopyNanos >= MIN_NANOS_BETWEEN_COPIES && publish(snapshot)) {
+        if (now - lastCopyNanos >= MIN_NANOS_BETWEEN_COPIES) {
+            publish(snapshot);
             lastCopyNanos = now;
         }
     }
 
-    public boolean publish(final WorldState snapshot) {
+    public void publish(final WorldState snapshot) {
         final Buffer target = back;
         target.tick = snapshot.tick;
         for (int cell = 0; cell < target.levels.length; cell++) {
@@ -66,16 +67,13 @@ public class LatestFrame implements TickObserver {
             }
         }
         target.units = units;
-        if (!swap.tryLock()) {
-            return false;
-        }
+        swap.lock();
         try {
             back = front;
             front = target;
         } finally {
             swap.unlock();
         }
-        return true;
     }
 
     public byte[] read() {

@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
 import com.simolution.kernel.config.ConfigJson;
@@ -87,6 +88,7 @@ public class RunArtifacts implements Closeable {
 
     private void openWriters(final RunConfig config, final RunOrigin origin) throws IOException {
         Files.createDirectories(paths.dir());
+        dropPreviousRun();
         Files.writeString(paths.config(), ConfigJson.write(kernel.config()));
         Files.writeString(paths.layoutJson(), NodeLayout.toJson());
         final RunDirectoryWriter checkpoints = RunDirectoryWriter.create(paths, kernel, draft(config, origin));
@@ -100,6 +102,18 @@ public class RunArtifacts implements Closeable {
         addWriter(new EventLogWriter(openText(paths.events()), kernel.state(), config.founderCount()));
         addWriter(new MetricsWriter(openText(paths.metrics()), config.founderCount()));
         observers.add(snapshot -> checkpoints.checkpointIfDue(kernel));
+    }
+
+    private void dropPreviousRun() throws IOException {
+        if (Files.isDirectory(paths.checkpoints())) {
+            try (Stream<Path> files = Files.list(paths.checkpoints())) {
+                for (Path file : files.toList()) {
+                    Files.delete(file);
+                }
+            }
+        }
+        Files.deleteIfExists(paths.framesZst());
+        Files.deleteIfExists(paths.framesIdx());
     }
 
     private static RunManifest draft(final RunConfig config, final RunOrigin origin) {

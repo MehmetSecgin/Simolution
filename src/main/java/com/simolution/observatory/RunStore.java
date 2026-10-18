@@ -36,9 +36,14 @@ public class RunStore {
         final List<RunEntry> entries = new ArrayList<>();
         try (Stream<Path> dirs = Files.list(root)) {
             for (Path dir : dirs.sorted().toList()) {
-                if (Files.isRegularFile(new RunPaths(dir).manifest())) {
-                    entries.add(read(dir));
+                if (!Files.isRegularFile(new RunPaths(dir).manifest())) {
+                    continue;
                 }
+                final String name = dir.getFileName().toString();
+                entries.add(DIR_NAME.matcher(name).matches()
+                        ? read(dir)
+                        : new RunEntry(name, null, null, Files.getLastModifiedTime(dir).toMillis(),
+                                "the directory name is not a valid run name"));
             }
         }
         return entries;

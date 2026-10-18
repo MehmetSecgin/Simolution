@@ -40,14 +40,15 @@ public final class MetricsTable {
         int rows = 0;
         for (String line = lines.readLine(); line != null; line = lines.readLine()) {
             final String[] cells = line.split(",");
-            if (cells.length != names.length) {
+            final double[] row = cells.length == names.length ? parsed(cells) : null;
+            if (row == null) {
                 continue;
             }
             if (rows == columns[0].length) {
                 columns = grown(columns);
             }
             for (int c = 0; c < names.length; c++) {
-                columns[c][rows] = Double.parseDouble(cells[c]);
+                columns[c][rows] = row[c];
             }
             rows++;
         }
@@ -146,6 +147,18 @@ public final class MetricsTable {
             }
         }
         return new MetricsTable(names, joined, rows + tail.rows);
+    }
+
+    private static double[] parsed(final String[] cells) {
+        final double[] row = new double[cells.length];
+        try {
+            for (int c = 0; c < cells.length; c++) {
+                row[c] = Double.parseDouble(cells[c]);
+            }
+        } catch (NumberFormatException torn) {
+            return null;
+        }
+        return row;
     }
 
     private static double[][] grown(final double[][] columns) {

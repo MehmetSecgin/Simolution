@@ -19,6 +19,7 @@ public class Observatory implements AutoCloseable {
 
     private static final int DEFAULT_PORT = 8090;
     private static final int SEEKER_KERNELS = 4;
+    private static final long FRAME_CACHE_BYTES = 512L << 20;
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "css",
             "text/css; charset=utf-8", "js", "text/javascript; charset=utf-8", "svg", "image/svg+xml");
 
@@ -40,14 +41,14 @@ public class Observatory implements AutoCloseable {
     public static Observatory start(final Path runs, final Path configs, final int port, final int cores)
             throws IOException {
         Files.createDirectories(runs);
+        final HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
         final RunStore store = new RunStore(runs);
         store.markInterrupted();
-        final HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
         final EventStream events = new EventStream();
         final RunManager manager = new RunManager(store, configs, events, cores);
         final Seeker seeker = new Seeker(Math.max(1, cores / 2), SEEKER_KERNELS);
         final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-        server.createContext("/api/", new Api(store, manager, new FrameReader(), seeker, events));
+        server.createContext("/api/", new Api(store, manager, new FrameReader(FRAME_CACHE_BYTES), seeker, events));
         server.createContext("/", Observatory::resource);
         server.setExecutor(executor);
         server.start();

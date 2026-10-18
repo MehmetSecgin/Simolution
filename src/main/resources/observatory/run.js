@@ -491,7 +491,7 @@ function wire() {
     await loadDetail().catch(() => {});
     await loadMetrics().catch(() => {});
     if (status() === 'running' && !view.pollTimer && wasFollowing) follow();
-    if (ENDED.has(status()) && wasFollowing) pin(done());
+    if ((ENDED.has(status()) || status() === 'paused') && wasFollowing) pin(done());
     drawCharts();
   });
   onEvent('progress', (event) => {

@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import com.simolution.kernel.config.ConfigJson;
 import com.simolution.kernel.config.EngineConfig;
@@ -50,5 +52,22 @@ public final class RunDirs {
             artifacts.finish(RunState.endOf(kernel.snapshot()), kernel.stateDigest(), "report\n");
         }
         return config.runDir();
+    }
+
+    public static void delete(final Path dir) throws IOException {
+        try (Stream<Path> files = Files.walk(dir)) {
+            for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(file);
+            }
+        }
+    }
+
+    public static Path copy(final Path from, final Path to) throws IOException {
+        try (Stream<Path> files = Files.walk(from)) {
+            for (Path file : files.toList()) {
+                Files.copy(file, to.resolve(from.relativize(file).toString()));
+            }
+        }
+        return to;
     }
 }

@@ -2,6 +2,7 @@ package com.simolution.sim;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -54,6 +55,21 @@ class RunArtifactsTest {
         try (Stream<Path> files = Files.walk(root)) {
             return files.filter(Files::isRegularFile).map(root::relativize).sorted().toList();
         }
+    }
+
+    @Test
+    void reusedDirectoryDropsTheOldRunsCheckpointsAndFrames() throws Exception {
+        // arrange
+        final Path runDir = dir.resolve("reused");
+        run(config(runDir, "--map-frames", "0"));
+
+        // act
+        run(config(runDir, "--ticks", "15"));
+
+        // assert
+        assertEquals(List.of(Path.of("0.ckpt"), Path.of("10.ckpt")), filesUnder(runDir.resolve("ckpt")));
+        assertFalse(Files.exists(runDir.resolve("frames.zst")));
+        assertFalse(Files.exists(runDir.resolve("frames.idx")));
     }
 
     @Test
@@ -173,7 +189,7 @@ class RunArtifactsTest {
     void failedOpenFinishesTheStreamsItAlreadyOpened() throws Exception {
         // arrange
         final RunPaths paths = new RunPaths(dir.resolve("run"));
-        Files.createDirectories(paths.framesIdx());
+        Files.createDirectories(paths.events());
         final RunConfig config = RunConfig.parse(new String[] {"--units", "20", "--ticks", "5", "--seed", "1",
                 "--world", "10", "--map-frames", "0", "--out", paths.dir().toString()});
 

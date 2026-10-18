@@ -126,6 +126,7 @@ final class RunSession {
                 }
                 if (pauseRequested) {
                     pauseRequested = false;
+                    latest.publish(snapshot);
                     become(RunState.PAUSED);
                     return;
                 }

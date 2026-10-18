@@ -15,6 +15,8 @@ import com.simolution.support.RunDirs;
 
 class FrameReaderTest {
 
+    private static final long BUDGET = 64L << 20;
+
     @TempDir
     Path runs;
 
@@ -28,7 +30,7 @@ class FrameReaderTest {
     void framesAtChunkEdgesMatchTheState() throws IOException {
         // arrange
         final Path dir = RunDirs.cliRun(RunDirs.config(runs.resolve("ref"), 600, "--map-frames", "0"));
-        final FrameReader reader = new FrameReader();
+        final FrameReader reader = new FrameReader(BUDGET);
 
         for (int tick : new int[] {1, 256, 257, 512, 600}) {
             // act
@@ -45,7 +47,7 @@ class FrameReaderTest {
         final Path parent = RunDirs.cliRun(RunDirs.config(runs.resolve("parent"), 400, "--map-frames", "0"));
         final Path branch = RunDirs.branch(parent, 300,
                 RunDirs.config(runs.resolve("branch"), 350, "--map-frames", "0"));
-        final FrameReader reader = new FrameReader();
+        final FrameReader reader = new FrameReader(BUDGET);
 
         // act
         final byte[] prefix = reader.frame(branch, 100);
@@ -62,9 +64,40 @@ class FrameReaderTest {
         final Path dir = RunDirs.cliRun(RunDirs.config(runs.resolve("bare"), 20));
 
         // act
-        final byte[] frame = new FrameReader().frame(dir, 10);
+        final byte[] frame = new FrameReader(BUDGET).frame(dir, 10);
 
         // assert
         assertNull(frame);
+    }
+
+    @Test
+    void recreatedRunDirectoryIsReadAfresh() throws IOException {
+        // arrange
+        final Path dir = RunDirs.cliRun(RunDirs.config(runs.resolve("again"), 40, "--map-frames", "0"));
+        final FrameReader reader = new FrameReader(BUDGET);
+        reader.frame(dir, 20);
+        RunDirs.delete(dir);
+        RunDirs.cliRun(RunDirs.config(dir, 40, "--map-frames", "0", "--seed", "8"));
+
+        // act
+        final byte[] frame = reader.frame(dir, 20);
+
+        // assert
+        assertArrayEquals(seeked(dir, 20), frame);
+    }
+
+    @Test
+    void chunkLargerThanTheBudgetIsStillServed() throws IOException {
+        // arrange
+        final Path dir = RunDirs.cliRun(RunDirs.config(runs.resolve("tiny"), 300, "--map-frames", "0"));
+        final FrameReader reader = new FrameReader(1);
+
+        for (int tick : new int[] {5, 260, 5}) {
+            // act
+            final byte[] frame = reader.frame(dir, tick);
+
+            // assert
+            assertArrayEquals(seeked(dir, tick), frame, "tick " + tick);
+        }
     }
 }

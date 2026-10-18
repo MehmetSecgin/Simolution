@@ -7,6 +7,8 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,19 +23,19 @@ import com.simolution.sim.run.RunDirectoryReader;
 public class FrameReader {
 
     private static final String FORMAT = "format v16 ";
-    private static final int CACHED_CHUNKS = 8;
 
     private record Chunk(
             String text,
             int width
     ) {}
 
-    private final Map<String, Chunk> chunks = new LinkedHashMap<>(CACHED_CHUNKS, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(final Map.Entry<String, Chunk> eldest) {
-            return size() > CACHED_CHUNKS;
-        }
-    };
+    private final Map<String, Chunk> chunks = new LinkedHashMap<>(16, 0.75f, true);
+    private final long budgetBytes;
+    private long cachedBytes;
+
+    public FrameReader(final long budgetBytes) {
+        this.budgetBytes = budgetBytes;
+    }
 
     public byte[] frame(final Path runDir, final int tick) throws IOException {
         final RunPaths paths = new RunPaths(RunDirectoryReader.holderOf(runDir, tick));
@@ -85,7 +87,8 @@ public class FrameReader {
 
     private synchronized Chunk chunk(final Path zst, final long offset, final int length, final int width)
             throws IOException {
-        final String key = zst + "@" + offset;
+        final BasicFileAttributes attributes = Files.readAttributes(zst, BasicFileAttributes.class);
+        final String key = zst + "@" + attributes.fileKey() + "@" + attributes.creationTime() + "@" + offset;
         Chunk chunk = chunks.get(key);
         if (chunk == null) {
             final byte[] compressed = new byte[length];
@@ -95,7 +98,15 @@ public class FrameReader {
             }
             final byte[] raw = Zstd.decompress(compressed, (int) Zstd.getFrameContentSize(compressed));
             chunk = new Chunk(new String(raw, StandardCharsets.ISO_8859_1), width);
-            chunks.put(key, chunk);
+            if (raw.length <= budgetBytes) {
+                chunks.put(key, chunk);
+                cachedBytes += raw.length;
+                final Iterator<Chunk> eldest = chunks.values().iterator();
+                while (cachedBytes > budgetBytes) {
+                    cachedBytes -= eldest.next().text().length();
+                    eldest.remove();
+                }
+            }
         }
         return chunk;
     }

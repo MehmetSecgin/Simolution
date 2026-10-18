@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -48,6 +49,7 @@ class Api implements HttpHandler {
     private static final int DEFAULT_POINTS = 600;
     private static final Set<RunState> ENDED =
             Set.of(RunState.FINISHED, RunState.EXTINCT, RunState.STOPPED, RunState.FAILED);
+    private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]");
     private static final Set<Dim> UNIT_DIMS = Set.of(Dim.UNIT, Dim.UNIT_NODE, Dim.GENE);
 
     private final RunStore store;
@@ -67,6 +69,16 @@ class Api implements HttpHandler {
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
+        final String host = exchange.getRequestHeaders().getFirst("Host");
+        if (host == null || !LOCAL_HOSTS.contains(host.toLowerCase(Locale.ROOT).replaceFirst(":\\d+$", ""))) {
+            error(exchange, 403, "the Observatory only answers requests addressed to localhost");
+            return;
+        }
+        final String type = exchange.getRequestHeaders().getFirst("Content-Type");
+        if (exchange.getRequestMethod().equals("POST") && (type == null || !type.startsWith("application/json"))) {
+            error(exchange, 415, "POST needs Content-Type application/json");
+            return;
+        }
         try {
             route(exchange);
         } catch (NoSuchElementException e) {
@@ -153,7 +165,12 @@ class Api implements HttpHandler {
     private List<Map<String, Object>> list() throws IOException {
         final List<Map<String, Object>> runs = new ArrayList<>();
         for (RunEntry entry : store.list()) {
-            runs.add(summary(entry));
+            try {
+                runs.add(summary(entry));
+            } catch (IOException | RuntimeException e) {
+                runs.add(summary(new RunEntry(entry.dir(), entry.manifest(), entry.status(), entry.modifiedMillis(),
+                        String.valueOf(e))));
+            }
         }
         return runs;
     }

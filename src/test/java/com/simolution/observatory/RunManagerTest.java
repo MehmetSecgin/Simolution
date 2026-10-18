@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -80,6 +82,22 @@ class RunManagerTest {
         assertEquals(RunState.STOPPED, state(b));
         assertEquals(RunState.QUEUED, state(c));
         assertEquals(RunState.STOPPED, RunStatus.read(new RunPaths(store.path(b)).status()).status());
+    }
+
+    @Test
+    void pausedRunShowsTheFrameItPausedOn() throws Exception {
+        // arrange
+        final String dir = manager.create(ObservatoryWorld.request("p", FOREVER, immortal(7))).dir();
+        awaitState(dir, RunState.RUNNING);
+
+        // act
+        manager.pause(dir);
+        awaitState(dir, RunState.PAUSED);
+
+        // assert
+        final byte[] frame = manager.latest(dir).read();
+        assertEquals(manager.status(dir).ticksDone(),
+                ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN).getInt(0));
     }
 
     @Test

@@ -7,10 +7,8 @@ let layoutPromise = null;
 
 export async function api(path, options = {}) {
   const init = { method: options.method || 'GET', headers: {} };
-  if (options.body !== undefined) {
-    init.body = JSON.stringify(options.body);
-    init.headers['Content-Type'] = 'application/json';
-  }
+  if (init.method !== 'GET') init.headers['Content-Type'] = 'application/json';
+  if (options.body !== undefined) init.body = JSON.stringify(options.body);
   const response = await fetch('/api/' + path, init);
   if (!response.ok) {
     let message = response.status + ' ' + response.statusText;
