@@ -92,11 +92,15 @@ final class RunSession {
         pauseRequested = true;
     }
 
-    void requestStop() {
+    synchronized boolean requestStop() {
+        if (state == RunState.PAUSED) {
+            return false;
+        }
         stopRequested = true;
+        return true;
     }
 
-    void become(final RunState next) throws IOException {
+    synchronized void become(final RunState next) throws IOException {
         state = next;
         artifacts.status(next);
         listener.changed(this);
@@ -117,14 +121,8 @@ final class RunSession {
                     end(RunState.EXTINCT);
                     return;
                 }
-                if (stopRequested) {
-                    end(RunState.STOPPED);
-                    return;
-                }
-                if (pauseRequested) {
-                    pauseRequested = false;
-                    latest.publish(snapshot);
-                    become(RunState.PAUSED);
+                if (stopRequested || pauseRequested) {
+                    halt(snapshot);
                     return;
                 }
             }
@@ -134,7 +132,7 @@ final class RunSession {
         }
     }
 
-    void end(final RunState finalState) throws IOException {
+    synchronized void end(final RunState finalState) throws IOException {
         latest.publish(kernel.snapshot());
         final long digest = kernel.stateDigest();
         final String report = RunReport.render(config, origin, structure, dynamics.summarize(digest));
@@ -144,12 +142,22 @@ final class RunSession {
         listener.changed(this);
     }
 
-    void abandon() throws IOException {
+    synchronized void abandon() throws IOException {
         artifacts.close();
         kernel.close();
     }
 
-    private void fail(final Exception e) {
+    private synchronized void halt(final WorldState snapshot) throws IOException {
+        if (stopRequested) {
+            end(RunState.STOPPED);
+            return;
+        }
+        pauseRequested = false;
+        latest.publish(snapshot);
+        become(RunState.PAUSED);
+    }
+
+    private synchronized void fail(final Exception e) {
         try {
             artifacts.fail(String.valueOf(e.getMessage()));
         } catch (IOException | RuntimeException suppressed) {

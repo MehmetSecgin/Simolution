@@ -10,7 +10,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -98,6 +101,55 @@ class RunManagerTest {
         final byte[] frame = manager.latest(dir).read();
         assertEquals(manager.status(dir).ticksDone(),
                 ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN).getInt(0));
+    }
+
+    @Test
+    void stopDuringThePauseTransitionEndsTheRunStopped() throws Exception {
+        // arrange
+        final CountDownLatch pausing = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final List<Object> states = new CopyOnWriteArrayList<>();
+        final EventStream events = new EventStream() {
+            @Override
+            public void send(final String event, final Object payload) {
+                if (!event.equals("run")) {
+                    return;
+                }
+                final Object state = ((Map<?, ?>) payload).get("status");
+                if (state.equals("paused") && pausing.getCount() > 0) {
+                    pausing.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                states.add(state);
+            }
+        };
+        manager.close();
+        manager = new RunManager(store, temp.resolve("configs"), events, 2);
+        final String dir = manager.create(ObservatoryWorld.request("p", FOREVER, immortal(7))).dir();
+        awaitState(dir, RunState.RUNNING);
+        manager.pause(dir);
+        pausing.await();
+
+        // act
+        final Thread stopper = Thread.ofPlatform().start(() -> {
+            try {
+                manager.stop(dir);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        stopper.join(500);
+        release.countDown();
+        stopper.join();
+
+        // assert
+        assertEquals("stopped", states.getLast());
+        assertEquals(RunState.STOPPED, state(dir));
+        assertEquals(RunState.STOPPED, RunStatus.read(new RunPaths(store.path(dir)).status()).status());
     }
 
     @Test

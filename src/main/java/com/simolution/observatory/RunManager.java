@@ -151,13 +151,12 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
 
     public synchronized void stop(final String dir) throws IOException {
         final RunSession session = active(dir);
-        if (session == running && session.state() != RunState.PAUSED) {
-            session.requestStop();
+        if (session == running && session.requestStop()) {
             return;
         }
         queue.remove(session);
-        sessions.remove(dir);
         session.end(RunState.STOPPED);
+        sessions.remove(dir);
     }
 
     public RunStatus status(final String dir) throws IOException {
