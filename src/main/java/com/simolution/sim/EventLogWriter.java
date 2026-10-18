@@ -7,7 +7,7 @@ import java.util.Arrays;
 
 import com.simolution.kernel.state.WorldState;
 
-/** Streams birth, death and extinction events to events.jsonl.gz; format in docs/specs/run-directory-v1.md. */
+/** Streams death and extinction events to events.jsonl.gz; format in docs/specs/run-directory-v1.md. */
 public class EventLogWriter implements TickObserver, Closeable {
 
     private static final int BORN_BEFORE_START = -1;
@@ -86,7 +86,7 @@ public class EventLogWriter implements TickObserver, Closeable {
                 emitDeath(snapshot.tick, slot);
             }
             if (slotReceivedBirth) {
-                emitBirth(snapshot.tick, slot, snapshot.birthParent[nextBirth], snapshot);
+                birthTickBySlot[slot] = snapshot.tick;
                 nextBirth++;
             }
         }
@@ -108,22 +108,6 @@ public class EventLogWriter implements TickObserver, Closeable {
         System.arraycopy(snapshot.generation, 0, prevGeneration, 0, slotCount);
         System.arraycopy(snapshot.position, 0, prevPosition, 0, slotCount);
         System.arraycopy(lineageCount, 0, lineagePrevCount, 0, founderCount);
-    }
-
-    private void emitBirth(final int tick, final int child, final int parent,
-            final WorldState snapshot) throws IOException {
-        birthTickBySlot[child] = tick;
-        line.setLength(0);
-        line.append("{\"t\":").append(tick)
-                .append(",\"ev\":\"BIRTH\",\"slot\":").append(child)
-                .append(",\"lineage\":").append(snapshot.lineageId[child])
-                .append(",\"gen\":").append(snapshot.generation[child])
-                .append(",\"cell\":").append(snapshot.position[child])
-                .append(",\"parentSlot\":").append(parent)
-                .append(",\"parentLineage\":").append(snapshot.lineageId[parent])
-                .append(",\"mutations\":").append(countMutations(child, parent, snapshot))
-                .append("}\n");
-        flushLine();
     }
 
     private void emitDeath(final int tick, final int slot) throws IOException {
@@ -156,20 +140,6 @@ public class EventLogWriter implements TickObserver, Closeable {
     private void flushLine() throws IOException {
         out.write(line.toString());
         out.flush();
-    }
-
-    private int countMutations(final int child, final int parent, final WorldState snapshot) {
-        final int childCount = snapshot.geneCount[child];
-        if (childCount != snapshot.geneCount[parent]) {
-            return -1;
-        }
-        final int childBase = child * snapshot.maxGenes;
-        final int parentBase = parent * snapshot.maxGenes;
-        int bits = 0;
-        for (int g = 0; g < childCount; g++) {
-            bits += Integer.bitCount(snapshot.genes[childBase + g] ^ snapshot.genes[parentBase + g]);
-        }
-        return bits;
     }
 
     @Override
