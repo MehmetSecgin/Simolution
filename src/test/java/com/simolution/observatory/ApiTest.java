@@ -187,6 +187,17 @@ class ApiTest {
     }
 
     @Test
+    void moreFoundersThanCellsIs400WithAPlainMessage() throws Exception {
+        // act
+        final HttpResponse<String> crowded = send("POST", "/api/runs",
+                runBody("crowded", 10).replace("\"founders\":" + ObservatoryWorld.FOUNDERS, "\"founders\":2000"));
+
+        // assert
+        assertEquals(400, crowded.statusCode());
+        assertEquals("world 32x32 (1024 cells) cannot hold 2000 founders", json(crowded).get("error").asText());
+    }
+
+    @Test
     void doubleCreateAndDoubleBranchReturnOneRun() throws Exception {
         // arrange
         final String dir = finishedRun("twice", 60);

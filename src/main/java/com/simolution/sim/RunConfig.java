@@ -31,6 +31,10 @@ public record RunConfig(
     private static final long DEFAULT_SEED = 0L;
     private static final int CELLS_PER_FOUNDER = 4;
 
+    public RunConfig {
+        requireFoundersFit(engine.world().worldWidth(), founderCount);
+    }
+
     public static RunConfig parse(final String[] args) {
         final RunOptions options = RunOptions.read(args);
         options.validate();
@@ -41,7 +45,6 @@ public record RunConfig(
         final int founders = options.founders;
         final int genes = options.genes;
         final EngineConfig engine = engineFrom(options, founders, genes);
-        requireFoundersFit(engine.world().worldWidth(), founders);
         return new RunConfig(founders, options.ticks,
                 genes, options.trace, options.runDir, options.mapSampling(),
                 options.checkpointEvery, withInflow(engine, options), options.threads, options.digestEveryTick);
