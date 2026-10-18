@@ -34,10 +34,15 @@ public class RunStore {
         final List<RunEntry> entries = new ArrayList<>();
         try (Stream<Path> dirs = Files.list(root)) {
             for (Path dir : dirs.sorted().toList()) {
+                final String name = dir.getFileName().toString();
+                if (Files.isDirectory(dir) && !(Files.isReadable(dir) && Files.isExecutable(dir))) {
+                    entries.add(new RunEntry(name, null, null, Files.getLastModifiedTime(dir).toMillis(),
+                            "the directory cannot be read: permission denied"));
+                    continue;
+                }
                 if (!Files.isRegularFile(new RunPaths(dir).manifest())) {
                     continue;
                 }
-                final String name = dir.getFileName().toString();
                 entries.add(DIR_NAME.matcher(name).matches()
                         ? read(dir)
                         : new RunEntry(name, null, null, Files.getLastModifiedTime(dir).toMillis(),

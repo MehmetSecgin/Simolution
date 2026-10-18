@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -54,6 +55,26 @@ class RunStoreTest {
         assertTrue(entries.get(0).unreadable().startsWith("run.json: "), entries.get(0).unreadable());
         assertNull(entries.get(1).unreadable());
         assertEquals("engine v5, this build runs " + Kernel.ENGINE_VERSION, entries.get(2).unreadable());
+    }
+
+    @Test
+    void directoryWithoutReadPermissionIsListedAsUnreadable() throws IOException {
+        // arrange
+        run("locked", null, RunState.FINISHED, 1000);
+        final Path locked = root.resolve("locked");
+        Files.setPosixFilePermissions(locked, PosixFilePermissions.fromString("---------"));
+
+        // act
+        final List<RunEntry> entries;
+        try {
+            entries = new RunStore(root).list();
+        } finally {
+            Files.setPosixFilePermissions(locked, PosixFilePermissions.fromString("rwx------"));
+        }
+
+        // assert
+        assertEquals(List.of("locked"), entries.stream().map(RunEntry::dir).toList());
+        assertEquals("the directory cannot be read: permission denied", entries.get(0).unreadable());
     }
 
     @Test
