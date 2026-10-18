@@ -6,8 +6,6 @@ The owner wants one consistent Java style, modelled on the house style of their 
 
 ## Rules
 
-`final` means "this is not supposed to change". Whatever is not supposed to change is `final`; whatever is supposed to change is not, and nothing is made `final` only to satisfy a tool.
-
 | Topic | Rule |
 |---|---|
 | `final` on local variables | always, main and test |

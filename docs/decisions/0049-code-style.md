@@ -8,7 +8,7 @@
 
 **Why Eclipse JDT.** It is the one formatter that can put `)` of a record on its own line, one component per line.
 
-**Rulings.** `final` on locals initialised with a constant makes javac inline the constant, so 5 test classes compile to different bytecode; output stays identical. Accepted by ruling; hoisting those locals to constants stays open. `final` means "not supposed to change", so Checkstyle `FinalClass` is not used: it would demand `final` on mutable classes whose constructors are all private. Two reassigned parameters (`Noise.mix`, a test helper) keep `@SuppressWarnings("checkstyle:FinalParameters")` instead of being rewritten. No field qualified for `final`: javac rejected every candidate.
+**Rulings.** `final` on locals initialised with a constant makes javac inline the constant, so 5 test classes compile to different bytecode; output stays identical. Accepted by ruling; hoisting those locals to constants stays open. Checkstyle `FinalClass` is not used: it demands `final` on every class whose constructors are all private, not only on utility classes. Two reassigned parameters (`Noise.mix`, a test helper) keep `@SuppressWarnings("checkstyle:FinalParameters")` instead of being rewritten. No field qualified for `final`: javac rejected every candidate.
 
 **Rejected.**
 - Lombok: the owner does not want it, and records already cover the data classes.
