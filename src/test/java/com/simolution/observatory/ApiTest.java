@@ -338,6 +338,16 @@ class ApiTest {
     }
 
     @Test
+    void nonNumericPortIsAPlainError() {
+        // act
+        final IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> Observatory.main(new String[] {"--port", "abc"}));
+
+        // assert
+        assertEquals("--port needs a number, got abc", refused.getMessage());
+    }
+
+    @Test
     void serverBindsToLoopbackOnly() {
         assertEquals(InetAddress.getLoopbackAddress(), observatory.address().getAddress());
     }

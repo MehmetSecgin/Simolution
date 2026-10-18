@@ -92,7 +92,7 @@ public class Observatory implements AutoCloseable {
                 throw new IllegalArgumentException(args[i] + " needs a value");
             }
             switch (args[i]) {
-                case "--port" -> port = Integer.parseInt(args[i + 1]);
+                case "--port" -> port = port(args[i + 1]);
                 case "--runs" -> runs = Path.of(args[i + 1]);
                 default -> throw new IllegalArgumentException("Unknown argument: " + args[i]);
             }
@@ -107,5 +107,13 @@ public class Observatory implements AutoCloseable {
         }
         Runtime.getRuntime().addShutdownHook(new Thread(observatory::close));
         System.out.println("Observatory at http://localhost:" + observatory.address().getPort());
+    }
+
+    private static int port(final String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("--port needs a number, got " + value, e);
+        }
     }
 }
