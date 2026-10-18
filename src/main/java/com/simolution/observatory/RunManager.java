@@ -304,6 +304,9 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
                 if (!root.has(override.getKey())) {
                     throw new IllegalArgumentException("unknown setting: " + override.getKey());
                 }
+                if (override.getValue() == null || override.getValue().isNull()) {
+                    throw new IllegalArgumentException("setting " + override.getKey() + " needs a value, not null");
+                }
                 root.set(override.getKey(), override.getValue());
             }
         }

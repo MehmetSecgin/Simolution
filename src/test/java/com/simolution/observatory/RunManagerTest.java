@@ -23,6 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunPaths;
 import com.simolution.sim.run.RunState;
@@ -174,6 +175,19 @@ class RunManagerTest {
 
         // assert
         assertEquals("unknown setting: bogus", refused.getMessage());
+    }
+
+    @Test
+    void nullOverrideIsRefused() {
+        // arrange
+        final Map<String, JsonNode> overrides = Map.of("initialEnergy", NullNode.getInstance());
+
+        // act
+        final IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> manager.create(ObservatoryWorld.request("x", 10, overrides)));
+
+        // assert
+        assertEquals("setting initialEnergy needs a value, not null", refused.getMessage());
     }
 
     @Test
