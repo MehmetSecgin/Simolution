@@ -1,4 +1,4 @@
-import { api, layout, onEvent, go, fmt, compact, el, toast, settingRow, readSettings, STATUS_WORDS } from './app.js';
+import { api, layout, onEvent, go, fmt, compact, el, toast, settingRow, readSettings, HEALTH_WORDS } from './app.js';
 import { drawFrame, parseFrame, parseState, unitAt, cellOfSlot, cellAt, legendItems, useLayout } from './map.js';
 import { drawChart, valueAt, CHARTS } from './charts.js';
 import { drawCircuit } from './circuit.js';
@@ -7,7 +7,6 @@ const LIVE_POLL_MS = 100;
 const DETAIL_REFRESH_MS = 3000;
 const SEEK_DELAY_MS = 150;
 const ENDED = new Set(['finished', 'extinct', 'stopped', 'failed']);
-const HEALTH_WORDS = { ok: 'all good', warn: 'look at this', bad: 'problem' };
 const MARKS = { ok: '✓', warn: '!', bad: '×' };
 
 const view = {
@@ -104,7 +103,7 @@ function renderHeader() {
   const s = status();
   $('rv-name').textContent = run.name;
   $('rv-pill').className = 'pill ' + s;
-  $('rv-pill').textContent = STATUS_WORDS[s] || s;
+  $('rv-pill').textContent = s;
   const width = run.config ? run.config.worldWidth : 0;
   $('rv-world').textContent = width + ' × ' + width + ' torus';
   const origin = $('rv-origin');

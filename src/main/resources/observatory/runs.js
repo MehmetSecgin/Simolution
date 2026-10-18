@@ -1,4 +1,4 @@
-import { api, go, fmt, ago, el, toast, onEvent, settingRow, readSettings, STATUS_WORDS } from './app.js';
+import { api, go, fmt, ago, el, toast, onEvent, settingRow, readSettings, HEALTH_WORDS } from './app.js';
 
 const selected = new Set();
 let runs = [];
@@ -6,8 +6,6 @@ let configKeys = [];
 let wired = false;
 let refreshTimer = 0;
 const progressBars = new Map();
-
-const HEALTH_WORDS = { ok: 'all good', warn: 'look at this', bad: 'problem' };
 
 function screenVisible() {
   return !document.getElementById('screen-runs').hidden;
@@ -102,7 +100,7 @@ function row(run, depth) {
     } },
     el('td', {}, box),
     nameCell,
-    el('td', {}, el('span', { class: 'pill ' + status, text: STATUS_WORDS[status] || status })),
+    el('td', {}, el('span', { class: 'pill ' + status, text: status })),
     el('td', {}, el('div', { class: 'row' }, bar, text)),
     el('td', { class: 'n', text: fmt(run.peakPopulation) }),
     el('td', {}, el('span', { class: 'chip ' + run.health, text: HEALTH_WORDS[run.health] || run.health })),

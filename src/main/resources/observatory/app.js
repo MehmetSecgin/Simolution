@@ -31,9 +31,6 @@ export function layout() {
 
 export function onEvent(type, handler) {
   listeners[type].push(handler);
-  return () => {
-    listeners[type] = listeners[type].filter((h) => h !== handler);
-  };
 }
 
 export function go(hash) {
@@ -100,10 +97,7 @@ export function toast(message, error = false) {
   }, error ? 6000 : 3000);
 }
 
-export const STATUS_WORDS = {
-  queued: 'queued', running: 'running', paused: 'paused', finished: 'finished',
-  extinct: 'extinct', stopped: 'stopped', failed: 'failed',
-};
+export const HEALTH_WORDS = { ok: 'all good', warn: 'look at this', bad: 'problem' };
 
 export function settingRow(host, keys, key = '', value = '') {
   const listId = host.id + '-keys';
@@ -178,18 +172,14 @@ function theme() {
   let saved = null;
   try {
     saved = localStorage.getItem('observatory-theme');
-  } catch (ignored) {
-    saved = null;
-  }
+  } catch (ignored) {}
   if (saved) root.dataset.theme = saved;
   document.getElementById('theme').addEventListener('click', () => {
     const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
     root.dataset.theme = dark ? 'light' : 'dark';
     try {
       localStorage.setItem('observatory-theme', root.dataset.theme);
-    } catch (ignored) {
-      root.dataset.theme = dark ? 'light' : 'dark';
-    }
+    } catch (ignored) {}
     window.dispatchEvent(new Event('themechange'));
   });
 }

@@ -7,7 +7,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -41,18 +40,8 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
             boolean existing
     ) {}
 
-    private record Draft(
-            int founders,
-            int genesPerFounder,
-            int targetTicks,
-            int checkpointEvery,
-            EngineConfig engine
-    ) {}
-
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Pattern CONFIG_NAME = Pattern.compile("[A-Za-z0-9._-]+\\.json");
-    private static final Set<RunState> FINISHED =
-            Set.of(RunState.FINISHED, RunState.EXTINCT, RunState.STOPPED, RunState.FAILED);
     private static final long CLOSE_WAIT_MILLIS = 10_000;
 
     private final RunStore store;
@@ -88,17 +77,17 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
             throw new IllegalArgumentException("genesPerFounder must be 0 or more");
         }
         final EngineConfig engine = withOverrides(readConfig(request.configFile()), request.overrides());
-        final Draft draft = new Draft(request.founders(), request.genesPerFounder(), request.targetTicks(),
-                request.checkpointEvery(), engine);
-        final Founders founders = Founders.create(runConfig(draft, null, cores));
-        final StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), draft.founders());
-        return launch(founders.newKernel(cores), draft, cores, new RunOrigin(request.name(), null, null, null),
-                structure, true);
+        final RunConfig config = runConfig(request.founders(), request.genesPerFounder(), request.targetTicks(),
+                request.checkpointEvery(), engine, null, cores);
+        final Founders founders = Founders.create(config);
+        final StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());
+        return launch(founders.newKernel(cores), config, new RunOrigin(request.name(), null, null, null), structure,
+                true);
     }
 
     public synchronized Launch branch(final String dir, final int tick, final Map<String, JsonNode> overrides,
             final int targetTicks, final String name) throws IOException {
-        final RunEntry parent = readable(dir);
+        final RunEntry parent = store.readable(dir);
         final int done = ticksDone(dir);
         if (tick < 0 || tick > done) {
             throw new IllegalArgumentException("tick " + tick + " is outside 0.." + done);
@@ -110,33 +99,32 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
         final EngineConfig engine =
                 withOverrides(Files.readString(new RunPaths(parentDir).config()), overrides);
         final RunManifest manifest = parent.manifest();
-        final Draft draft = new Draft(manifest.founders(), manifest.genesPerFounder(), targetTicks,
-                manifest.checkpointEvery(), engine);
+        final RunConfig config = runConfig(manifest.founders(), manifest.genesPerFounder(), targetTicks,
+                manifest.checkpointEvery(), engine, null, cores);
         final Kernel kernel = Branching.start(parentDir, tick, engine, cores);
         final String branchName = name == null || name.isBlank() ? manifest.name() + " branch" : name;
-        return launch(kernel, draft, cores, new RunOrigin(branchName, dir, tick, null), liveStructure(kernel),
-                true);
+        return launch(kernel, config, new RunOrigin(branchName, dir, tick, null), liveStructure(kernel), true);
     }
 
     public synchronized Launch rerun(final String dir) throws IOException {
-        final RunEntry original = readable(dir);
-        if (sessions.containsKey(dir) || !FINISHED.contains(original.status().status())) {
+        final RunEntry original = store.readable(dir);
+        if (sessions.containsKey(dir) || !original.status().status().ended()) {
             throw new IllegalStateException(dir + " has not ended; a re-run needs an ended run");
         }
         final RunManifest manifest = original.manifest();
         final EngineConfig engine = ConfigJson.read(Files.readString(new RunPaths(store.path(dir)).config()));
-        final Draft draft = new Draft(manifest.founders(), manifest.genesPerFounder(),
-                original.status().ticksDone(), manifest.checkpointEvery(), engine);
         final int threads = manifest.twinOf() == null ? Math.max(1, cores / 2) : cores;
+        final RunConfig config = runConfig(manifest.founders(), manifest.genesPerFounder(),
+                original.status().ticksDone(), manifest.checkpointEvery(), engine, null, threads);
         final RunOrigin origin =
                 new RunOrigin(manifest.name() + " re-run", manifest.parent(), manifest.branchTick(), dir);
         if (manifest.parent() == null) {
-            final Founders founders = Founders.create(runConfig(draft, null, threads));
-            final StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), draft.founders());
-            return launch(founders.newKernel(threads), draft, threads, origin, structure, false);
+            final Founders founders = Founders.create(config);
+            final StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());
+            return launch(founders.newKernel(threads), config, origin, structure, false);
         }
         final Kernel kernel = Branching.start(store.path(manifest.parent()), manifest.branchTick(), engine, threads);
-        return launch(kernel, draft, threads, origin, liveStructure(kernel), false);
+        return launch(kernel, config, origin, liveStructure(kernel), false);
     }
 
     public synchronized void pause(final String dir) throws IOException {
@@ -239,7 +227,7 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
         }
     }
 
-    private Launch launch(final Kernel kernel, final Draft draft, final int threads, final RunOrigin origin,
+    private Launch launch(final Kernel kernel, final RunConfig draft, final RunOrigin origin,
             final StructuralStats structure, final boolean reuseExisting) throws IOException {
         try {
             if (reuseExisting) {
@@ -250,7 +238,8 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
                 }
             }
             final Path dir = store.newDir(origin.name());
-            final RunConfig config = runConfig(draft, dir, threads);
+            final RunConfig config = runConfig(draft.founderCount(), draft.genesPerFounder(), draft.ticks(),
+                    draft.checkpointEvery(), draft.engine(), dir, draft.threads());
             final RunArtifacts artifacts = RunArtifacts.open(config, kernel, origin);
             final RunSession session = new RunSession(dir.getFileName().toString(), config, origin, kernel,
                     artifacts, structure, this);
@@ -301,14 +290,6 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
         return session;
     }
 
-    private RunEntry readable(final String dir) throws IOException {
-        final RunEntry entry = store.get(dir);
-        if (entry.unreadable() != null) {
-            throw new IllegalStateException(dir + " cannot be read: " + entry.unreadable());
-        }
-        return entry;
-    }
-
     public String readConfig(final String name) throws IOException {
         if (name == null || !CONFIG_NAME.matcher(name).matches() || !Files.isRegularFile(configs.resolve(name))) {
             throw new IllegalArgumentException("unknown config file: " + name);
@@ -330,9 +311,10 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
         return ConfigJson.read(JSON.writeValueAsString(root));
     }
 
-    private static RunConfig runConfig(final Draft draft, final Path dir, final int threads) {
-        return new RunConfig(draft.founders(), draft.targetTicks(), draft.genesPerFounder(), false, dir,
-                MapSampling.EVERY_TICK, draft.checkpointEvery(), draft.engine(), threads, false);
+    private static RunConfig runConfig(final int founders, final int genesPerFounder, final int targetTicks,
+            final int checkpointEvery, final EngineConfig engine, final Path dir, final int threads) {
+        return new RunConfig(founders, targetTicks, genesPerFounder, false, dir, MapSampling.EVERY_TICK,
+                checkpointEvery, engine, threads, false);
     }
 
     private static StructuralStats liveStructure(final Kernel kernel) {

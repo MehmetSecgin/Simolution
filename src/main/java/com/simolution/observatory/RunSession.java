@@ -3,7 +3,6 @@ package com.simolution.observatory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.state.WorldState;
@@ -26,8 +25,6 @@ final class RunSession {
     }
 
     private static final long PROGRESS_NANOS = 250_000_000L;
-    private static final Set<RunState> TERMINAL =
-            Set.of(RunState.FINISHED, RunState.EXTINCT, RunState.STOPPED, RunState.FAILED);
 
     private final String dir;
     private final RunConfig config;
@@ -88,7 +85,7 @@ final class RunSession {
     }
 
     boolean done() {
-        return TERMINAL.contains(state);
+        return state.ended();
     }
 
     void requestPause() {

@@ -4,16 +4,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.stream.Stream;
 
 import com.simolution.kernel.state.CheckpointCodec;
 import com.simolution.sim.RunPaths;
+import com.simolution.sim.run.RunDirectoryReader;
 import com.simolution.sim.run.RunStatus;
 
 public final class Twins {
-
-    private static final String SUFFIX = ".ckpt";
 
     public record TwinResult(
             boolean identical,
@@ -28,13 +25,14 @@ public final class Twins {
         final RunPaths right = new RunPaths(b);
         int compared = 0;
         Integer firstDifferent = null;
-        for (int tick : checkpointTicks(left.checkpoints())) {
-            final Path other = right.checkpoints().resolve(tick + SUFFIX);
+        for (int tick : RunDirectoryReader.checkpointTicks(a)) {
+            final Path other = right.checkpoints().resolve(RunDirectoryReader.checkpointFileName(tick));
             if (!Files.exists(other)) {
                 continue;
             }
             compared++;
-            if (firstDifferent == null && digest(left.checkpoints().resolve(tick + SUFFIX)) != digest(other)) {
+            if (firstDifferent == null && digest(
+                    left.checkpoints().resolve(RunDirectoryReader.checkpointFileName(tick))) != digest(other)) {
                 firstDifferent = tick;
             }
         }
@@ -49,13 +47,6 @@ public final class Twins {
             return new TwinResult(false, compared, leftStatus.ticksDone());
         }
         return new TwinResult(true, compared, null);
-    }
-
-    private static List<Integer> checkpointTicks(final Path dir) throws IOException {
-        try (Stream<Path> files = Files.list(dir)) {
-            return files.map(f -> f.getFileName().toString()).filter(n -> n.endsWith(SUFFIX))
-                    .map(n -> Integer.parseInt(n.substring(0, n.length() - SUFFIX.length()))).sorted().toList();
-        }
     }
 
     private static long digest(final Path checkpoint) throws IOException {

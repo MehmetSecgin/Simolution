@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Stream;
 
 import com.simolution.kernel.runtime.Kernel;
@@ -17,7 +18,7 @@ public final class RunDirectoryReader {
 
     private RunDirectoryReader() {}
 
-    static String checkpointFileName(final int tick) {
+    public static String checkpointFileName(final int tick) {
         return tick + CHECKPOINT_SUFFIX;
     }
 
@@ -25,9 +26,9 @@ public final class RunDirectoryReader {
         if (tick < 0) {
             throw new IllegalArgumentException("tick " + tick + " is negative");
         }
-        final Path ckptDir = new RunPaths(holderOf(runDir, tick)).checkpoints();
-        final int checkpointTick = latestCheckpointTickAtOrBefore(ckptDir, tick);
-        final Kernel kernel = loadCheckpoint(ckptDir, checkpointTick, threads);
+        final Path holder = holderOf(runDir, tick);
+        final int checkpointTick = checkpointTickAtOrBefore(holder, tick);
+        final Kernel kernel = loadCheckpoint(new RunPaths(holder).checkpoints(), checkpointTick, threads);
         return stepOrClose(kernel, tick - checkpointTick);
     }
 
@@ -39,27 +40,18 @@ public final class RunDirectoryReader {
         return runDir;
     }
 
-    public static int checkpointTickAtOrBefore(final Path runDir, final int tick) throws IOException {
-        return latestCheckpointTickAtOrBefore(new RunPaths(runDir).checkpoints(), tick);
+    public static List<Integer> checkpointTicks(final Path runDir) throws IOException {
+        try (Stream<Path> files = Files.list(new RunPaths(runDir).checkpoints())) {
+            return files.map(file -> file.getFileName().toString()).filter(name -> name.endsWith(CHECKPOINT_SUFFIX))
+                    .map(name -> Integer.parseInt(name.substring(0, name.length() - CHECKPOINT_SUFFIX.length())))
+                    .sorted().toList();
+        }
     }
 
-    private static int latestCheckpointTickAtOrBefore(final Path ckptDir, final int tick) throws IOException {
-        int best = -1;
-        try (Stream<Path> files = Files.list(ckptDir)) {
-            for (Path file : files.toList()) {
-                final String name = file.getFileName().toString();
-                if (name.endsWith(CHECKPOINT_SUFFIX)) {
-                    final int at = Integer.parseInt(name.substring(0, name.length() - CHECKPOINT_SUFFIX.length()));
-                    if (at <= tick && at > best) {
-                        best = at;
-                    }
-                }
-            }
-        }
-        if (best < 0) {
-            throw new IllegalArgumentException("no checkpoint at or before tick " + tick + " in " + ckptDir);
-        }
-        return best;
+    public static int checkpointTickAtOrBefore(final Path runDir, final int tick) throws IOException {
+        return checkpointTicks(runDir).stream().filter(at -> at <= tick).max(Integer::compare)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "no checkpoint at or before tick " + tick + " in " + runDir));
     }
 
     private static Kernel loadCheckpoint(final Path ckptDir, final int checkpointTick, final int threads)

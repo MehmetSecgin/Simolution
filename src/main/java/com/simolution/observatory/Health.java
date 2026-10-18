@@ -1,5 +1,6 @@
 package com.simolution.observatory;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -37,13 +38,7 @@ public final class Health {
     }
 
     public static Level worst(final List<Check> checks) {
-        Level worst = Level.OK;
-        for (Check check : checks) {
-            if (check.level().compareTo(worst) > 0) {
-                worst = check.level();
-            }
-        }
-        return worst;
+        return checks.stream().map(Check::level).max(Comparator.naturalOrder()).orElse(Level.OK);
     }
 
     private static Check alive(final RunStatus status, final int cells, final MetricsTable metrics) {

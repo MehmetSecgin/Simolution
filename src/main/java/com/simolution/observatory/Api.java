@@ -29,7 +29,6 @@ import com.simolution.kernel.state.FieldSpec.Persist;
 import com.simolution.kernel.state.WorldState;
 import com.simolution.sim.RunPaths;
 import com.simolution.sim.run.RunManifest;
-import com.simolution.sim.run.RunState;
 import com.simolution.sim.run.RunStatus;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -47,8 +46,6 @@ class Api implements HttpHandler {
     private static final int EMPTY_CELL = 255;
     private static final int IDLE = 254;
     private static final int DEFAULT_POINTS = 600;
-    private static final Set<RunState> ENDED =
-            Set.of(RunState.FINISHED, RunState.EXTINCT, RunState.STOPPED, RunState.FAILED);
     private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]");
     private static final Set<Dim> UNIT_DIMS = Set.of(Dim.UNIT, Dim.UNIT_NODE, Dim.GENE);
 
@@ -217,7 +214,7 @@ class Api implements HttpHandler {
         final Path dir = store.path(entry.dir());
         final int width = config(dir).get("worldWidth").asInt();
         Twins.TwinResult twin = null;
-        if (ENDED.contains(status.status())) {
+        if (status.status().ended()) {
             for (String partner : twinPartners(entry)) {
                 twin = Twins.compare(dir, store.path(partner));
                 if (!twin.identical()) {
@@ -236,7 +233,7 @@ class Api implements HttpHandler {
             final boolean twins = other.manifest() != null && (entry.dir().equals(other.manifest().twinOf())
                     || other.dir().equals(entry.manifest().twinOf()));
             if (twins && other.unreadable() == null && !manager.isActive(other.dir())
-                    && ENDED.contains(other.status().status())) {
+                    && other.status().status().ended()) {
                 partners.add(other.dir());
             }
         }
@@ -333,7 +330,6 @@ class Api implements HttpHandler {
         unit.put("slot", slot);
         unit.put("fields", fields);
         unit.put("connections", connections);
-        unit.put("outputs", fields.get("outputsPrev"));
         return unit;
     }
 

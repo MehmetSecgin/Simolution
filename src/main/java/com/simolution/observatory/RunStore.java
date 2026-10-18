@@ -9,7 +9,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -23,7 +22,6 @@ import com.simolution.sim.run.RunStatus;
 public class RunStore {
 
     private static final Pattern DIR_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
-    private static final Set<RunState> ACTIVE = Set.of(RunState.QUEUED, RunState.RUNNING, RunState.PAUSED);
     private static final int MAX_SLUG = 40;
 
     private final Path root;
@@ -51,6 +49,14 @@ public class RunStore {
 
     public RunEntry get(final String dir) throws IOException {
         return read(path(dir));
+    }
+
+    public RunEntry readable(final String dir) throws IOException {
+        final RunEntry entry = get(dir);
+        if (entry.unreadable() != null) {
+            throw new IllegalStateException(dir + " cannot be read: " + entry.unreadable());
+        }
+        return entry;
     }
 
     public Path path(final String dir) {
@@ -87,7 +93,7 @@ public class RunStore {
 
     public void delete(final String dir) throws IOException {
         final RunEntry entry = get(dir);
-        if (entry.status() != null && ACTIVE.contains(entry.status().status())) {
+        if (entry.status() != null && !entry.status().status().ended()) {
             throw new IllegalStateException(dir + " is running; stop it first");
         }
         for (RunEntry other : list()) {
@@ -104,7 +110,7 @@ public class RunStore {
 
     public void markInterrupted() throws IOException {
         for (RunEntry entry : list()) {
-            if (entry.status() != null && ACTIVE.contains(entry.status().status())) {
+            if (entry.status() != null && !entry.status().status().ended()) {
                 final Path dir = root.resolve(entry.dir());
                 new RunStatus(RunState.STOPPED, lastCheckpoint(dir), null, null).write(new RunPaths(dir).status());
             }

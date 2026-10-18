@@ -23,7 +23,7 @@ function isJunk(layout, index) {
 export function drawCircuit(svg, unit, layout) {
   svg.replaceChildren();
   if (!unit) return;
-  const outputs = unit.outputs || [];
+  const outputs = unit.fields.outputsPrev || [];
   const used = new Set();
   for (const c of unit.connections) {
     used.add(c.source);

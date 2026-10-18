@@ -13,6 +13,10 @@ public enum RunState {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    public boolean ended() {
+        return this != QUEUED && this != RUNNING && this != PAUSED;
+    }
+
     public static RunState endOf(final WorldState state) {
         for (double energy : state.energy) {
             if (energy > 0.0) {

@@ -8,21 +8,17 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.simolution.sim.RunPaths;
 import com.simolution.sim.run.RunManifest;
-import com.simolution.sim.run.RunState;
 
 public final class Comparison {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int MIN_RUNS = 2;
     private static final int MAX_RUNS = 4;
-    private static final Set<RunState> ENDED =
-            Set.of(RunState.FINISHED, RunState.EXTINCT, RunState.STOPPED, RunState.FAILED);
 
     public record Setting(
             String key,
@@ -65,10 +61,7 @@ public final class Comparison {
         final List<MetricsTable> metrics = new ArrayList<>();
         final List<Map<String, String>> settings = new ArrayList<>();
         for (String dir : dirs) {
-            final RunEntry entry = store.get(dir);
-            if (entry.unreadable() != null) {
-                throw new IllegalStateException(dir + " cannot be read: " + entry.unreadable());
-            }
+            final RunEntry entry = store.readable(dir);
             runs.add(entry);
             metrics.add(MetricsTable.forRun(store.path(dir)));
             settings.add(settingsOf(store.path(dir), entry.manifest()));
@@ -144,7 +137,7 @@ public final class Comparison {
         final RunManifest right = b.manifest();
         if (a.dir().equals(right.twinOf()) || b.dir().equals(left.twinOf())
                 || left.twinOf() != null && left.twinOf().equals(right.twinOf())) {
-            if (!ENDED.contains(a.status().status()) || !ENDED.contains(b.status().status())) {
+            if (!a.status().status().ended() || !b.status().status().ended()) {
                 return new Divergence("twin", 0, null, null);
             }
             final Twins.TwinResult twin = Twins.compare(store.path(a.dir()), store.path(b.dir()));
