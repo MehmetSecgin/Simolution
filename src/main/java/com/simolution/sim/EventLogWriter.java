@@ -7,8 +7,10 @@ import java.util.Arrays;
 
 import com.simolution.kernel.state.WorldState;
 
-/** Streams birth, death and extinction events to events.jsonl; format in docs/specs/report-v8.md. */
+/** Streams birth, death and extinction events to events.jsonl; format in docs/specs/run-directory-v1.md. */
 public class EventLogWriter implements TickObserver, Closeable {
+
+    private static final int BORN_BEFORE_START = -1;
 
     private final Writer out;
     private final int slotCount;
@@ -27,19 +29,17 @@ public class EventLogWriter implements TickObserver, Closeable {
     private final int[] lineageMaxGeneration;
     private final boolean[] lineageExtinct;
 
-    public EventLogWriter(final Writer out, final int slotCount, final int founderCount,
-            final int[] founderCells, final double founderEnergy) {
+    public EventLogWriter(final Writer out, final WorldState start, final int founderCount) {
         this.out = out;
-        this.slotCount = slotCount;
+        this.slotCount = start.unitCount;
         this.founderCount = founderCount;
 
         this.prevEnergy = new double[slotCount];
         this.prevLineage = new long[slotCount];
-        Arrays.fill(prevLineage, -1L);
         this.prevGeneration = new int[slotCount];
         this.prevPosition = new int[slotCount];
-        Arrays.fill(prevPosition, -1);
         this.birthTickBySlot = new int[slotCount];
+        Arrays.fill(birthTickBySlot, start.tick == 0 ? 0 : BORN_BEFORE_START);
 
         this.lineageCount = new int[founderCount];
         this.lineagePrevCount = new int[founderCount];
@@ -47,18 +47,9 @@ public class EventLogWriter implements TickObserver, Closeable {
         this.lineageMaxGeneration = new int[founderCount];
         this.lineageExtinct = new boolean[founderCount];
 
-        seedFounderState(founderCells, founderEnergy);
-    }
-
-    private void seedFounderState(final int[] founderCells, final double founderEnergy) {
-        for (int slot = 0; slot < founderCount; slot++) {
-            prevEnergy[slot] = founderEnergy;
-            prevLineage[slot] = slot;
-            prevGeneration[slot] = 0;
-            prevPosition[slot] = founderCells[slot];
-            lineagePrevCount[slot] = 1;
-            lineagePeak[slot] = 1;
-        }
+        tallyLivingLineages(start);
+        rememberCurrentState(start);
+        System.arraycopy(lineageCount, 0, lineagePeak, 0, founderCount);
     }
 
     @Override
@@ -142,7 +133,7 @@ public class EventLogWriter implements TickObserver, Closeable {
                 .append(",\"lineage\":").append(prevLineage[slot])
                 .append(",\"gen\":").append(prevGeneration[slot])
                 .append(",\"cell\":").append(prevPosition[slot])
-                .append(",\"lifespan\":").append(tick - birthTickBySlot[slot])
+                .append(",\"lifespan\":").append(lifespan(tick, slot))
                 .append("}\n");
         flushLine();
     }
@@ -156,6 +147,10 @@ public class EventLogWriter implements TickObserver, Closeable {
                 .append(",\"maxGeneration\":").append(lineageMaxGeneration[lineage])
                 .append("}\n");
         flushLine();
+    }
+
+    private int lifespan(final int tick, final int slot) {
+        return birthTickBySlot[slot] == BORN_BEFORE_START ? BORN_BEFORE_START : tick - birthTickBySlot[slot];
     }
 
     private void flushLine() throws IOException {

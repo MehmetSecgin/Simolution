@@ -12,35 +12,35 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
 
+import com.simolution.kernel.config.ConfigJson;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.run.RunDirectoryWriter;
+import com.simolution.sim.run.RunManifest;
+import com.simolution.sim.run.RunOrigin;
+import com.simolution.sim.run.RunState;
+import com.simolution.sim.run.RunStatus;
 
 public class RunArtifacts implements Closeable {
 
     private final RunPaths paths;
-    private final boolean framesEnabled;
-    private final Path obsDir;
+    private final Kernel kernel;
     private final List<Closeable> writers = new ArrayList<>();
     private final List<TickObserver> observers = new ArrayList<>();
 
-    private RunArtifacts(final RunPaths paths, final boolean framesEnabled, final Path obsDir) {
+    private RunArtifacts(final RunPaths paths, final Kernel kernel) {
         this.paths = paths;
-        this.framesEnabled = framesEnabled;
-        this.obsDir = obsDir;
+        this.kernel = kernel;
     }
 
-    public static RunArtifacts open(final RunConfig config, final Founders founders, final Kernel kernel)
+    public static RunArtifacts open(final RunConfig config, final Kernel kernel, final RunOrigin origin)
             throws IOException {
-        if (config.reportPath() == null) {
-            return new RunArtifacts(null, false, null);
+        if (config.runDir() == null) {
+            return new RunArtifacts(null, kernel);
         }
-        final RunPaths paths = new RunPaths(config.reportPath());
-        final boolean framesEnabled = config.mapSampling().enabled();
-        final RunArtifacts artifacts = new RunArtifacts(paths, framesEnabled,
-                config.observation().enabled() ? paths.obsDir() : null);
+        final RunArtifacts artifacts = new RunArtifacts(new RunPaths(config.runDir()), kernel);
         try {
-            artifacts.openWriters(config, founders, kernel);
+            artifacts.openWriters(config, origin);
         } catch (IOException | RuntimeException e) {
             try {
                 artifacts.close();
@@ -56,24 +56,13 @@ public class RunArtifacts implements Closeable {
         return List.copyOf(observers);
     }
 
-    public void writeReport(final String report, final String timeSeriesCsv) throws IOException {
+    public void finish(final RunState state, final long finalDigest, final String report) throws IOException {
+        close();
         if (paths == null) {
             return;
         }
         Files.writeString(paths.report(), report);
-        Files.writeString(paths.timeSeries(), timeSeriesCsv);
-        System.out.println("report written to " + paths.report());
-        System.out.println("time series written to " + paths.timeSeries());
-        System.out.println("lineage / births store written to " + paths.births()
-                + " (query: duckdb -c \"SELECT * FROM '" + paths.births() + "'\")");
-        if (framesEnabled) {
-            System.out.println("spatial map frames written to " + paths.framesZst()
-                    + " (chunked zstd; genome catalog: " + paths.catalog() + ")");
-            System.out.println(
-                    "  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails these files)");
-            System.out.println("  bake offline:     python3 tools/mapviz.py " + paths.framesZst()
-                    + "  (self-contained .map.html)");
-        }
+        new RunStatus(state, kernel.currentTick(), String.format("%016x", finalDigest), null).write(paths.status());
     }
 
     @Override
@@ -83,40 +72,26 @@ public class RunArtifacts implements Closeable {
         closeInReverseOrder(toClose);
     }
 
-    public void announceObservabilityWritten() {
-        if (obsDir != null) {
-            System.out.println("observability artifacts written to " + obsDir
-                    + "/ (replay: ./gradlew run --args=\"--replay " + obsDir + " --at <tick>\")");
-        }
-    }
-
-    private void openWriters(final RunConfig config, final Founders founders, final Kernel kernel)
-            throws IOException {
-        RunPaths.createParentDirectory(paths.report());
+    private void openWriters(final RunConfig config, final RunOrigin origin) throws IOException {
+        Files.createDirectories(paths.dir());
+        Files.writeString(paths.config(), ConfigJson.write(kernel.config()));
         Files.writeString(paths.layoutJson(), NodeLayout.toJson());
+        final RunDirectoryWriter checkpoints = RunDirectoryWriter.create(paths, kernel, draft(config, origin));
+        new RunStatus(RunState.RUNNING, kernel.currentTick(), null, null).write(paths.status());
         final GenomeCatalogWriter catalog = track(new GenomeCatalogWriter(openGzipText(paths.catalog())));
         addWriter(new BirthLogWriter(openGzipText(paths.births()), catalog));
-        if (framesEnabled) {
+        if (config.mapSampling().enabled()) {
             addWriter(new MapFrameWriter(openBytes(paths.framesZst()), openText(paths.framesIdx()), catalog,
-                    config.ticks(), config.mapSampling(), founders.engine()));
+                    config.ticks(), config.mapSampling(), kernel.config()));
         }
-        if (obsDir != null) {
-            openObservability(config, founders, kernel);
-        }
+        addWriter(new EventLogWriter(openText(paths.events()), kernel.state(), config.founderCount()));
+        addWriter(new MetricsWriter(openText(paths.metrics()), config.founderCount()));
+        observers.add(snapshot -> checkpoints.checkpointIfDue(kernel));
     }
 
-    private void openObservability(final RunConfig config, final Founders founders, final Kernel kernel)
-            throws IOException {
-        Files.createDirectories(obsDir);
-        final int founderCount = founders.genomes().length;
-        addWriter(new EventLogWriter(openText(obsDir.resolve("events.jsonl")), founders.slotCount(),
-                founderCount, founders.cells(), founders.engine().founder().initialEnergy()));
-        addWriter(new MetricsWriter(openText(obsDir.resolve("metrics.csv")), founderCount));
-        final int checkpointEvery = config.observation().checkpointEvery();
-        final RunDirectoryWriter runDirectory = RunDirectoryWriter.create(obsDir, kernel, checkpointEvery);
-        observers.add(snapshot -> runDirectory.checkpointIfDue(kernel));
-        System.out.println("observability layer writing to " + obsDir + "/ (run.json, events.jsonl, "
-                + "metrics.csv, ckpt/ every " + checkpointEvery + " ticks)");
+    private static RunManifest draft(final RunConfig config, final RunOrigin origin) {
+        return new RunManifest(null, null, origin.name(), origin.parent(), origin.branchTick(), origin.twinOf(),
+                config.ticks(), config.checkpointEvery(), config.founderCount(), config.genesPerFounder());
     }
 
     private <W extends TickObserver & Closeable> void addWriter(final W writer) {

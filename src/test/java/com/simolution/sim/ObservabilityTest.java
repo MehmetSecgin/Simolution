@@ -1,10 +1,12 @@
 package com.simolution.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,13 +49,67 @@ class ObservabilityTest {
         assertEquals(bare, observed, "observability sink changed the run");
     }
 
+    @Test
+    void metricsRowNamesTheTopLineageAndItsShare() throws IOException {
+        // arrange
+        final WorldState state = worldWithLineages(1, 2, 2, 2);
+
+        // act
+        final String row = lastMetricsRow(state, 3);
+
+        // assert
+        assertTrue(row.endsWith(",2,0.75"), row);
+    }
+
+    @Test
+    void topLineageTieGoesToTheLowestId() throws IOException {
+        // arrange
+        final WorldState state = worldWithLineages(2, 2, 1, 1);
+
+        // act
+        final String row = lastMetricsRow(state, 3);
+
+        // assert
+        assertTrue(row.endsWith(",1,0.5"), row);
+    }
+
+    @Test
+    void emptyWorldHasNoTopLineage() throws IOException {
+        // arrange
+        final WorldState state = worldWithLineages();
+
+        // act
+        final String row = lastMetricsRow(state, 3);
+
+        // assert
+        assertTrue(row.endsWith(",-1,0"), row);
+    }
+
+    private static WorldState worldWithLineages(final long... lineages) {
+        final WorldState state = new WorldState(EngineConfig.defaults(0L, 4, 8));
+        for (int slot = 0; slot < lineages.length; slot++) {
+            state.energy[slot] = 1.0;
+            state.lineageId[slot] = lineages[slot];
+        }
+        return state;
+    }
+
+    private static String lastMetricsRow(final WorldState state, final int founders) throws IOException {
+        final StringWriter out = new StringWriter();
+        try (MetricsWriter metrics = new MetricsWriter(out, founders)) {
+            metrics.observe(state);
+        }
+        final List<String> lines = out.toString().lines().toList();
+        assertTrue(lines.get(0).endsWith(",mass_total,top_lineage,top_lineage_share"), lines.get(0));
+        return lines.get(lines.size() - 1);
+    }
+
     private long digestOfRun(final boolean observe) throws IOException {
         final Kernel kernel = freshKernel();
         EventLogWriter eventLog = null;
         MetricsWriter metrics = null;
         if (observe) {
-            eventLog = new EventLogWriter(new BufferedWriter(new StringWriter()),
-                    WORLD * WORLD, UNITS, founderCells(), ENGINE.founder().initialEnergy());
+            eventLog = new EventLogWriter(new BufferedWriter(new StringWriter()), kernel.state(), UNITS);
             metrics = new MetricsWriter(new BufferedWriter(new StringWriter()), UNITS);
         }
         long digest = 0L;

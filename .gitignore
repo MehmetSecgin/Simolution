@@ -43,4 +43,6 @@ bin/
 .DS_Store
 ### Simolution runs ###
 runs/*
-!runs/baseline.txt
+!runs/baseline/
+runs/baseline/*
+!runs/baseline/report.txt

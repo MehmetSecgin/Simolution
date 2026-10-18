@@ -2,6 +2,7 @@ package com.simolution.sim;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
+import com.simolution.sim.run.RunOrigin;
 
 /** Same code, config and seed render a byte-identical report: no wall-clock data belongs here. */
 public final class RunReport {
@@ -11,10 +12,11 @@ public final class RunReport {
 
     private RunReport() {}
 
-    public static String render(final RunConfig config, final StructuralStats structure,
+    public static String render(final RunConfig config, final RunOrigin origin, final StructuralStats structure,
             final DynamicsSummary dynamics) {
         final StringBuilder out = new StringBuilder(2048);
         appendHeader(out, config);
+        appendBranch(out, origin);
         appendStructure(out, structure);
         appendDynamics(out, dynamics);
         appendReproduction(out, dynamics.population());
@@ -38,6 +40,13 @@ public final class RunReport {
         line(out, "genome-source", GENOME_SOURCE);
         line(out, "genes-per-unit", config.genesPerFounder());
         line(out, "max-genes", engine.world().maxGenes());
+    }
+
+    private static void appendBranch(final StringBuilder out, final RunOrigin origin) {
+        if (origin.parent() != null) {
+            line(out, "branch-of", origin.parent());
+            line(out, "branch-tick", origin.branchTick());
+        }
     }
 
     private static void appendStructure(final StringBuilder out, final StructuralStats structure) {

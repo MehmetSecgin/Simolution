@@ -8,7 +8,7 @@ import java.io.Writer;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.state.WorldState;
 
-/** Writes the spatial map frames of a run into a chunked zstd stream; format in docs/specs/report-v14.md. */
+/** Writes the spatial map frames of a run into a chunked zstd stream; format in docs/specs/run-directory-v1.md. */
 public class MapFrameWriter implements TickObserver, Closeable {
 
     private final ChunkedFrameStream stream;
@@ -81,6 +81,7 @@ public class MapFrameWriter implements TickObserver, Closeable {
                     .append(' ').append(snapshot.position[slot])
                     .append(' ').append(slot)
                     .append(' ').append(genomes.catalogIdFor(snapshot, slot))
+                    .append(' ').append(snapshot.lineageId[slot])
                     .append('\n');
         }
     }

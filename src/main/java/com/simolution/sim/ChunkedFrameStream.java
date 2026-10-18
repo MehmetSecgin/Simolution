@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 import com.github.luben.zstd.Zstd;
 
-/** Groups frame text into zstd chunks of {@link #CHUNK_FRAMES} frames and indexes them; format in docs/specs/report-v14.md. */
+/** Groups frame text into zstd chunks of {@link #CHUNK_FRAMES} frames and indexes them; format in docs/specs/run-directory-v1.md. */
 class ChunkedFrameStream implements Closeable {
 
     static final int CHUNK_FRAMES = 256;
@@ -28,7 +28,7 @@ class ChunkedFrameStream implements Closeable {
         this.out = out;
         this.idx = idx;
         this.chunk = new StringBuilder(8 * worldWidth + 4096);
-        idx.write("format v14 world " + worldWidth + " sample-every " + sampleEvery
+        idx.write("format v16 world " + worldWidth + " sample-every " + sampleEvery
                 + " chunk " + CHUNK_FRAMES + "\n");
         idx.flush();
     }

@@ -8,6 +8,7 @@ import java.util.stream.Stream;
 
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.state.CheckpointCodec;
+import com.simolution.sim.RunPaths;
 
 /** Reconstructs any tick of a run directory from its nearest earlier checkpoint. */
 public final class RunDirectoryReader {
@@ -20,14 +21,22 @@ public final class RunDirectoryReader {
         return tick + CHECKPOINT_SUFFIX;
     }
 
-    public static Kernel seek(final Path obsDir, final int tick, final int threads) throws IOException {
+    public static Kernel seek(final Path runDir, final int tick, final int threads) throws IOException {
         if (tick < 0) {
             throw new IllegalArgumentException("tick " + tick + " is negative");
         }
-        final Path ckptDir = obsDir.resolve("ckpt");
+        final Path ckptDir = new RunPaths(holderOf(runDir, tick)).checkpoints();
         final int checkpointTick = latestCheckpointTickAtOrBefore(ckptDir, tick);
         final Kernel kernel = loadCheckpoint(ckptDir, checkpointTick, threads);
         return stepOrClose(kernel, tick - checkpointTick);
+    }
+
+    public static Path holderOf(final Path runDir, final int tick) throws IOException {
+        final RunManifest manifest = RunManifest.read(new RunPaths(runDir).manifest());
+        if (manifest.branchTick() != null && tick < manifest.branchTick()) {
+            return holderOf(runDir.resolveSibling(manifest.parent()), tick);
+        }
+        return runDir;
     }
 
     private static int latestCheckpointTickAtOrBefore(final Path ckptDir, final int tick) throws IOException {

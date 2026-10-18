@@ -10,6 +10,7 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GenomeCompiler;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
+import com.simolution.sim.run.RunOrigin;
 import com.simolution.support.Worlds;
 
 class RunReportTest {
@@ -25,7 +26,8 @@ class RunReportTest {
                 kernel.tick();
                 observer.observe(kernel.snapshot());
             }
-            return RunReport.render(config, structure, observer.summarize(kernel.stateDigest()));
+            return RunReport.render(config, RunOrigin.named("run"), structure,
+                    observer.summarize(kernel.stateDigest()));
         }
     }
 
@@ -33,7 +35,7 @@ class RunReportTest {
     void reportIsByteIdenticalAcrossRuns() {
         // arrange
         final RunConfig config =
-                new RunConfig(25, 200, 16, false, null, MapSampling.EVERY_TICK, new Observation(false, 0),
+                new RunConfig(25, 200, 16, false, null, MapSampling.EVERY_TICK, 0,
                         EngineConfig.defaults(42L, 64, 16), 1, false);
 
         // act
@@ -48,7 +50,7 @@ class RunReportTest {
     void reportDoesNotInlinePerUnitDetail() {
         // act
         final String report = runAndRender(new RunConfig(25, 50, 8, false, null, MapSampling.EVERY_TICK,
-                new Observation(false, 0), EngineConfig.defaults(1L, 64, 8), 1, false));
+                0, EngineConfig.defaults(1L, 64, 8), 1, false));
 
         // assert
         assertFalse(report.contains("## units"));
@@ -59,7 +61,7 @@ class RunReportTest {
     void reportContainsAllSections() {
         // act
         final String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
-                new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
+                0, EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert
         assertTrue(report.contains("schema: report-v15"));
@@ -81,7 +83,7 @@ class RunReportTest {
     void sectionsAppearInTodaysOrder() {
         // act
         final String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
-                new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
+                0, EngineConfig.defaults(9L, 64, 8), 1, false));
 
         // assert
         final String[] headers =

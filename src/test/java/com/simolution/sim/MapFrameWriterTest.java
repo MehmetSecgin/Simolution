@@ -77,8 +77,26 @@ class MapFrameWriterTest {
         assertFalse(harness.framesText().contains(" * ") || harness.framesText().contains(" ^"),
                 "the frame carries only a genomeId, never raw genome markers");
         assertTrue(harness.framesText().lines().filter(l -> l.startsWith("u "))
-                .allMatch(l -> l.trim().split("\\s+").length == 4),
-                "u line carries exactly cell, slot, genomeId");
+                .allMatch(l -> l.trim().split("\\s+").length == 5),
+                "u line carries exactly cell, slot, genomeId, lineage");
+    }
+
+    @Test
+    void rowCarriesTheSlotsLineage() throws Exception {
+        // arrange
+        final FrameHarness harness = smallWorld().ticks(1).sampling(MapSampling.window(1, 1));
+
+        // act
+        harness.run();
+
+        // assert
+        assertTrue(harness.idx().startsWith("format v16 "));
+        final List<String[]> founderRows = harness.framesText().lines().filter(l -> l.startsWith("u "))
+                .map(l -> l.split(" ")).filter(f -> Integer.parseInt(f[2]) < FOUNDERS).toList();
+        assertEquals(FOUNDERS, founderRows.size());
+        for (String[] row : founderRows) {
+            assertEquals(row[2], row[4], "a founder's lineage is its slot");
+        }
     }
 
     @Test

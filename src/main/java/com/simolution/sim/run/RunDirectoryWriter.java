@@ -11,6 +11,7 @@ import java.util.HexFormat;
 
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.kernel.state.CheckpointCodec;
+import com.simolution.sim.RunPaths;
 
 /**
  * Writes {@code <dir>/run.json} and {@code <dir>/ckpt/<tick>.ckpt}. {@code runId} is the SHA-256
@@ -28,19 +29,20 @@ public class RunDirectoryWriter {
         this.checkpointEvery = checkpointEvery;
     }
 
-    public static RunDirectoryWriter create(final Path dir, final Kernel kernel, final int checkpointEvery)
+    public static RunDirectoryWriter create(final RunPaths paths, final Kernel kernel, final RunManifest draft)
             throws IOException {
-        if (kernel.currentTick() != 0) {
+        if (kernel.currentTick() != 0 && draft.parent() == null) {
             throw new IllegalArgumentException(
                     "a new run starts at tick 0, kernel is at tick " + kernel.currentTick());
         }
-        final Path ckptDir = dir.resolve("ckpt");
+        final Path ckptDir = paths.checkpoints();
         Files.createDirectories(ckptDir);
         final byte[] first = checkpointBytes(kernel);
-        final String runId = sha256Hex(first);
         Files.write(ckptDir.resolve(RunDirectoryReader.checkpointFileName(kernel.currentTick())), first);
-        Files.writeString(dir.resolve("run.json"), runManifestJson(runId));
-        return new RunDirectoryWriter(ckptDir, checkpointEvery);
+        new RunManifest(sha256Hex(first), Kernel.ENGINE_VERSION, draft.name(), draft.parent(), draft.branchTick(),
+                draft.twinOf(), draft.targetTicks(), draft.checkpointEvery(), draft.founders(),
+                draft.genesPerFounder()).write(paths.manifest());
+        return new RunDirectoryWriter(ckptDir, draft.checkpointEvery());
     }
 
     public void checkpointIfDue(final Kernel kernel) throws IOException {
@@ -51,10 +53,6 @@ public class RunDirectoryWriter {
                 CheckpointCodec.write(kernel, out);
             }
         }
-    }
-
-    private static String runManifestJson(final String runId) {
-        return "{\"runId\": \"" + runId + "\", \"engine\": \"" + Kernel.ENGINE_VERSION + "\", \"parent\": null}\n";
     }
 
     private static byte[] checkpointBytes(final Kernel kernel) throws IOException {

@@ -9,28 +9,25 @@ import org.junit.jupiter.api.Test;
 class RunPathsTest {
 
     @Test
-    void siblingsShareTheReportBase() {
+    void everyAccessorNamesItsFileInsideTheRunDirectory() {
         // arrange
-        final RunPaths paths = new RunPaths(Path.of("runs/a.txt"));
+        final Path dir = Path.of("runs/a");
 
         // act
-        final Path catalog = paths.catalog();
-        final Path obsDir = paths.obsDir();
+        final RunPaths paths = new RunPaths(dir);
 
         // assert
-        assertEquals(Path.of("runs/a.catalog.gz"), catalog);
-        assertEquals(Path.of("runs/a.obs"), obsDir);
-    }
-
-    @Test
-    void reportWithoutDotOrParent() {
-        // arrange
-        final RunPaths paths = new RunPaths(Path.of("a"));
-
-        // act
-        final Path births = paths.births();
-
-        // assert
-        assertEquals(Path.of("a.births.csv.gz"), births);
+        assertEquals(dir.resolve("report.txt"), paths.report());
+        assertEquals(dir.resolve("config.json"), paths.config());
+        assertEquals(dir.resolve("run.json"), paths.manifest());
+        assertEquals(dir.resolve("status.json"), paths.status());
+        assertEquals(dir.resolve("metrics.csv"), paths.metrics());
+        assertEquals(dir.resolve("events.jsonl"), paths.events());
+        assertEquals(dir.resolve("ckpt"), paths.checkpoints());
+        assertEquals(dir.resolve("frames.zst"), paths.framesZst());
+        assertEquals(dir.resolve("frames.idx"), paths.framesIdx());
+        assertEquals(dir.resolve("catalog.gz"), paths.catalog());
+        assertEquals(dir.resolve("births.csv.gz"), paths.births());
+        assertEquals(dir.resolve("layout.json"), paths.layoutJson());
     }
 }

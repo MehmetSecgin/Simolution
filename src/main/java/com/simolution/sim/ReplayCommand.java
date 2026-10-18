@@ -56,7 +56,7 @@ public final class ReplayCommand {
         if (replay.snapshotOut() == null) {
             System.out.print(dump);
         } else {
-            RunPaths.createParentDirectory(replay.snapshotOut());
+            Files.createDirectories(replay.snapshotOut().toAbsolutePath().getParent());
             Files.writeString(replay.snapshotOut(), dump);
             System.out.println("snapshot at tick " + replay.tick() + " written to " + replay.snapshotOut());
         }

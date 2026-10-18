@@ -8,11 +8,9 @@ import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.DynamicsObserver;
 import com.simolution.sim.Founders;
 import com.simolution.sim.MapSampling;
-import com.simolution.sim.Observation;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.SimulationRun;
 import com.simolution.sim.TickObserver;
-import com.simolution.sim.TimeSeriesSampler;
 
 public final class Bench {
 
@@ -44,7 +42,7 @@ public final class Bench {
 
     private static RunConfig config(final int world, final int founders, final int ticks, final int threads) {
         return new RunConfig(founders, ticks, GENES_PER_FOUNDER, false, null,
-                MapSampling.OFF, Observation.OFF, EngineConfig.defaults(SEED, world, MAX_GENES), threads, false);
+                MapSampling.OFF, 0, EngineConfig.defaults(SEED, world, MAX_GENES), threads, false);
     }
 
     private static void row(final String name, final RunConfig config) throws IOException {
@@ -61,7 +59,7 @@ public final class Bench {
 
     private static Row runOnce(final RunConfig config) throws IOException {
         final Kernel kernel = Founders.create(config).newKernel(config.threads());
-        final TickObserver[] observers = {new DynamicsObserver(), new TimeSeriesSampler(config.ticks())};
+        final TickObserver[] observers = {new DynamicsObserver()};
         final long wallMillis = SimulationRun.execute(kernel, config.ticks(), observers);
         kernel.close();
         final Runtime runtime = Runtime.getRuntime();

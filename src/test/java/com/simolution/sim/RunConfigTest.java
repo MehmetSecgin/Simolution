@@ -1,6 +1,7 @@
 package com.simolution.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,9 +21,9 @@ class RunConfigTest {
 
     @Test
     void mapFramesDefaultsOff() {
-        assertEquals(MapSampling.OFF, RunConfig.parse(new String[] {"--out", "x.txt"}).mapSampling());
+        assertEquals(MapSampling.OFF, RunConfig.parse(new String[] {"--out", "x"}).mapSampling());
         assertEquals(MapSampling.EVERY_TICK,
-                RunConfig.parse(new String[] {"--out", "x.txt", "--map-frames", "0"}).mapSampling());
+                RunConfig.parse(new String[] {"--out", "x", "--map-frames", "0"}).mapSampling());
     }
 
     @Test
@@ -69,5 +70,34 @@ class RunConfigTest {
     void digestEveryTickDefaultsOff() {
         assertEquals(false, RunConfig.parse(new String[] {"--units", "10"}).digestEveryTick());
         assertEquals(true, RunConfig.parse(new String[] {"--units", "10", "--digest-every-tick"}).digestEveryTick());
+    }
+
+    @Test
+    void outNamingAFileIsRefusedWithTheDirectoryToUse() {
+        // act
+        final IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> RunConfig.parse(new String[] {"--out", "runs/x.txt"}));
+
+        // assert
+        assertEquals("--out names a run directory, not a file: use --out runs/x", refused.getMessage());
+    }
+
+    @Test
+    void observeIsAnUnknownFlag() {
+        // act
+        final IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> RunConfig.parse(new String[] {"--observe"}));
+
+        // assert
+        assertEquals("Unknown argument: --observe", refused.getMessage());
+    }
+
+    @Test
+    void checkpointsDefaultToEvery500Ticks() {
+        // act
+        final RunConfig config = RunConfig.parse(new String[] {"--out", "x"});
+
+        // assert
+        assertEquals(500, config.checkpointEvery());
     }
 }

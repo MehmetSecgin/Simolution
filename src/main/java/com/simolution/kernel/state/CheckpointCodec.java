@@ -71,31 +71,32 @@ public final class CheckpointCodec {
     }
 
     public static Kernel read(final InputStream in, final int threads) throws IOException {
+        return restore(in, threads, null);
+    }
+
+    public static Kernel readBranch(final InputStream in, final int threads, final EngineConfig newConfig)
+            throws IOException {
+        return restore(in, threads, newConfig);
+    }
+
+    public static long readDigest(final InputStream in) throws IOException {
         final DataInputStream data = new DataInputStream(new BufferedInputStream(in));
         try {
-            final byte[] magic = new byte[MAGIC.length];
-            data.readFully(magic);
-            if (!Arrays.equals(magic, MAGIC)) {
-                throw new IllegalStateException("not a checkpoint: bad magic");
-            }
-            final int format = data.readInt();
-            if (format != FORMAT_VERSION) {
-                throw new IllegalStateException(
-                        "unsupported checkpoint format version " + format + ", this engine reads " + FORMAT_VERSION);
-            }
-            final String engine = readString(data);
-            if (!engine.equals(Kernel.ENGINE_VERSION)) {
-                throw new IllegalStateException(
-                        "checkpoint engine version " + engine + " differs from running engine "
-                                + Kernel.ENGINE_VERSION);
-            }
-            final EngineConfig written = ConfigJson.read(readString(data));
-            final String layout = readString(data);
-            if (!layout.equals(NodeLayout.toJson())) {
-                throw new IllegalStateException("checkpoint node layout differs from this engine's node layout");
-            }
+            readHeader(data);
+            return data.readLong();
+        } catch (EOFException e) {
+            throw new IllegalStateException("checkpoint truncated", e);
+        }
+    }
+
+    private static Kernel restore(final InputStream in, final int threads, final EngineConfig branchConfig)
+            throws IOException {
+        final DataInputStream data = new DataInputStream(new BufferedInputStream(in));
+        try {
+            final EngineConfig written = readHeader(data);
+            final EngineConfig config = branchConfig == null ? written : sameShape(written, branchConfig);
             final long expectedDigest = data.readLong();
-            final Kernel kernel = new Kernel(new int[0][], new int[0], written, threads);
+            final Kernel kernel = new Kernel(new int[0][], new int[0], config, threads);
             try {
                 readState(data, kernel.state());
                 if (kernel.stateDigest() != expectedDigest) {
@@ -108,6 +109,45 @@ public final class CheckpointCodec {
             return kernel;
         } catch (EOFException e) {
             throw new IllegalStateException("checkpoint truncated", e);
+        }
+    }
+
+    private static EngineConfig readHeader(final DataInputStream data) throws IOException {
+        final byte[] magic = new byte[MAGIC.length];
+        data.readFully(magic);
+        if (!Arrays.equals(magic, MAGIC)) {
+            throw new IllegalStateException("not a checkpoint: bad magic");
+        }
+        final int format = data.readInt();
+        if (format != FORMAT_VERSION) {
+            throw new IllegalStateException(
+                    "unsupported checkpoint format version " + format + ", this engine reads " + FORMAT_VERSION);
+        }
+        final String engine = readString(data);
+        if (!engine.equals(Kernel.ENGINE_VERSION)) {
+            throw new IllegalStateException(
+                    "checkpoint engine version " + engine + " differs from running engine "
+                            + Kernel.ENGINE_VERSION);
+        }
+        final EngineConfig written = ConfigJson.read(readString(data));
+        final String layout = readString(data);
+        if (!layout.equals(NodeLayout.toJson())) {
+            throw new IllegalStateException("checkpoint node layout differs from this engine's node layout");
+        }
+        return written;
+    }
+
+    private static EngineConfig sameShape(final EngineConfig written, final EngineConfig branch) {
+        requireUnchanged("worldWidth", written.world().worldWidth(), branch.world().worldWidth());
+        requireUnchanged("maxGenes", written.world().maxGenes(), branch.world().maxGenes());
+        requireUnchanged("chemical count", written.chemicals().size(), branch.chemicals().size());
+        return branch;
+    }
+
+    private static void requireUnchanged(final String field, final int old, final int requested) {
+        if (old != requested) {
+            throw new IllegalArgumentException(
+                    "a branch cannot change " + field + " (" + old + " -> " + requested + ")");
         }
     }
 

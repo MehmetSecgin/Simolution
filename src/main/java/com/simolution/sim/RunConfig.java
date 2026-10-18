@@ -15,9 +15,9 @@ public record RunConfig(
         int ticks,
         int genesPerFounder,
         boolean trace,
-        Path reportPath,
+        Path runDir,
         MapSampling mapSampling,
-        Observation observation,
+        int checkpointEvery,
         EngineConfig engine,
         int threads,
         boolean digestEveryTick
@@ -26,7 +26,7 @@ public record RunConfig(
     static final int DEFAULT_TICKS = 1000;
     static final int DEFAULT_FOUNDERS = 1;
     static final int DEFAULT_GENES = 32;
-    static final int DEFAULT_CHECKPOINT_EVERY = 2000;
+    static final int DEFAULT_CHECKPOINT_EVERY = 500;
 
     private static final long DEFAULT_SEED = 0L;
     private static final int CELLS_PER_FOUNDER = 4;
@@ -43,8 +43,8 @@ public record RunConfig(
         final EngineConfig engine = engineFrom(options, founders, genes);
         requireFoundersFit(engine.world().worldWidth(), founders);
         return new RunConfig(founders, options.ticks,
-                genes, options.trace, options.reportPath, options.mapSampling(),
-                observation(options), withInflow(engine, options), options.threads, options.digestEveryTick);
+                genes, options.trace, options.runDir, options.mapSampling(),
+                options.checkpointEvery, withInflow(engine, options), options.threads, options.digestEveryTick);
     }
 
     private static EngineConfig engineFrom(final RunOptions options, final int founders, final int genes) {
@@ -74,10 +74,6 @@ public record RunConfig(
 
     private static int defaultMaxGenes(final int genesPerFounder) {
         return genesPerFounder * 2;
-    }
-
-    private static Observation observation(final RunOptions options) {
-        return new Observation(options.observe, options.checkpointEvery);
     }
 
     private static EngineConfig loadConfig(final String path) {

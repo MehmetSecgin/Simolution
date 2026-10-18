@@ -16,7 +16,8 @@ import com.simolution.sim.SimulationRun;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
 import com.simolution.sim.TickObserver;
-import com.simolution.sim.TimeSeriesSampler;
+import com.simolution.sim.run.RunOrigin;
+import com.simolution.sim.run.RunState;
 
 public final class Main {
 
@@ -33,33 +34,33 @@ public final class Main {
         final Founders founders = Founders.create(config);
         final StructuralStats structure = StructuralAnalyzer.analyze(founders.connections(), config.founderCount());
         final DynamicsObserver dynamics = new DynamicsObserver();
-        final TimeSeriesSampler timeSeries = new TimeSeriesSampler(config.ticks());
+        final RunOrigin origin =
+                RunOrigin.named(config.runDir() == null ? "" : config.runDir().getFileName().toString());
         try (Kernel kernel = founders.newKernel(config.threads());
-                RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
-            final TickObserver[] observers = observers(config, kernel, dynamics, timeSeries, artifacts);
+                RunArtifacts artifacts = RunArtifacts.open(config, kernel, origin)) {
+            final TickObserver[] observers = observers(config, kernel, dynamics, artifacts);
             final long elapsedMillis = SimulationRun.execute(kernel, config.ticks(), observers);
             final long finalDigest = kernel.stateDigest();
-            artifacts.close();
-            artifacts.announceObservabilityWritten();
-            final String report = RunReport.render(config, structure, dynamics.summarize(finalDigest));
+            final String report = RunReport.render(config, origin, structure, dynamics.summarize(finalDigest));
+            artifacts.finish(RunState.endOf(kernel.snapshot()), finalDigest, report);
             System.out.println();
             System.out.print(report);
             System.out.println();
             System.out.println("(wall clock: " + elapsedMillis + " ms — console only, never part of the report)");
-            artifacts.writeReport(report, timeSeries.render());
+            if (config.runDir() != null) {
+                System.out.println("run written to " + config.runDir());
+            }
         }
     }
 
     private static TickObserver[] observers(final RunConfig config, final Kernel kernel,
-            final DynamicsObserver dynamics,
-            final TimeSeriesSampler timeSeries, final RunArtifacts artifacts) {
+            final DynamicsObserver dynamics, final RunArtifacts artifacts) {
         final List<TickObserver> observers = new ArrayList<>();
         observers.add(dynamics);
         if (config.digestEveryTick()) {
             observers.add(
                     snapshot -> System.out.printf("digest %d %016x%n", kernel.currentTick(), kernel.stateDigest()));
         }
-        observers.add(timeSeries);
         observers.addAll(artifacts.observers());
         if (config.trace()) {
             final ConsoleTableLogger trace = new ConsoleTableLogger();

@@ -2,6 +2,7 @@ package com.simolution.sim.run;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
+import com.simolution.sim.RunPaths;
 import com.simolution.support.CheckpointBytes;
 import com.simolution.support.Worlds;
 
@@ -37,7 +39,7 @@ class RunLifecycleTest {
 
     private static void assertSeekMatchesUninterrupted(final EngineConfig config, final Path dir) throws IOException {
         final Kernel recorded = newKernel(config);
-        final RunDirectoryWriter run = RunDirectoryWriter.create(dir, recorded, EVERY);
+        final RunDirectoryWriter run = RunDirectoryWriter.create(new RunPaths(dir), recorded, draft(null, null));
         final List<byte[]> canonical = new ArrayList<>();
         canonical.add(CheckpointBytes.of(recorded));
         for (int t = 1; t <= TICKS; t++) {
@@ -50,6 +52,10 @@ class RunLifecycleTest {
             assertArrayEquals(canonical.get(t), CheckpointBytes.of(RunDirectoryReader.seek(dir, t, 1)),
                     "state at tick " + t);
         }
+    }
+
+    private static RunManifest draft(final String parent, final Integer branchTick) {
+        return new RunManifest(null, null, "run", parent, branchTick, null, TICKS, EVERY, FOUNDERS, GENES);
     }
 
     private static String sha256Hex(final byte[] bytes) throws NoSuchAlgorithmException {
@@ -73,7 +79,7 @@ class RunLifecycleTest {
     void checkpointsLandEveryNTicksAndRunJsonNamesTheRun(@TempDir final Path dir)
             throws IOException, NoSuchAlgorithmException {
         final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
-        final RunDirectoryWriter run = RunDirectoryWriter.create(dir, kernel, EVERY);
+        final RunDirectoryWriter run = RunDirectoryWriter.create(new RunPaths(dir), kernel, draft(null, null));
         for (int t = 1; t <= 120; t++) {
             kernel.tick();
             run.checkpointIfDue(kernel);
@@ -87,5 +93,22 @@ class RunLifecycleTest {
         assertEquals(sha256Hex(Files.readAllBytes(dir.resolve("ckpt/0.ckpt"))), json.get("runId").asText());
         assertEquals(Kernel.ENGINE_VERSION, json.get("engine").asText());
         assertTrue(json.get("parent").isNull());
+    }
+
+    @Test
+    void firstCheckpointAfterTickZeroNeedsAParent(@TempDir final Path dir) throws IOException {
+        // arrange
+        final Kernel kernel = newKernel(EngineConfig.defaults(7L, WORLD, GENES * 2));
+        kernel.step(5);
+
+        // act
+        final IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> RunDirectoryWriter.create(new RunPaths(dir), kernel, draft(null, null)));
+        final RunDirectoryWriter branch = RunDirectoryWriter.create(new RunPaths(dir), kernel, draft("p", 5));
+
+        // assert
+        assertEquals("a new run starts at tick 0, kernel is at tick 5", refused.getMessage());
+        assertTrue(Files.exists(dir.resolve("ckpt/5.ckpt")));
+        assertEquals(5, RunManifest.read(dir.resolve("run.json")).branchTick());
     }
 }

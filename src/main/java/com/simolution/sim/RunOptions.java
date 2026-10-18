@@ -4,6 +4,8 @@ import java.nio.file.Path;
 
 class RunOptions {
 
+    private static final String REPORT_SUFFIX = ".txt";
+
     int founders = RunConfig.DEFAULT_FOUNDERS;
     int ticks = RunConfig.DEFAULT_TICKS;
     int genes = RunConfig.DEFAULT_GENES;
@@ -11,7 +13,7 @@ class RunOptions {
     Integer maxGenes;
     Long seed;
     String configPath;
-    Path reportPath;
+    Path runDir;
     int mapFrames = -1;
     Integer mapFrom;
     Integer mapTo;
@@ -19,7 +21,6 @@ class RunOptions {
     int threads = Runtime.getRuntime().availableProcessors();
     String inflowSpec;
     boolean trace;
-    boolean observe;
     boolean digestEveryTick;
 
     private RunOptions() {
@@ -38,9 +39,6 @@ class RunOptions {
     }
 
     void validate() {
-        if (observe && reportPath == null) {
-            throw new IllegalArgumentException("--observe requires --out (the .obs/ dir sits beside it)");
-        }
         if (mapFrom != null && (mapTo == null || mapTo < mapFrom)) {
             throw new IllegalArgumentException("--map-from requires --map-to >= --map-from");
         }
@@ -59,10 +57,17 @@ class RunOptions {
         return mapFrames == 0 ? MapSampling.EVERY_TICK : MapSampling.spread(mapFrames);
     }
 
+    private static Path runDirectory(final String value) {
+        if (value.endsWith(REPORT_SUFFIX)) {
+            throw new IllegalArgumentException("--out names a run directory, not a file: use --out "
+                    + value.substring(0, value.length() - REPORT_SUFFIX.length()));
+        }
+        return Path.of(value);
+    }
+
     private boolean acceptSwitch(final String flag) {
         switch (flag) {
             case "--trace" -> trace = true;
-            case "--observe" -> observe = true;
             case "--digest-every-tick" -> digestEveryTick = true;
             default -> {
                 return false;
@@ -80,7 +85,7 @@ class RunOptions {
             case "--max-genes" -> maxGenes = cursor.intValue(flag);
             case "--seed" -> seed = cursor.longValue(flag);
             case "--config" -> configPath = cursor.value(flag);
-            case "--out" -> reportPath = Path.of(cursor.value(flag));
+            case "--out" -> runDir = runDirectory(cursor.value(flag));
             case "--map-frames" -> mapFrames = cursor.intValue(flag);
             case "--map-from" -> mapFrom = cursor.intValue(flag);
             case "--map-to" -> mapTo = cursor.intValue(flag);
