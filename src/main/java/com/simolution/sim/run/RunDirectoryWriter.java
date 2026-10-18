@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -48,11 +49,17 @@ public class RunDirectoryWriter {
     public void checkpointIfDue(final Kernel kernel) throws IOException {
         final int tick = kernel.currentTick();
         if (checkpointEvery > 0 && tick % checkpointEvery == 0) {
-            try (OutputStream out = Files.newOutputStream(
-                    ckptDir.resolve(RunDirectoryReader.checkpointFileName(tick)))) {
+            final Path partial = ckptDir.resolve(tick + ".partial");
+            try (OutputStream out = Files.newOutputStream(partial)) {
                 CheckpointCodec.write(kernel, out);
             }
+            Files.move(partial, ckptDir.resolve(RunDirectoryReader.checkpointFileName(tick)),
+                    StandardCopyOption.ATOMIC_MOVE);
         }
+    }
+
+    public static String runIdOf(final Kernel kernel) throws IOException {
+        return sha256Hex(checkpointBytes(kernel));
     }
 
     private static byte[] checkpointBytes(final Kernel kernel) throws IOException {

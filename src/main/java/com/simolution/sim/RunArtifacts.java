@@ -65,6 +65,19 @@ public class RunArtifacts implements Closeable {
         new RunStatus(state, kernel.currentTick(), String.format("%016x", finalDigest), null).write(paths.status());
     }
 
+    public void status(final RunState state) throws IOException {
+        if (paths != null) {
+            new RunStatus(state, kernel.currentTick(), null, null).write(paths.status());
+        }
+    }
+
+    public void fail(final String error) throws IOException {
+        close();
+        if (paths != null) {
+            new RunStatus(RunState.FAILED, kernel.currentTick(), null, error).write(paths.status());
+        }
+    }
+
     @Override
     public void close() throws IOException {
         final List<Closeable> toClose = List.copyOf(writers);
@@ -77,7 +90,7 @@ public class RunArtifacts implements Closeable {
         Files.writeString(paths.config(), ConfigJson.write(kernel.config()));
         Files.writeString(paths.layoutJson(), NodeLayout.toJson());
         final RunDirectoryWriter checkpoints = RunDirectoryWriter.create(paths, kernel, draft(config, origin));
-        new RunStatus(RunState.RUNNING, kernel.currentTick(), null, null).write(paths.status());
+        status(RunState.RUNNING);
         final GenomeCatalogWriter catalog = track(new GenomeCatalogWriter(openGzipText(paths.catalog())));
         addWriter(new BirthLogWriter(openGzipText(paths.births()), catalog));
         if (config.mapSampling().enabled()) {

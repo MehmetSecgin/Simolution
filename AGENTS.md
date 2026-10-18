@@ -36,6 +36,10 @@ Next: sensors that read beyond the own cell, several resources with separate har
 # reproducible benchmark (fixed configs: small, dense200, big500; ticks/s per thread count)
 ./gradlew bench --args="--threads 4"     # numbers and the stopping-rule check: docs/notes/engine-v6-bench.md
 
+# the Observatory (ADR 0057): HTTP server in the engine's JVM over runs/, on loopback; start, pause, stop,
+# branch, re-run and seek runs from the browser. Runs it starts are ordinary run directories.
+./gradlew observatory    # then open http://localhost:8090 (a taken port exits: pass --port)
+
 # patchy + cyclic resource (contract-v6): a central disk pulses 0->peak->0 (period in ticks),
 # periphery barren, diffusion spreads it; watch the breathing gradient live.
 ./gradlew run --args="--units 300 --ticks 30000 --seed 42 --world 100 --inflow \"disk r=22 peak=10 period=2000\" --out runs/cyc"
@@ -152,6 +156,13 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
     ├── RunDirectoryWriter    run.json (carries the run id) + ckpt/<tick>.ckpt, `checkpointIfDue`; a first checkpoint after tick 0 needs a parent
     ├── RunDirectoryReader    `seek(dir, T, threads)`: nearest checkpoint (following a branch's parent chain before its branch tick), then step forward
     └── Branching             `start(parentDir, T, newConfig, threads)`: seek the parent, restore under the new config (`CheckpointCodec.readBranch`, ADR 0056)
+com.simolution.observatory    the Observatory server (ADR 0057); reads and writes run directories, never kernel internals beyond `WorldState`
+├── Observatory               main: loopback `HttpServer`, static files from `/observatory/` resources, `--port` `--runs`
+├── Api / EventStream         the `/api/` routes (JSON, binary frame and state), errors as `{"error"}` 400/404/409; `run` and `progress` server-sent events
+├── RunStore / RunEntry       lists `runs/`, slugs new dirs, refuses deletes of running or branched runs, marks dead `running` runs `stopped`
+├── RunManager / RunSession / RunRequest   one run at a time on all cores, a queue, pause/resume/stop, branch, re-run as a twin
+├── MetricsTable / Moments / Health / Twins / Comparison   metrics with the parent prefix, moment marks, health checks, twin digests, run comparison
+└── FrameReader / LatestFrame / Seeker   stored frames (LRU of chunks), the live frame of the running run, viewer kernels for seek
 ```
 
 The tick, in order: `clear → propagate → evaluate → swap → intake → inflow → cost → growth → reproduction → movement → diffusion → decay`. Shapes: `clear`, `propagate`, `evaluate`, `intake`, `cost`, `growth` are per-unit; `inflow`, `diffusion`, `decay` are per-cell; `reproduction` and `movement` are claims; `swap` is serial.

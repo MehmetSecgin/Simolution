@@ -10,6 +10,8 @@ public class GenomeCatalogWriter implements Closeable {
 
     private final Writer out;
     private final StringBuilder key = new StringBuilder(256);
+    // ponytail: one entry per distinct genome of the whole run, the only store that grows with run length;
+    // spill the index to disk if a run outgrows the heap
     private final HashMap<String, Integer> idByGenome = new HashMap<>();
     private int nextId;
 

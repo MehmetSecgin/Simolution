@@ -39,6 +39,10 @@ public final class RunDirectoryReader {
         return runDir;
     }
 
+    public static int checkpointTickAtOrBefore(final Path runDir, final int tick) throws IOException {
+        return latestCheckpointTickAtOrBefore(new RunPaths(runDir).checkpoints(), tick);
+    }
+
     private static int latestCheckpointTickAtOrBefore(final Path ckptDir, final int tick) throws IOException {
         int best = -1;
         try (Stream<Path> files = Files.list(ckptDir)) {

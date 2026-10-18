@@ -53,6 +53,13 @@ tasks.register('bench', JavaExec) {
     jvmArgs '-Xmx4g'
 }
 
+tasks.register('observatory', JavaExec) {
+    mainClass = 'com.simolution.observatory.Observatory'
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs '-Xmx8g', '--enable-native-access=ALL-UNNAMED'
+    args '--port', '8090', '--runs', 'runs'
+}
+
 if (project.hasProperty('noDebug')) {
     tasks.withType(JavaCompile).configureEach {
         options.debug = false
