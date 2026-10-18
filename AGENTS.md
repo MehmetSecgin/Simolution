@@ -25,12 +25,12 @@ Next: sensors that read beyond the own cell, several resources with separate har
 
 # population run with deterministic report (schema: docs/specs/report-v15.md)
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100"
-# flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --trace --out <file>
+# flags: --units N --ticks T --seed S --genes G --world W --max-genes G2 --trace --out <dir>
 #        --config <file.json>  (EngineConfig as JSON, see examples/baseline.json; --seed/--world/--max-genes override it)
 #        --threads N           (worker threads, default all cores; NEVER changes results, see contract-v9 §7)
 #        --digest-every-tick   (debug: prints `digest <tick> <hex>` after each tick; the report digest is end-of-run only)
 #        --map-frames N --map-from T0 --map-to T1   (map frames, see below)
-#        --observe --checkpoint-every C             (run directory, see below)
+#        --checkpoint-every C  (checkpoint cadence of the run directory, default 500)
 #        --inflow "<dsl>"      (contract-v7, opt-in; a contract-v6 pulsing disk is "disk r=R peak=P period=N")
 
 # reproducible benchmark (fixed configs: small, dense200, big500; ticks/s per thread count)
@@ -38,34 +38,34 @@ Next: sensors that read beyond the own cell, several resources with separate har
 
 # patchy + cyclic resource (contract-v6): a central disk pulses 0->peak->0 (period in ticks),
 # periphery barren, diffusion spreads it; watch the breathing gradient live.
-./gradlew run --args="--units 300 --ticks 30000 --seed 42 --world 100 --inflow \"disk r=22 peak=10 period=2000\" --out runs/cyc.txt"
+./gradlew run --args="--units 300 --ticks 30000 --seed 42 --world 100 --inflow \"disk r=22 peak=10 period=2000\" --out runs/cyc"
 # --world W = lattice side; the W×W grid IS the slot pool (one unit per cell,
 #   contract-v3 §2/§5). Population is bounded physically by W² and energetically
 #   by starvation; a birth with no free neighbour cell or free slot just doesn't happen.
 #   Founders (--units N) must fit: N ≤ W². Default if omitted: W = ceil(sqrt(units·4)).
-# --out <base>.txt writes the report plus <base>.timeseries.csv, <base>.layout.json
-#   (node names, offsets, junk ranges, gene bit layout: the viewers read it),
-#   <base>.catalog.gz and <base>.births.csv.gz. Map frames are opt-in (below).
+# --out runs/<dir> writes one run directory (docs/specs/run-directory-v1.md, ADR 0055):
+#   run.json, status.json, config.json, layout.json (node names, offsets, junk ranges, gene
+#   bit layout: the viewers read it), ckpt/<tick>.ckpt, metrics.csv, events.jsonl,
+#   catalog.gz, births.csv.gz and report.txt. Map frames are opt-in (below).
+#   `--out runs/x.txt` is refused: --out names a directory.
 
 # bake the spatial map (report-v14) into a SELF-CONTAINED rich viewer: the same
 # genome panel + circuit inspector + colour by genome as the live view, frames + catalog
-# inlined, opens anywhere (even file://). The run writes chunked-zstd <base>.frames.zst
-# (lean row `u <cell> <slot> <genomeId>`) + <base>.frames.idx + the gzipped <base>.catalog.gz
+# inlined, opens anywhere (even file://). The run writes chunked-zstd <dir>/frames.zst
+# (lean row `u <cell> <slot> <genomeId> <lineage>`) + <dir>/frames.idx + the gzipped <dir>/catalog.gz
 # when --out is set and frames are requested
 # (--map-frames N: negative/absent = off [default], 0 = every tick, N>0 = N frames;
 #  --map-from T0 --map-to T1: a frame EVERY tick only within [T0,T1]). Then:
-python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.html (offline)
+python3 tools/mapviz.py runs/foo/frames.zst   # writes runs/foo/frames.map.html (offline)
 
-# run directory (engine v6, ADR 0043): optional, off by default. --observe with --out writes
-# <base>.obs/ = run.json (runId = SHA-256 of the first checkpoint, engine version, parent),
-# ckpt/<tick>.ckpt (self-sufficient, versioned checkpoint format 3 with the state digest in
-# the header; tick 0 at creation, then every --checkpoint-every ticks, default 2000),
-# events.jsonl and metrics.csv. Sink-off runs stay byte-identical.
-./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo.txt --observe --checkpoint-every 500"
+# checkpoints (ADR 0043): run.json's runId is the SHA-256 of the first checkpoint; ckpt/<tick>.ckpt
+# is self-sufficient, versioned format 3 with the state digest in the header; tick 0 at
+# creation (the branch tick for a branch), then every --checkpoint-every ticks.
+./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo --checkpoint-every 500"
 # seek: reconstruct any tick (nearest checkpoint at or before T, then step forward). Works for
 # any thread count and for inflow runs (the checkpoint carries the full config):
-./gradlew run --args="--replay runs/foo.obs --at 600 --snapshot-out runs/foo.obs/snap-600.txt"
-python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
+./gradlew run --args="--replay runs/foo --at 600 --snapshot-out runs/foo/snap-600.txt"
+python3 tools/timetravel.py runs/foo/snap-600.txt   # writes snap-600.html
 # Checkpoints from another engine version or format are refused.
 # aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
 
@@ -78,18 +78,18 @@ python3 tools/timetravel.py runs/foo.obs/snap-600.txt   # writes snap-600.html
 bash scripts/serve-live.sh   # runs a sim in the background, serves runs/ on :8090 via serve.py
 # then open http://localhost:8090  (or any run: python3 scripts/serve.py 8090 runs, open <base>.html)
 
-# lineage / "what happened to who": every --out run writes <base>.births.csv.gz
+# lineage / "what happened to who": every --out run writes <dir>/births.csv.gz
 # (tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated).
 # parent_slot is exact: rows come from the engine's published per-tick birth list.
 # Query with DuckDB (no JVM); lineage+generation are kernel-exact, so genome history is:
-#   duckdb -c "SELECT DISTINCT generation, child_genome_id FROM 'runs/baseline.births.csv.gz'
+#   duckdb -c "SELECT DISTINCT generation, child_genome_id FROM 'runs/foo/births.csv.gz'
 #              WHERE lineage=76 ORDER BY 1"   -- then diff catalog genes hop to hop
 ```
 
 **Baseline workflow — mandatory before kernel-behavior changes**: regenerate
-`runs/baseline.txt` with `--units 100 --ticks 1000 --seed 42 --world 100 --out runs/baseline.txt`
-after the change and diff it (`runs/baseline.txt` is the committed baseline, `state-digest:
-c0f052e9d43f300c`; only the report is tracked, the sidecars next to it are not). Output is
+`runs/baseline/report.txt` with `--units 100 --ticks 1000 --seed 42 --world 100 --out runs/baseline`
+after the change and diff it (`runs/baseline/report.txt` is the committed baseline, `state-digest:
+c0f052e9d43f300c`; only the report is tracked, the other files of the run directory are not). Output is
 byte-deterministic and identical for any `--threads` value, so every changed line was caused by
 your change; the `state-digest` line is the digest of the whole final state (`StateDigest`) and
 catches drift below display rounding. Explain the diff (or its absence) when delivering.
@@ -119,7 +119,7 @@ com.simolution
     │   ├── WorldState        every state array and scalar, allocated once; `reservoir()`/`massTotal()` chunk-ordered sums; `fields()` declares each as a FieldSpec (ADR 0038)
     │   ├── FieldSpec         name, dimension, persistence (SAVED/DERIVED/SCRATCH), birth rule, death rule
     │   ├── StateDigest       parallel chunked digest of the SAVED state (ADR 0044)
-    │   └── CheckpointCodec   self-sufficient versioned checkpoint, format 3 (ADR 0043, 0053)
+    │   └── CheckpointCodec   self-sufficient versioned checkpoint, format 3 (ADR 0043, 0053); `readBranch` restores under a changed config of the same shape, `readDigest` reads the header digest
     ├── phase
     │   ├── Phase / Shape     a declared step and its shape: PER_UNIT, PER_CELL, CLAIM, SERIAL (ADR 0039)
     │   ├── Chunks            fixed 4096-entry chunk boundaries and chunk-ordered sums
@@ -135,22 +135,23 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── Founders                  the founder genomes, cells and engine config of a run; `newKernel(threads)`
 ├── GenomeFactory             seeded random genomes; stateless hash like RAND noise
 ├── SimulationRun / RunResult the tick loop: tick, snapshot, every `TickObserver` in order; final digest and elapsed time
-├── RunArtifacts / RunPaths   opens the `--out` sidecars and the `--observe` run directory, lists their observers; `RunPaths` names every sidecar beside the report
+├── RunArtifacts / RunPaths   opens the `--out` run directory (docs/specs/run-directory-v1.md), lists its observers, `finish` writes report.txt and status.json; `RunPaths` names every file inside the directory
 ├── RunConsole                report and timing lines on stdout
 ├── ReplayCommand             `--replay <dir> --at T`: seek and dump a snapshot
 ├── StructuralAnalyzer/Stats  wiring-derived stats of the founders: junk load, reachability, weights
 ├── DynamicsObserver/Summary  running aggregates over snapshots (activity, populations, energy, mass) into grouped summary records; no per-unit state, no trajectory
 ├── RunReport                 byte-deterministic report-v15 text in one method per section (aggregates + distributions + reproduction)
-├── TimeSeriesSampler         <base>.timeseries.csv, one row per tick
-├── MapFrameWriter            writes map frames: `MapSampling` picks the ticks, `SlotGenomeCache` maps slots to catalog ids, `ResourceLevels` quantises the field, `ChunkedFrameStream` seals 256-frame zstd-19 chunks into <base>.frames.zst (report-v14: lean row `u <cell> <slot> <genomeId>`; RLE resource field) and the ASCII <base>.frames.idx (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
+├── MapFrameWriter            writes map frames: `MapSampling` picks the ticks, `SlotGenomeCache` maps slots to catalog ids, `ResourceLevels` quantises the field, `ChunkedFrameStream` seals 256-frame zstd-19 chunks into frames.zst (run-directory-v1: row `u <cell> <slot> <genomeId> <lineage>`; RLE resource field) and the ASCII frames.idx (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
 ├── GenomeCatalogWriter       <base>.catalog.gz: gzipped global write-once genome dictionary (`g <id> <count> <genes>`), whole-loaded + native-gunzipped by the viewer; frames carry the id
 ├── BirthLogWriter            <base>.births.csv.gz: one row per birth from the engine's birth list (lineage/generation/parent exact, genome ids from the shared catalog); DuckDB-queryable lineage store
-├── EventLogWriter            events.jsonl (observe): births from the birth list, deaths/extinctions derived from snapshot deltas; mutation bits by child↔parent gene diff (no kernel hook)
-├── MetricsWriter             metrics.csv (observe): per-tick aggregates, streamed, O(1)/tick
+├── EventLogWriter            events.jsonl: births from the birth list, deaths/extinctions derived from snapshot deltas, seeded from the start state (a branch logs no false events); mutation bits by child↔parent gene diff (no kernel hook)
+├── MetricsWriter             metrics.csv: per-tick aggregates incl. top lineage and its share, streamed, O(1)/tick
 ├── SnapshotDump              one-shot tick-T state page (lattice + per-unit + evolved circuits) for tools/timetravel.py
 └── run
-    ├── RunDirectoryWriter    run.json (carries the run id) + ckpt/<tick>.ckpt, `checkpointIfDue`
-    └── RunDirectoryReader    `seek(dir, T, threads)`: nearest checkpoint, then step forward
+    ├── RunManifest / RunStatus / RunState / RunOrigin   run.json, status.json and their states (Jackson)
+    ├── RunDirectoryWriter    run.json (carries the run id) + ckpt/<tick>.ckpt, `checkpointIfDue`; a first checkpoint after tick 0 needs a parent
+    ├── RunDirectoryReader    `seek(dir, T, threads)`: nearest checkpoint (following a branch's parent chain before its branch tick), then step forward
+    └── Branching             `start(parentDir, T, newConfig, threads)`: seek the parent, restore under the new config (`CheckpointCodec.readBranch`, ADR 0056)
 ```
 
 The tick, in order: `clear → propagate → evaluate → swap → intake → inflow → cost → growth → reproduction → movement → diffusion → decay`. Shapes: `clear`, `propagate`, `evaluate`, `intake`, `cost`, `growth` are per-unit; `inflow`, `diffusion`, `decay` are per-cell; `reproduction` and `movement` are claims; `swap` is serial.
@@ -172,6 +173,7 @@ Binding (implementations MUST conform). Phase numbers quoted inside older contra
 - [docs/contract/contract-v8.md](docs/contract/contract-v8.md): **resource decay** (field dissipation, always on): standing resource is no longer permanent: new **decay phase** after diffusion dissipates `field·RESOURCE_DECAY_RATE` (0.02, ~35-tick half-life) of every cell to the sink, and `CELL_INITIAL` 100→**0** (field starts empty). Before v8 the field had no sink (diffusion only redistributes, inflow only tops up), so the world started saturated and a moving source painted permanent resource: the inflow pattern was cosmetic. Now barren cells relax to 0, a moving source leaves a fading trail, `LOCAL_RESOURCE` is a live ramping input even under uniform inflow, and lean patchy worlds can drive cold-start extinction (honest pressure). Conservative (decay→sink, audit holds ~1e-6); deterministic. Implemented (ADR 0036)
 - [docs/contract/contract-v9.md](docs/contract/contract-v9.md): **claim phases, seed-keyed streams, thread-count independence** (engine v6). Movement and reproduction are propose-then-resolve: a target or child cell must be free at phase start, the lowest slot (parent) wins, no chains, an unaffordable parent pays nothing and burns no slot, winners take free slots in ascending order, and the tick's births are published as a list. Mutation is keyed `(seed, parentSlot, tick, op)` and point mutation is geometric skip-sampled. All kernel randomness follows the run seed through tagged streams. Strict arithmetic (`StrictMath`, no `Math.pow/exp/log/sin/cos/tan/fma`), phases have shapes, and same version + config + seed gives identical state for any thread count (fixed 4096-entry chunks, ordered partial totals, chunked digest). Supersedes contract-v3 §9 tie and chain rules, contract-v5 §5 placement order, contract-v4 §4 keying, and the locked-pipeline rule. Implemented (ADRs 0038 to 0045)
 - [docs/specs/report-v15.md](docs/specs/report-v15.md): engine v6 report: `state-digest` is the chunked digest of the final state (not a per-tick chain), the observer keeps running aggregates over all living units and drops the founder-indexed lines (`## burn-rate`, `## terminal-regimes`, `## action-channel`, ...), `schema: report-v15`, `kernel: v6` (`v6.1` since ADR 0052). Lists every baseline line that moved and why. Delta over report-v14
+- [docs/specs/run-directory-v1.md](docs/specs/run-directory-v1.md): one run directory for the CLI and the Observatory: `--out runs/<dir>` holds run.json, status.json, config.json, checkpoints, metrics, events, births, catalog, optional frames and report.txt; `--observe` and `timeseries.csv` removed; `metrics.csv` gains `top_lineage,top_lineage_share`; frame row gains the lineage (`format v16`); branch rules. Delta over report-v8 and report-v14 (ADRs 0055, 0056)
 - [docs/specs/v0-1/kernel-v0.1-vertical-slice.md](docs/specs/v0-1/kernel-v0.1-vertical-slice.md) — canonical v0.1 reference: substrate, encoding, execution phases
 - [docs/specs/v0-1/kernel-v0.1-cache.md](docs/specs/v0-1/kernel-v0.1-cache.md) — what may be precomputed (structure-only) vs never cached (runtime state)
 - [docs/nodes/delay.md](docs/nodes/delay.md) — DELAY node semantics

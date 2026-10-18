@@ -2,6 +2,8 @@
 
 > Superseded in part by engine v6: `manifest.json`, `Replayer`, `CheckpointWriter` and `saveState` are replaced by versioned self-sufficient checkpoints and `RunDirectoryWriter` and `RunDirectoryReader` (checkpoint format version 2; see [ADR 0043](../decisions/0043-per-run-config-versioned-checkpoints-seek-branch.md) and [contract-v9](../contract/contract-v9.md) §7). `events.jsonl` and `metrics.csv` are unchanged.
 
+> Run directory layout, `metrics.csv` columns and branch events: see [run-directory-v1](run-directory-v1.md).
+
 Delta over [report-v7](report-v7.md): adds an **observability layer** so a finished
 (or running) simulation can be explored after the fact — *"go to tick T and see
 everything"* and *"query what already happened"*, the way you'd scrub a Grafana

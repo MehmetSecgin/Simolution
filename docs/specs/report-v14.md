@@ -5,6 +5,8 @@
 **Delta over:** [report-v13](report-v13.md) (frame row + frame/catalog containers)
 **Audit:** [docs/notes/report-v13-design-audit-findings.md](../notes/report-v13-design-audit-findings.md)
 
+> The frame row gained the lineage id (`format v16`): see [run-directory-v1](run-directory-v1.md).
+
 ## Why
 
 report-v13's lean `u` line was right in spirit but still stored two things no seek/scrub
