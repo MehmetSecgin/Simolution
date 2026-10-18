@@ -100,6 +100,10 @@ class Api implements HttpHandler {
             }
             return;
         }
+        if (parts.length == 2 && parts[0].equals("configs") && method.equals("GET")) {
+            send(exchange, 200, "application/json", manager.readConfig(parts[1]).getBytes(StandardCharsets.UTF_8));
+            return;
+        }
         if (!parts[0].equals("runs") || parts.length > 3) {
             throw new NoSuchElementException("no endpoint " + exchange.getRequestURI().getPath());
         }

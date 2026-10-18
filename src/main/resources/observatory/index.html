@@ -1,5 +1,186 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Observatory</title></head>
-<body><p>Observatory</p></body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simolution Observatory</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brand"><span class="brand-dot"></span>Observatory</div>
+    <nav class="nav" aria-label="Screens">
+      <button data-nav="runs">Runs</button>
+      <button data-nav="run" hidden>Run</button>
+      <button data-nav="compare" hidden>Compare</button>
+    </nav>
+    <span class="spacer"></span>
+    <span class="sub" id="conn"></span>
+    <button class="btn small" id="theme" aria-label="Switch colour theme">Theme</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="screen" id="screen-runs" hidden>
+    <div class="row">
+      <div class="stack">
+        <h1>Runs</h1>
+        <span class="sub">Every run directory under runs/, newest first. Tick 2 to 4 runs to compare them.</span>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn" id="cmp-btn" disabled>Compare</button>
+      <button class="btn primary" id="new-btn">New run</button>
+    </div>
+
+    <form class="card" id="new-form" hidden>
+      <div class="row"><h2>New run</h2><span class="spacer"></span><span class="hint">Starts from a config file in examples/; override what you like</span></div>
+      <div class="newrun">
+        <label class="field">Config file<select id="nr-config" required></select></label>
+        <label class="field">Name<input id="nr-name" required placeholder="baseline seed 9"></label>
+        <label class="field">Seed<input id="nr-seed" type="number" step="1" placeholder="from config"></label>
+        <label class="field">World side (cells)<input id="nr-world" type="number" min="1" step="1" placeholder="from config"></label>
+        <label class="field">Founders<input id="nr-founders" type="number" min="1" step="1" value="100" required></label>
+        <label class="field">Genes per founder<input id="nr-genes" type="number" min="0" step="1" value="32" required></label>
+        <label class="field">Ticks<input id="nr-ticks" type="number" min="1" step="1" value="5000" required></label>
+        <label class="field">Checkpoint every (ticks)<input id="nr-every" type="number" min="1" step="1" value="500" required></label>
+      </div>
+      <div class="settings" id="nr-settings"></div>
+      <div class="row">
+        <button class="btn primary" type="submit">Start</button>
+        <button class="btn" type="button" id="nr-add">Add setting</button>
+        <button class="btn" type="button" id="nr-cancel">Cancel</button>
+        <span class="hint">Map frames every tick. One run computes at a time, on all cores; the others queue.</span>
+      </div>
+    </form>
+
+    <div class="card flush">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th><span class="sr">Select</span></th><th>Run</th><th>Status</th><th>Progress</th><th>Peak population</th><th>Health</th><th>Modified</th><th><span class="sr">Actions</span></th></tr></thead>
+          <tbody id="run-rows"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="runs-empty" hidden>No runs yet. Start one with New run, or copy a CLI run directory into runs/.</p>
+    </div>
+  </section>
+
+  <section class="screen" id="screen-run" hidden>
+    <div class="row">
+      <button class="btn small" data-go="#runs">Runs</button>
+      <h1 id="rv-name"></h1>
+      <span class="pill" id="rv-pill"></span>
+      <span class="sub" id="rv-origin"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="rv-pause"></button>
+      <button class="btn" id="rv-stop">Stop</button>
+      <button class="btn" id="rv-branch">Branch from this tick</button>
+      <button class="btn" id="rv-parent" hidden>Compare with parent</button>
+    </div>
+
+    <form class="branch" id="branch-panel" hidden>
+      <div class="row"><h3>Branch at tick <span class="num" id="br-tick">0</span></h3><span class="hint">The branch starts from this exact state with the settings below. Everything before this tick stays identical. World side, max genes and the chemical count cannot change.</span></div>
+      <div class="newrun">
+        <label class="field">Name<input id="br-name" required></label>
+        <label class="field">End tick<input id="br-target" type="number" min="1" step="1" required></label>
+      </div>
+      <div class="settings" id="br-settings"></div>
+      <div class="row">
+        <button class="btn primary" type="submit">Start branch and compare</button>
+        <button class="btn" type="button" id="br-add">Add setting</button>
+        <button class="btn" type="button" id="br-cancel">Cancel</button>
+      </div>
+    </form>
+
+    <div class="runview">
+      <div class="side">
+      <div class="card">
+        <div class="row">
+          <h2>World <span class="sub num" id="rv-world"></span></h2>
+          <span class="spacer"></span>
+          <div class="seg" role="group" aria-label="Map colour" id="overlays">
+            <button aria-pressed="true" data-ov="lineage">Lineage</button>
+            <button aria-pressed="false" data-ov="resource">Resource</button>
+            <button aria-pressed="false" data-ov="mass">Mass</button>
+            <button aria-pressed="false" data-ov="action">Action</button>
+          </div>
+        </div>
+        <div class="mapbox"><canvas id="map" width="600" height="600" aria-label="World map, click a unit to inspect it"></canvas><span class="mapnote" id="map-note" hidden></span></div>
+        <div class="legend" id="map-legend"></div>
+      </div>
+      <div class="card" id="circuit-card" hidden>
+        <div class="row"><h2>Circuit</h2><span class="sub" id="circuit-sub"></span><span class="spacer"></span><span class="hint">sensors, internal nodes, actions; hover a node or a line for its value</span></div>
+        <svg class="circuit" id="circuit" role="img" aria-label="Unit circuit"></svg>
+        <div class="legend"><span><i class="pos"></i>positive weight</span><span><i class="neg"></i>negative weight</span><span><i class="on"></i>node output above 0</span><span>faint line: its source output is 0</span></div>
+      </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <div class="row"><h2>Health</h2><span class="spacer"></span><span class="chip" id="hc-badge"></span></div>
+          <ul class="checks" id="checks"></ul>
+          <div class="row"><button class="btn small" id="rv-rerun">Re-run with the same seed</button><span class="hint">a second thread count; proves the result is reproducible</span></div>
+        </div>
+        <div class="card">
+          <div class="row"><h2>Moments</h2><span class="spacer"></span><span class="hint">click to jump there</span></div>
+          <ul class="moments" id="moments"></ul>
+        </div>
+        <div class="card">
+          <div class="row"><h2>Unit</h2><span class="spacer"></span><span class="hint" id="unit-hint">Click a unit on the map</span></div>
+          <dl class="kv" id="unit-kv"></dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="card timeline">
+      <div class="row">
+        <h2>Timeline</h2>
+        <span class="sub">tick <b class="num" id="tl-tick">0</b> of <span class="num" id="tl-max">0</span></span>
+        <span class="chip" id="tl-mode"></span>
+        <span class="spacer"></span>
+        <button class="btn small" id="tl-live">Jump to live</button>
+      </div>
+      <div class="charts" id="charts"></div>
+      <div class="scrub">
+        <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Scrub to tick">
+        <div class="events" id="markers"></div>
+      </div>
+      <div class="keys"><span><kbd>Space</kbd> pause / resume the run</span><span><kbd>←</kbd> <kbd>→</kbd> step one tick (Shift: 100)</span><span><kbd>Home</kbd> tick 0</span><span><kbd>End</kbd> live</span><span><kbd>B</kbd> branch here</span><span><kbd>C</kbd> compare with parent</span></div>
+    </div>
+  </section>
+
+  <section class="screen" id="screen-compare" hidden>
+    <div class="row">
+      <div class="stack"><h1>Compare</h1><span class="sub" id="cmp-sub"></span></div>
+      <span class="spacer"></span>
+      <div class="legend" id="cmp-legend"></div>
+    </div>
+    <div class="banner" id="cmp-banner"></div>
+    <div class="cmp-grid">
+      <div class="card">
+        <div class="row"><h2>What differs</h2><span class="spacer"></span><label class="hint"><input type="checkbox" id="diff-all"> show all settings</label></div>
+        <div class="table-wrap"><table class="diff"><thead id="diff-head"></thead><tbody id="diff-body"></tbody></table></div>
+        <p class="hint" id="diff-none" hidden>No setting differs. Same config, same seed.</p>
+      </div>
+      <div class="card">
+        <h2>Outcome</h2>
+        <div class="table-wrap"><table><thead id="out-head"></thead><tbody id="out-body"></tbody></table></div>
+        <span class="hint">Percent change against run A, at each run's last tick.</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><h2>Over time</h2><span class="spacer"></span><span class="hint" id="cmp-dash"></span></div>
+      <div class="charts" id="cmp-charts"></div>
+    </div>
+    <div class="card">
+      <div class="row"><h2>Side by side at tick <span class="num" id="mm-tick">0</span></h2><span class="spacer"></span><span class="hint">One scrubber drives every map</span></div>
+      <div class="minimaps" id="minimaps"></div>
+      <input type="range" id="mm-scrub" min="0" max="0" value="0" aria-label="Scrub all maps">
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+</body>
 </html>

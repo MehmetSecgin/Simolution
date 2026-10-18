@@ -8,17 +8,21 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.simolution.sim.RunPaths;
 import com.simolution.sim.run.RunManifest;
+import com.simolution.sim.run.RunState;
 
 public final class Comparison {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int MIN_RUNS = 2;
     private static final int MAX_RUNS = 4;
+    private static final Set<RunState> ENDED =
+            Set.of(RunState.FINISHED, RunState.EXTINCT, RunState.STOPPED, RunState.FAILED);
 
     public record Setting(
             String key,
@@ -120,6 +124,9 @@ public final class Comparison {
             pairs.add(pair(store, first, other));
         }
         if (pairs.stream().allMatch(p -> p.kind().equals("twin"))) {
+            if (pairs.stream().anyMatch(p -> p.identical() == null)) {
+                return new Divergence("twin", 0, null, null);
+            }
             final boolean identical = pairs.stream().allMatch(Divergence::identical);
             final int checkpoints = pairs.stream().mapToInt(Divergence::checkpoints).min().orElse(0);
             final int tick = pairs.stream().filter(p -> !p.identical()).mapToInt(Divergence::tick).min()
@@ -137,6 +144,9 @@ public final class Comparison {
         final RunManifest right = b.manifest();
         if (a.dir().equals(right.twinOf()) || b.dir().equals(left.twinOf())
                 || left.twinOf() != null && left.twinOf().equals(right.twinOf())) {
+            if (!ENDED.contains(a.status().status()) || !ENDED.contains(b.status().status())) {
+                return new Divergence("twin", 0, null, null);
+            }
             final Twins.TwinResult twin = Twins.compare(store.path(a.dir()), store.path(b.dir()));
             final int tick = twin.identical() ? a.status().ticksDone() : twin.firstDifferentTick();
             return new Divergence("twin", tick, twin.checkpoints(), twin.identical());

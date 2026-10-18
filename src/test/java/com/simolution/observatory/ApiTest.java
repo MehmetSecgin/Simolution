@@ -109,6 +109,7 @@ class ApiTest {
         final int slot = frame.getInt(4 + 4 + WIDTH * WIDTH + 4 + 4);
         final JsonNode unit = json(get("/api/runs/" + dir + "/unit?tick=60&slot=" + slot));
         final JsonNode configs = json(get("/api/configs"));
+        final JsonNode config = json(get("/api/configs/" + ObservatoryWorld.SMALL));
         final JsonNode layout = json(get("/api/layout"));
         final String branch = json(send("POST", "/api/runs/" + dir + "/branch",
                 "{\"tick\":60,\"overrides\":{\"harvestCapacityPerConnection\":3.0},\"targetTicks\":100,"
@@ -137,6 +138,7 @@ class ApiTest {
         assertEquals(unit.at("/fields/geneCount").asInt(), unit.at("/fields/genes").size());
         assertTrue(unit.has("connections"));
         assertEquals(ObservatoryWorld.SMALL, configs.get(0).asText());
+        assertEquals(ObservatoryWorld.WORLD, config.get("worldWidth").asInt());
         assertEquals(24, layout.get("total").asInt());
         assertEquals("ancestor", compare.at("/divergence/kind").asText());
         assertEquals(60, compare.at("/divergence/tick").asInt());

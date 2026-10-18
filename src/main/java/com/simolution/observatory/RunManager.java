@@ -309,7 +309,7 @@ public class RunManager implements AutoCloseable, RunSession.Listener {
         return entry;
     }
 
-    private String readConfig(final String name) throws IOException {
+    public String readConfig(final String name) throws IOException {
         if (name == null || !CONFIG_NAME.matcher(name).matches() || !Files.isRegularFile(configs.resolve(name))) {
             throw new IllegalArgumentException("unknown config file: " + name);
         }
