@@ -89,4 +89,4 @@ The unit row gains the slot's lineage id:
 u <cell> <slot> <genomeId> <lineage>
 ```
 
-The `frames.idx` header reads `format v16 world <W> sample-every <N> chunk 256`. Containers, chunking and the catalog are unchanged.
+The `frames.idx` header reads `format v16 world <W> sample-every <N> chunk 256`. Chunks are compressed at zstd level 9, not 19: on a 3,000-unit world level 19 took 16.5 s per 256-frame chunk and stalled the tick loop, level 9 takes 0.18 s for a chunk 1.4 times larger. Readers are unaffected. Containers, chunking and the catalog are unchanged.

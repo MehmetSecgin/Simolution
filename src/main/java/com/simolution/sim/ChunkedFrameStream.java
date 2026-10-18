@@ -13,7 +13,7 @@ class ChunkedFrameStream implements Closeable {
 
     static final int CHUNK_FRAMES = 256;
 
-    private static final int ZSTD_LEVEL = 19;
+    private static final int ZSTD_LEVEL = 9;
 
     private final OutputStream out;
     private final Writer idx;
