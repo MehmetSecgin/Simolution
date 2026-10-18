@@ -55,7 +55,7 @@ Next: sensors that read beyond the own cell, several resources with separate har
 # when --out is set and frames are requested
 # (--map-frames N: negative/absent = off [default], 0 = every tick, N>0 = N frames;
 #  --map-from T0 --map-to T1: a frame EVERY tick only within [T0,T1]). Then:
-python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.html (offline; needs the zstd CLI)
+python3 tools/mapviz.py runs/baseline.frames.zst   # writes runs/baseline.map.html (offline)
 
 # run directory (engine v6, ADR 0043): optional, off by default. --observe with --out writes
 # <base>.obs/ = run.json (runId = SHA-256 of the first checkpoint, engine version, parent),
@@ -143,7 +143,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── DynamicsObserver/Summary  running aggregates over snapshots (activity, populations, energy, mass) into grouped summary records; no per-unit state, no trajectory
 ├── RunReport                 byte-deterministic report-v15 text in one method per section (aggregates + distributions + reproduction)
 ├── TimeSeriesSampler         <base>.timeseries.csv, one row per tick
-├── MapFrameWriter            writes map frames: `FrameSampler` picks the ticks, `SlotGenomeCache` maps slots to catalog ids, `ResourceLevels` quantises the field, `ChunkedFrameStream` seals 256-frame zstd-19 chunks into <base>.frames.zst (report-v14: lean row `u <cell> <slot> <genomeId>`; RLE resource field) and the ASCII <base>.frames.idx (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
+├── MapFrameWriter            writes map frames: `MapSampling` picks the ticks, `SlotGenomeCache` maps slots to catalog ids, `ResourceLevels` quantises the field, `ChunkedFrameStream` seals 256-frame zstd-19 chunks into <base>.frames.zst (report-v14: lean row `u <cell> <slot> <genomeId>`; RLE resource field) and the ASCII <base>.frames.idx (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per Range fetch); O(one open chunk) RAM, live tail by polling the idx (≤256-tick lag)
 ├── GenomeCatalogWriter       <base>.catalog.gz: gzipped global write-once genome dictionary (`g <id> <count> <genes>`), whole-loaded + native-gunzipped by the viewer; frames carry the id
 ├── BirthLogWriter            <base>.births.csv.gz: one row per birth from the engine's birth list (lineage/generation/parent exact, genome ids from the shared catalog); DuckDB-queryable lineage store
 ├── EventLogWriter            events.jsonl (observe): births from the birth list, deaths/extinctions derived from snapshot deltas; mutation bits by child↔parent gene diff (no kernel hook)

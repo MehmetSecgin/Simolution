@@ -441,21 +441,18 @@ async function boot(){
     pollIdx(); }
 }
 // ---- lineage walk (report-v13/v14): the always-on births store, read client-side ----
-// served: fetch <base>.births.csv.gz, gunzip in-browser; embed: window.SIMOLUTION_EMBED.births.
+// served: fetch <base>.births.csv.gz, gunzip in-browser.
 // lineage + generation + mutated are kernel-exact; parent_slot is best-effort (often -1), so the
 // walk is anchored on lineage/generation/tick, not on chasing parent_slot.
 let births=null;
 async function loadBirths(){
   if(births) return births;
   let rows=[];
-  if(window.SIMOLUTION_EMBED&&window.SIMOLUTION_EMBED.births){ rows=window.SIMOLUTION_EMBED.births; }
-  else {
-    const buf=await (await fetch(birthsUrl,{cache:'no-store'})).arrayBuffer();
-    const txt=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
-    const L=txt.split('\n');
-    for(let i=1;i<L.length;i++){ if(!L[i])continue; const c=L[i].split(',');
-      rows.push({tick:+c[0],slot:+c[1],lin:+c[2],gen:+c[3],pslot:+c[4],gid:+c[5],pgid:+c[6],mut:+c[7]}); }
-  }
+  const buf=await (await fetch(birthsUrl,{cache:'no-store'})).arrayBuffer();
+  const txt=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  const L=txt.split('\n');
+  for(let i=1;i<L.length;i++){ if(!L[i])continue; const c=L[i].split(',');
+    rows.push({tick:+c[0],slot:+c[1],lin:+c[2],gen:+c[3],pslot:+c[4],gid:+c[5],pgid:+c[6],mut:+c[7]}); }
   const byLin=new Map(), bySlot=new Map();
   for(const r of rows){ if(!byLin.has(r.lin))byLin.set(r.lin,[]); byLin.get(r.lin).push(r);
     if(!bySlot.has(r.slot))bySlot.set(r.slot,[]); bySlot.get(r.slot).push(r); }

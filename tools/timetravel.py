@@ -196,9 +196,9 @@ cv.onclick = (e) => {{
 }};
 
 function nodeKind(local) {{
-  // substrate layout: [sensors | internals | actions]; thresholds from NodeLayout
-  if (local < 8) return 0;           // sensors region (sensors+junk)
-  if (local < 16) return 1;          // internals region
+  // substrate layout: [sensors | internals | actions]; thresholds from <base>.layout.json
+  if (local < {internal_offset}) return 0;           // sensors region (sensors+junk)
+  if (local < {action_offset}) return 1;          // internals region
   return 2;                          // actions region
 }}
 
@@ -308,9 +308,11 @@ def main():
     obs_dir = path.parent
     metrics = parse_metrics(obs_dir / "metrics.csv")
     events = parse_events(obs_dir / "events.jsonl")
+    layout = json.loads(obs_dir.with_name(obs_dir.name.removesuffix(".obs") + ".layout.json").read_text())
     out = path.with_suffix(".html")
     html = HTML.format(
         tick=tick, world=world, resource=resource,
+        internal_offset=layout["offsets"]["internal"], action_offset=layout["offsets"]["action"],
         units=json.dumps(units, separators=(",", ":")),
         wires=json.dumps(wires, separators=(",", ":")),
         metrics=json.dumps(metrics, separators=(",", ":")),

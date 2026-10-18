@@ -11,14 +11,13 @@ frames are pre-decoded here).
 Usage:  python3 tools/mapviz.py runs/foo.frames.zst   ->  runs/foo.map.html
         (reads runs/foo.frames.idx + runs/foo.catalog.gz + runs/foo.layout.json alongside)
 
-Needs the `zstd` CLI on PATH (the run was produced with zstd-jni; this is the
-offline-bake convenience path). For an ONGOING run, don't bake — serve the run dir
+Needs Python 3.14+ (stdlib compression.zstd). For an ONGOING run, don't bake — serve the run dir
 (scripts/serve-live.sh) and open the viewer; it tails the growing files over HTTP.
 """
 import gzip
 import json
-import subprocess
 import sys
+from compression import zstd
 from pathlib import Path
 
 VIEWER = Path(__file__).resolve().parent.parent / "src" / "main" / "resources" / "live.html"
@@ -54,9 +53,8 @@ def parse_catalog(path):
 
 
 def parse_frames(zst_path):
-    """zstd -d the whole frame stream, parse into the embed payload. u line: cell slot genomeId."""
-    out = subprocess.run(["zstd", "-d", "-c", str(zst_path)],
-                         capture_output=True, check=True).stdout.decode("utf-8")
+    """Decompress the whole frame stream, parse into the embed payload. u line: cell slot genomeId."""
+    out = zstd.decompress(Path(zst_path).read_bytes()).decode("utf-8")
     frames = []
     cur = None
     for line in out.split("\n"):
