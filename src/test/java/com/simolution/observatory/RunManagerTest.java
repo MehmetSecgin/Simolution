@@ -15,6 +15,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.simolution.sim.RunConfig;
 import com.simolution.sim.RunPaths;
@@ -26,6 +28,7 @@ import com.simolution.support.RunDirs;
 class RunManagerTest {
 
     private static final int FOREVER = 1_000_000;
+    private static final double IMMORTAL_ENERGY = 1.0e12;
 
     @TempDir
     Path temp;
@@ -44,6 +47,10 @@ class RunManagerTest {
         manager.close();
     }
 
+    private static Map<String, JsonNode> immortal(final int seed) {
+        return Map.of("seed", IntNode.valueOf(seed), "initialEnergy", DoubleNode.valueOf(IMMORTAL_ENERGY));
+    }
+
     private RunState state(final String dir) throws Exception {
         return manager.status(dir).status();
     }
@@ -55,11 +62,9 @@ class RunManagerTest {
     @Test
     void runsQueueAndPauseHandsTheSlotOnWhileResumeGoesToTheFront() throws Exception {
         // arrange
-        final String a = manager.create(ObservatoryWorld.request("a", FOREVER)).dir();
-        final String b = manager.create(ObservatoryWorld.request("b", FOREVER, Map.of("seed", IntNode.valueOf(8))))
-                .dir();
-        final String c = manager.create(ObservatoryWorld.request("c", FOREVER, Map.of("seed", IntNode.valueOf(9))))
-                .dir();
+        final String a = manager.create(ObservatoryWorld.request("a", FOREVER, immortal(7))).dir();
+        final String b = manager.create(ObservatoryWorld.request("b", FOREVER, immortal(8))).dir();
+        final String c = manager.create(ObservatoryWorld.request("c", FOREVER, immortal(9))).dir();
         awaitState(a, RunState.RUNNING);
         assertEquals(RunState.QUEUED, state(b));
         assertEquals(RunState.QUEUED, state(c));
