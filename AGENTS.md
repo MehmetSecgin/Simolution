@@ -238,7 +238,7 @@ The owner wants autonomous implementation but full understanding. So: small sing
 
 ## Code style
 
-Spotless (Eclipse JDT) owns layout and imports, Checkstyle owns `final` and `var`; `./gradlew check` fails on any breach. Spec: [docs/notes/code-style-design.md](docs/notes/code-style-design.md), decision: [ADR 0049](docs/decisions/0049-code-style.md).
+Spotless (Eclipse JDT) owns layout and imports, Checkstyle owns `final` and `var`; `./gradlew check` fails on a layout, import, final local or parameter, utility-class or `var` breach. Spec: [docs/notes/code-style-design.md](docs/notes/code-style-design.md), decision: [ADR 0049](docs/decisions/0049-code-style.md).
 
 - `final` on every local variable, main and test.
 - `final` on every parameter of a method or constructor with a body, never on interface or abstract methods. A parameter the body reassigns stays non-final and carries `@SuppressWarnings("checkstyle:FinalParameters")`.
