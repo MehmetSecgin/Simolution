@@ -23,8 +23,8 @@ The owner wants one consistent Java style, modelled on the house style of their 
 ## Enforcement
 
 - Spotless with the Eclipse JDT formatter (config written for this repo, not copied from elsewhere) owns layout, import order, unused imports, trailing whitespace and the final newline.
-- Checkstyle owns the `final` and `var` rules it can express: `FinalLocalVariable`, `FinalParameters`, `FinalClass`, `HideUtilityClassConstructor`, `AvoidStarImport`, and a `MatchXpath` ban on `var`.
-- Field finality is not expressible in Checkstyle; it is applied once and kept by the AGENTS.md rule and review.
+- Checkstyle owns the `final` and `var` rules it can express: `FinalLocalVariable`, `FinalParameters`, `FinalClass`, `HideUtilityClassConstructor`, `AvoidStarImport`, `RedundantImport`, and a `MatchXpath` ban on `var`.
+- Field finality, "no other class is final" and the never-final cases (catch, enhanced-for, lambda parameters, methods) are not expressible in Checkstyle; they are applied once and kept by the AGENTS.md rule and review.
 - `./gradlew check` runs all of it.
 
 ## Constraints
