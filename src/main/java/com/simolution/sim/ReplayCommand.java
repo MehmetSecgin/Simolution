@@ -21,7 +21,7 @@ public final class ReplayCommand {
             String obs = null;
             Integer at = null;
             String snapshotOut = null;
-            int threads = RunConfig.allCores();
+            int threads = Runtime.getRuntime().availableProcessors();
             final ArgCursor cursor = new ArgCursor(args);
             while (cursor.hasNext()) {
                 final String flag = cursor.next();
@@ -56,15 +56,9 @@ public final class ReplayCommand {
         if (replay.snapshotOut() == null) {
             System.out.print(dump);
         } else {
-            writeSnapshot(replay.snapshotOut(), dump);
+            RunPaths.createParentDirectory(replay.snapshotOut());
+            Files.writeString(replay.snapshotOut(), dump);
             System.out.println("snapshot at tick " + replay.tick() + " written to " + replay.snapshotOut());
         }
-    }
-
-    private static void writeSnapshot(final Path out, final String dump) throws IOException {
-        if (out.getParent() != null) {
-            Files.createDirectories(out.getParent());
-        }
-        Files.writeString(out, dump);
     }
 }

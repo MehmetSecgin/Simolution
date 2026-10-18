@@ -35,50 +35,14 @@ public final class InflowSpecParser {
 
     private static InflowSource source(final String kind, final Params p) {
         return switch (kind) {
-            case "disk" -> disk(p);
-            case "rect" -> rect(p);
-            case "points" -> points(p);
-            case "noise" -> noise(p);
-            case "ring" -> ring(p);
+            case "disk" -> new InflowSource.Disk(p.fx, p.fy, p.radius, p.peak, p.period, p.phase,
+                    p.motion, p.m0, p.m1, p.motionPeriod);
+            case "rect" -> new InflowSource.Rect(p.fx, p.fy, p.fx1, p.fy1, p.peak, p.period, p.phase, p.m0, p.m1);
+            case "points" -> new InflowSource.Points(p.cells, p.peak, p.period, p.phase);
+            case "noise" -> new InflowSource.Noise(p.seed, p.frequency, p.threshold, p.gain, p.peak, p.animPeriod);
+            case "ring" -> new InflowSource.Ring(p.fx, p.fy, p.wavelength, p.speed, p.peak, p.width);
             default -> throw new IllegalArgumentException("unknown --inflow source: " + kind);
         };
-    }
-
-    private static InflowSource disk(final Params p) {
-        return new InflowSource.Disk(p.fx, p.fy, p.radius, p.peak, p.period, p.phase,
-                p.motion, p.m0, p.m1, p.motionPeriod);
-    }
-
-    private static InflowSource rect(final Params p) {
-        return new InflowSource.Rect(p.fx, p.fy, p.fx1, p.fy1, p.peak, p.period, p.phase, p.m0, p.m1);
-    }
-
-    private static InflowSource points(final Params p) {
-        return new InflowSource.Points(p.cells, p.peak, p.period, p.phase);
-    }
-
-    private static InflowSource noise(final Params p) {
-        return new InflowSource.Noise(p.seed, p.frequency, p.threshold, p.gain, p.peak, p.animPeriod);
-    }
-
-    private static InflowSource ring(final Params p) {
-        return new InflowSource.Ring(p.fx, p.fy, p.wavelength, p.speed, p.peak, p.width);
-    }
-
-    private static String key(final String pair) {
-        return pair.substring(0, separator(pair));
-    }
-
-    private static String value(final String pair) {
-        return pair.substring(separator(pair) + 1);
-    }
-
-    private static int separator(final String pair) {
-        final int eq = pair.indexOf('=');
-        if (eq < 0) {
-            throw new IllegalArgumentException("--inflow expects key=value, got: " + pair);
-        }
-        return eq;
     }
 
     private static class Settings {
@@ -93,9 +57,9 @@ public final class InflowSpecParser {
         void apply(final String[] tokens) {
             for (String token : tokens) {
                 if (token.startsWith("combine=")) {
-                    combine = InflowConfig.Combine.valueOf(value(token).toUpperCase());
+                    combine = InflowConfig.Combine.valueOf(token.split("=", 2)[1].toUpperCase());
                 } else if (token.startsWith("baseline=")) {
-                    baseline = Double.parseDouble(value(token));
+                    baseline = Double.parseDouble(token.split("=", 2)[1]);
                 } else {
                     throw new IllegalArgumentException(
                             "--inflow settings segment expects combine=/baseline=, got: " + token);
@@ -137,8 +101,12 @@ public final class InflowSpecParser {
         }
 
         private void put(final String pair) {
-            final String key = key(pair);
-            final String value = value(pair);
+            final String[] keyValue = pair.split("=", 2);
+            if (keyValue.length < 2) {
+                throw new IllegalArgumentException("--inflow expects key=value, got: " + pair);
+            }
+            final String key = keyValue[0];
+            final String value = keyValue[1];
             switch (key) {
                 case "fx", "fx0" -> fx = Double.parseDouble(value);
                 case "fy", "fy0" -> fy = Double.parseDouble(value);

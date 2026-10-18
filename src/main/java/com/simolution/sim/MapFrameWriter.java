@@ -12,9 +12,10 @@ import com.simolution.kernel.runtime.KernelSnapshot;
 public class MapFrameWriter implements TickObserver, Closeable {
 
     private final ChunkedFrameStream stream;
-    private final FrameSampler sampler;
+    private final MapSampling sampling;
+    private final int sampleEvery;
     private final SlotGenomeCache genomes;
-    private final ResourceLevels resourceLevels;
+    private final double capacity;
     private final int cellCount;
 
     public MapFrameWriter(final OutputStream out, final Writer idx, final GenomeCatalogWriter catalog,
@@ -22,15 +23,16 @@ public class MapFrameWriter implements TickObserver, Closeable {
             throws IOException {
         final int worldWidth = config.world().worldWidth();
         this.cellCount = worldWidth * worldWidth;
-        this.stream = new ChunkedFrameStream(out, idx, worldWidth, sampling.sampleEvery(totalTicks));
-        this.sampler = FrameSampler.of(sampling, totalTicks);
+        this.sampling = sampling;
+        this.sampleEvery = sampling.sampleEvery(totalTicks);
+        this.stream = new ChunkedFrameStream(out, idx, worldWidth, sampleEvery);
         this.genomes = new SlotGenomeCache(cellCount, config.world().maxGenes(), catalog);
-        this.resourceLevels = new ResourceLevels(config.chemicals().get(0).capacity());
+        this.capacity = config.chemicals().get(0).capacity();
     }
 
     @Override
     public void observe(final KernelSnapshot snapshot) throws IOException {
-        if (!sampler.samples(snapshot.tick)) {
+        if (!sampling.samples(snapshot.tick, sampleEvery)) {
             return;
         }
         appendFrameHeader(snapshot.tick);
@@ -49,7 +51,7 @@ public class MapFrameWriter implements TickObserver, Closeable {
         int runLevel = -1;
         int runLength = 0;
         for (int cell = 0; cell < cellCount; cell++) {
-            final int level = resourceLevels.level(field[cell]);
+            final int level = ResourceLevels.level(field[cell], capacity);
             if (level == runLevel) {
                 runLength++;
             } else {

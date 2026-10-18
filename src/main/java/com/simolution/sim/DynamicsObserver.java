@@ -7,6 +7,7 @@ public class DynamicsObserver implements TickObserver {
     private long ticksWithAnyActivity;
     private long propagationsTotal;
     private int peakPopulation;
+    private int population;
     private KernelSnapshot last;
 
     @Override
@@ -16,7 +17,7 @@ public class DynamicsObserver implements TickObserver {
         final int[] active = snapshot.activeThisTick;
         final double[] energy = snapshot.energy;
         long propagations = 0;
-        int population = 0;
+        population = 0;
         for (int slot = 0; slot < active.length; slot++) {
             propagations += active[slot];
             if (energy[slot] > 0.0) {
@@ -43,7 +44,7 @@ public class DynamicsObserver implements TickObserver {
     private DynamicsSummary summaryOf(final KernelSnapshot snapshot, final long finalStateDigest) {
         return new DynamicsSummary(
                 new DynamicsSummary.Activity(ticksWithAnyActivity, propagationsTotal),
-                new DynamicsSummary.Population(peakPopulation, livingCount(snapshot),
+                new DynamicsSummary.Population(peakPopulation, population,
                         distinctLineagesAlive(snapshot), snapshot.birthsTotal, snapshot.maxGeneration),
                 new DynamicsSummary.EnergyLedger(snapshot.creditedInitialEnergy, sum(snapshot.energy),
                         snapshot.energySink, snapshot.initialResourceTotal, snapshot.reservoir(),
@@ -59,16 +60,6 @@ public class DynamicsObserver implements TickObserver {
             total += value;
         }
         return total;
-    }
-
-    private static int livingCount(final KernelSnapshot snapshot) {
-        int count = 0;
-        for (double energy : snapshot.energy) {
-            if (energy > 0.0) {
-                count++;
-            }
-        }
-        return count;
     }
 
     private static int distinctLineagesAlive(final KernelSnapshot snapshot) {

@@ -49,8 +49,8 @@ public final class RunReport {
         line(out, "weight-abs-mean", structure.weightAbsMean());
         line(out, "weight-abs-max", structure.weightAbsMax());
         line(out, "weight-positive-fraction", structure.weightPositiveFraction());
-        line(out, "units-sensor-action-reachable", structure.countReachable());
-        line(out, "units-rand-wired", structure.countRandWired());
+        line(out, "units-sensor-action-reachable", structure.unitsSensorActionReachable());
+        line(out, "units-rand-wired", structure.unitsRandWired());
     }
 
     private static void appendDynamics(final StringBuilder out, final DynamicsSummary dynamics) {

@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 import com.simolution.kernel.EngineVersion;
 import com.simolution.kernel.runtime.Kernel;
@@ -65,12 +66,7 @@ public class RunDirectoryWriter {
 
     private static String sha256Hex(final byte[] bytes) {
         try {
-            final byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
-            final StringBuilder hex = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
-            }
-            return hex.toString();
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }

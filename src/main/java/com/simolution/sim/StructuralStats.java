@@ -7,29 +7,11 @@ public record StructuralStats(
         double weightAbsMean,
         double weightAbsMax,
         double weightPositiveFraction,
-        boolean[] sensorActionReachable,
-        boolean[] randWired
+        int unitsSensorActionReachable,
+        int unitsRandWired
 ) {
 
     public long connectionsJunkTouching() {
         return connectionsCompiled - connectionsMeaningful;
-    }
-
-    public int countReachable() {
-        return count(sensorActionReachable);
-    }
-
-    public int countRandWired() {
-        return count(randWired);
-    }
-
-    private static int count(final boolean[] flags) {
-        int n = 0;
-        for (boolean flag : flags) {
-            if (flag) {
-                n++;
-            }
-        }
-        return n;
     }
 }

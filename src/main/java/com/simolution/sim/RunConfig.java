@@ -34,10 +34,6 @@ public record RunConfig(
     private static final long DEFAULT_SEED = 0L;
     private static final int CELLS_PER_FOUNDER = 4;
 
-    public static int allCores() {
-        return Runtime.getRuntime().availableProcessors();
-    }
-
     public static RunConfig parse(final String[] args) {
         final RunOptions options = RunOptions.read(args);
         options.validate();
@@ -45,13 +41,13 @@ public record RunConfig(
     }
 
     private static RunConfig fromOptions(final RunOptions options) {
-        final int founders = requireNonNullElse(options.founders, DEFAULT_FOUNDERS);
-        final int genes = requireNonNullElse(options.genes, DEFAULT_GENES);
+        final int founders = options.founders;
+        final int genes = options.genes;
         final EngineConfig engine = engineFrom(options, founders, genes);
         requireFoundersFit(engine.world().worldWidth(), founders);
-        return new RunConfig(founders, requireNonNullElse(options.ticks, DEFAULT_TICKS),
+        return new RunConfig(founders, options.ticks,
                 genes, options.trace, options.reportPath, options.mapSampling(),
-                observation(options), withInflow(engine, options), options.threadCount(), options.digestEveryTick);
+                observation(options), withInflow(engine, options), options.threads, options.digestEveryTick);
     }
 
     private static EngineConfig engineFrom(final RunOptions options, final int founders, final int genes) {
@@ -96,7 +92,7 @@ public record RunConfig(
     }
 
     private static Observation observation(final RunOptions options) {
-        return new Observation(options.observe, requireNonNullElse(options.checkpointEvery, DEFAULT_CHECKPOINT_EVERY));
+        return new Observation(options.observe, options.checkpointEvery);
     }
 
     private static EngineConfig loadConfig(final String path) {

@@ -1,38 +1,31 @@
 package com.simolution.sim;
 
-public sealed interface MapSampling {
+public record MapSampling(
+        int frames,
+        int fromTick,
+        int toTick
+) {
 
-    MapSampling OFF = new Off();
-    MapSampling EVERY_TICK = new EveryTick();
+    public static final MapSampling OFF = new MapSampling(0, 1, 0);
+    public static final MapSampling EVERY_TICK = new MapSampling(0, 0, Integer.MAX_VALUE);
 
-    default boolean enabled() {
-        return true;
+    public static MapSampling spread(final int frames) {
+        return new MapSampling(frames, 0, Integer.MAX_VALUE);
     }
 
-    default int sampleEvery(final int totalTicks) {
-        return 1;
+    public static MapSampling window(final int fromTick, final int toTick) {
+        return new MapSampling(0, fromTick, toTick);
     }
 
-    record Off() implements MapSampling {
-
-        @Override
-        public boolean enabled() {
-            return false;
-        }
+    public boolean enabled() {
+        return fromTick <= toTick;
     }
 
-    record EveryTick() implements MapSampling {}
-
-    record Spread(int frames) implements MapSampling {
-
-        @Override
-        public int sampleEvery(final int totalTicks) {
-            return Math.max(1, totalTicks / frames);
-        }
+    public int sampleEvery(final int totalTicks) {
+        return frames == 0 ? 1 : Math.max(1, totalTicks / frames);
     }
 
-    record Window(
-            int fromTick,
-            int toTick
-    ) implements MapSampling {}
+    boolean samples(final int tick, final int every) {
+        return tick >= fromTick && tick <= toTick && tick % every == 0;
+    }
 }

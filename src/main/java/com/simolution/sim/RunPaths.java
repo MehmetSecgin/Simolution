@@ -34,9 +34,9 @@ public record RunPaths(Path report) {
         return sibling(".obs");
     }
 
-    public void createParentDirectory() throws IOException {
-        if (report.getParent() != null) {
-            Files.createDirectories(report.getParent());
+    public static void createParentDirectory(final Path file) throws IOException {
+        if (file.getParent() != null) {
+            Files.createDirectories(file.getParent());
         }
     }
 

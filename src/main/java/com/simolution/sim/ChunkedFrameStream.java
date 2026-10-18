@@ -19,7 +19,6 @@ class ChunkedFrameStream implements Closeable {
     private final Writer idx;
     private final StringBuilder chunk;
     private int firstTickInChunk = -1;
-    private int lastTickInChunk = -1;
     private int framesInChunk;
     private int lastTickOverall = -1;
     private long byteOffset;
@@ -42,7 +41,6 @@ class ChunkedFrameStream implements Closeable {
         if (firstTickInChunk < 0) {
             firstTickInChunk = tick;
         }
-        lastTickInChunk = tick;
         lastTickOverall = tick;
         framesInChunk++;
         if (framesInChunk >= CHUNK_FRAMES) {
@@ -57,13 +55,12 @@ class ChunkedFrameStream implements Closeable {
         final byte[] compressed = Zstd.compress(chunk.toString().getBytes(StandardCharsets.UTF_8), ZSTD_LEVEL);
         out.write(compressed);
         out.flush();
-        idx.write(firstTickInChunk + " " + lastTickInChunk + " " + byteOffset
+        idx.write(firstTickInChunk + " " + lastTickOverall + " " + byteOffset
                 + " " + compressed.length + " " + framesInChunk + "\n");
         idx.flush();
         byteOffset += compressed.length;
         chunk.setLength(0);
         firstTickInChunk = -1;
-        lastTickInChunk = -1;
         framesInChunk = 0;
     }
 
@@ -71,9 +68,7 @@ class ChunkedFrameStream implements Closeable {
     public void close() throws IOException {
         try (idx; out) {
             sealChunk();
-            out.flush();
             idx.write("end " + lastTickOverall + "\n");
-            idx.flush();
         }
     }
 }

@@ -40,7 +40,7 @@ class RunConfigTest {
                 "--map-from", "3", "--map-to", "9"});
 
         // assert
-        assertEquals(new MapSampling.Window(3, 9), config.mapSampling());
+        assertEquals(MapSampling.window(3, 9), config.mapSampling());
     }
 
     @Test
@@ -50,16 +50,16 @@ class RunConfigTest {
                 "--map-from", "-2", "--map-to", "9"});
 
         // assert
-        assertEquals(new MapSampling.Spread(5), config.mapSampling());
+        assertEquals(MapSampling.spread(5), config.mapSampling());
     }
 
     @Test
     void spreadSamplesEveryTicksOverFramesAtLeastOne() {
         // assert
-        assertEquals(2, new MapSampling.Spread(5).sampleEvery(10));
-        assertEquals(1, new MapSampling.Spread(50).sampleEvery(10));
+        assertEquals(2, MapSampling.spread(5).sampleEvery(10));
+        assertEquals(1, MapSampling.spread(50).sampleEvery(10));
         assertEquals(1, MapSampling.EVERY_TICK.sampleEvery(10));
-        assertEquals(1, new MapSampling.Window(3, 9).sampleEvery(10));
+        assertEquals(1, MapSampling.window(3, 9).sampleEvery(10));
     }
 
     @Test

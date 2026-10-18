@@ -41,8 +41,8 @@ public final class StructuralAnalyzer {
 
     public static StructuralStats analyze(final CompiledConnection[] connections, final int founderCount) {
         final WeightTally weights = new WeightTally();
-        final boolean[] reachable = new boolean[founderCount];
-        final boolean[] randWired = new boolean[founderCount];
+        int reachable = 0;
+        int randWired = 0;
         long meaningful = 0;
         long duplicates = 0;
 
@@ -53,8 +53,12 @@ public final class StructuralAnalyzer {
             final UnitWiring wiring = wiringOf(connections, from, to);
             meaningful += wiring.meaningful();
             duplicates += wiring.duplicates();
-            reachable[unit] = wiring.reachable();
-            randWired[unit] = wiring.randWired();
+            if (wiring.reachable()) {
+                reachable++;
+            }
+            if (wiring.randWired()) {
+                randWired++;
+            }
             from = to;
         }
 

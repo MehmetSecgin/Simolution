@@ -27,7 +27,7 @@ class MapFrameWriterTest {
     @Test
     void windowModeEmitsEveryTickOnlyInsideTheWindow() throws Exception {
         // arrange
-        final FrameHarness harness = smallWorld().ticks(8).sampling(new MapSampling.Window(3, 5));
+        final FrameHarness harness = smallWorld().ticks(8).sampling(MapSampling.window(3, 5));
 
         // act
         harness.run();
@@ -53,7 +53,7 @@ class MapFrameWriterTest {
     @Test
     void positiveTargetFramesDownsamples() throws Exception {
         // arrange
-        final FrameHarness harness = smallWorld().ticks(10).sampling(new MapSampling.Spread(5));
+        final FrameHarness harness = smallWorld().ticks(10).sampling(MapSampling.spread(5));
 
         // act
         harness.run();
@@ -66,7 +66,7 @@ class MapFrameWriterTest {
     @Test
     void genomesGoToTheCatalogNotTheFrame() throws Exception {
         // arrange
-        final FrameHarness harness = smallWorld().ticks(6).sampling(new MapSampling.Window(1, 5));
+        final FrameHarness harness = smallWorld().ticks(6).sampling(MapSampling.window(1, 5));
 
         // act
         harness.run();
@@ -85,7 +85,7 @@ class MapFrameWriterTest {
     void noMassOrActionOrNodeOutputsInFrame() throws Exception {
         // arrange
         final FrameHarness harness = FrameHarness.forWorld(6).founders(7L, 9, 12)
-                .ticks(5).sampling(new MapSampling.Window(1, 4));
+                .ticks(5).sampling(MapSampling.window(1, 4));
 
         // act
         harness.run();
@@ -101,7 +101,7 @@ class MapFrameWriterTest {
     @Test
     void chunkIndexOffsetsPointAtChunkStarts() throws Exception {
         // arrange
-        final FrameHarness harness = smallWorld().ticks(5).sampling(new MapSampling.Window(1, 4));
+        final FrameHarness harness = smallWorld().ticks(5).sampling(MapSampling.window(1, 4));
 
         // act
         harness.run();
@@ -119,7 +119,7 @@ class MapFrameWriterTest {
     @Test
     void resourceFieldIsRunLengthEncoded() throws Exception {
         // arrange
-        final FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1));
+        final FrameHarness harness = smallWorld().ticks(1).sampling(MapSampling.window(1, 1));
 
         // act
         harness.run();
@@ -136,7 +136,7 @@ class MapFrameWriterTest {
         // arrange
         final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
         final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        final FrameHarness harness = smallWorld().ticks(1).sampling(new MapSampling.Window(1, 1))
+        final FrameHarness harness = smallWorld().ticks(1).sampling(MapSampling.window(1, 1))
                 .configure(config -> config.withChemicals(List.of(first, second)));
 
         // act

@@ -23,7 +23,6 @@ public class RunArtifacts implements Closeable {
     private final Path obsDir;
     private final List<Closeable> writers = new ArrayList<>();
     private final List<TickObserver> observers = new ArrayList<>();
-    private boolean closed;
 
     private RunArtifacts(final RunPaths paths, final boolean framesEnabled, final Path obsDir) {
         this.paths = paths;
@@ -44,7 +43,7 @@ public class RunArtifacts implements Closeable {
             artifacts.openWriters(config, founders, kernel);
         } catch (IOException | RuntimeException e) {
             try {
-                artifacts.closeAllInReverseOpenOrder();
+                artifacts.close();
             } catch (IOException | RuntimeException suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -63,27 +62,37 @@ public class RunArtifacts implements Closeable {
         }
         Files.writeString(paths.report(), report);
         Files.writeString(paths.timeSeries(), timeSeriesCsv);
-        RunConsole.printOutputPaths(paths, framesEnabled);
+        System.out.println("report written to " + paths.report());
+        System.out.println("time series written to " + paths.timeSeries());
+        System.out.println("lineage / births store written to " + paths.births()
+                + " (query: duckdb -c \"SELECT * FROM '" + paths.births() + "'\")");
+        if (framesEnabled) {
+            System.out.println("spatial map frames written to " + paths.framesZst()
+                    + " (chunked zstd; genome catalog: " + paths.catalog() + ")");
+            System.out.println(
+                    "  view live/scrub:  bash scripts/serve-live.sh  (serves runs/ — open the viewer, it tails these files)");
+            System.out.println("  bake offline:     python3 tools/mapviz.py " + paths.framesZst()
+                    + "  (self-contained .map.html)");
+        }
     }
 
     @Override
     public void close() throws IOException {
-        if (closed) {
-            return;
-        }
-        closed = true;
-        closeAllInReverseOpenOrder();
+        final List<Closeable> toClose = List.copyOf(writers);
+        writers.clear();
+        closeInReverseOrder(toClose);
     }
 
     public void announceObservabilityWritten() {
         if (obsDir != null) {
-            RunConsole.announceObservabilityWritten(obsDir);
+            System.out.println("observability artifacts written to " + obsDir
+                    + "/ (replay: ./gradlew run --args=\"--replay " + obsDir + " --at <tick>\")");
         }
     }
 
     private void openWriters(final RunConfig config, final Founders founders, final Kernel kernel)
             throws IOException {
-        paths.createParentDirectory();
+        RunPaths.createParentDirectory(paths.report());
         Files.writeString(paths.layoutJson(), NodeLayout.toJson());
         final GenomeCatalogWriter catalog = track(new GenomeCatalogWriter(openGzipText(paths.catalog())));
         addWriter(new BirthLogWriter(openGzipText(paths.births()), catalog));
@@ -106,7 +115,8 @@ public class RunArtifacts implements Closeable {
         final int checkpointEvery = config.observation().checkpointEvery();
         final RunDirectoryWriter runDirectory = RunDirectoryWriter.create(obsDir, kernel, checkpointEvery);
         observers.add(snapshot -> runDirectory.checkpointIfDue(kernel));
-        RunConsole.announceObservability(obsDir, checkpointEvery);
+        System.out.println("observability layer writing to " + obsDir + "/ (run.json, events.jsonl, "
+                + "metrics.csv, ckpt/ every " + checkpointEvery + " ticks)");
     }
 
     private <W extends TickObserver & Closeable> void addWriter(final W writer) {
@@ -129,12 +139,6 @@ public class RunArtifacts implements Closeable {
     private Writer openGzipText(final Path file) throws IOException {
         final OutputStream bytes = openBytes(file);
         return track(new OutputStreamWriter(new GZIPOutputStream(bytes), StandardCharsets.UTF_8));
-    }
-
-    private void closeAllInReverseOpenOrder() throws IOException {
-        final List<Closeable> toClose = List.copyOf(writers);
-        writers.clear();
-        closeInReverseOrder(toClose);
     }
 
     static void closeInReverseOrder(final List<? extends Closeable> closeables) throws IOException {

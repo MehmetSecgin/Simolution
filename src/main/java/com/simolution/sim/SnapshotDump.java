@@ -14,7 +14,7 @@ public final class SnapshotDump {
             final EngineConfig config) {
         final StringBuilder out = new StringBuilder(4096);
         appendHeader(out, snapshot);
-        appendHeatmap(out, snapshot, new ResourceLevels(config.chemicals().get(0).capacity()));
+        appendHeatmap(out, snapshot, config.chemicals().get(0).capacity());
         appendUnits(out, snapshot);
         appendWires(out, liveConnections);
         return out.toString();
@@ -26,11 +26,11 @@ public final class SnapshotDump {
     }
 
     private static void appendHeatmap(final StringBuilder out, final KernelSnapshot snapshot,
-            final ResourceLevels levels) {
+            final double capacity) {
         out.append("resource ");
         final int cellCount = snapshot.worldWidth * snapshot.worldWidth;
         for (int cell = 0; cell < cellCount; cell++) {
-            out.append((char) ('0' + levels.level(snapshot.resourceField[cell])));
+            out.append((char) ('0' + ResourceLevels.level(snapshot.resourceField[cell], capacity)));
         }
         out.append('\n');
     }

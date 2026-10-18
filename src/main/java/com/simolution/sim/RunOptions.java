@@ -4,19 +4,19 @@ import java.nio.file.Path;
 
 class RunOptions {
 
-    Integer founders;
-    Integer ticks;
-    Integer genes;
+    int founders = RunConfig.DEFAULT_FOUNDERS;
+    int ticks = RunConfig.DEFAULT_TICKS;
+    int genes = RunConfig.DEFAULT_GENES;
     Integer world;
     Integer maxGenes;
     Long seed;
     String configPath;
     Path reportPath;
-    Integer mapFrames;
+    int mapFrames = -1;
     Integer mapFrom;
     Integer mapTo;
-    Integer checkpointEvery;
-    Integer threads;
+    int checkpointEvery = RunConfig.DEFAULT_CHECKPOINT_EVERY;
+    int threads = Runtime.getRuntime().availableProcessors();
     String inflowSpec;
     Integer cyclePeriod;
     Integer cycleRadius;
@@ -53,23 +53,19 @@ class RunOptions {
         if (mapFrom != null && (mapTo == null || mapTo < mapFrom)) {
             throw new IllegalArgumentException("--map-from requires --map-to >= --map-from");
         }
-        if (threads != null && threads < 1) {
+        if (threads < 1) {
             throw new IllegalArgumentException("--threads must be at least 1, got " + threads);
         }
     }
 
-    int threadCount() {
-        return threads == null ? RunConfig.allCores() : threads;
-    }
-
     MapSampling mapSampling() {
         if (mapFrom != null && mapFrom >= 0) {
-            return new MapSampling.Window(mapFrom, mapTo);
+            return MapSampling.window(mapFrom, mapTo);
         }
-        if (mapFrames == null || mapFrames < 0) {
+        if (mapFrames < 0) {
             return MapSampling.OFF;
         }
-        return mapFrames == 0 ? MapSampling.EVERY_TICK : new MapSampling.Spread(mapFrames);
+        return mapFrames == 0 ? MapSampling.EVERY_TICK : MapSampling.spread(mapFrames);
     }
 
     private boolean acceptSwitch(final String flag) {

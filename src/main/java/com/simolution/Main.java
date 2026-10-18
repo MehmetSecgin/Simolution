@@ -11,9 +11,7 @@ import com.simolution.sim.Founders;
 import com.simolution.sim.ReplayCommand;
 import com.simolution.sim.RunArtifacts;
 import com.simolution.sim.RunConfig;
-import com.simolution.sim.RunConsole;
 import com.simolution.sim.RunReport;
-import com.simolution.sim.RunResult;
 import com.simolution.sim.SimulationRun;
 import com.simolution.sim.StructuralAnalyzer;
 import com.simolution.sim.StructuralStats;
@@ -39,11 +37,15 @@ public final class Main {
         try (Kernel kernel = founders.newKernel(config.threads());
                 RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
             final TickObserver[] observers = observers(config, kernel, dynamics, timeSeries, artifacts);
-            final RunResult result = SimulationRun.execute(kernel, config.ticks(), observers);
+            final long elapsedMillis = SimulationRun.execute(kernel, config.ticks(), observers);
+            final long finalDigest = kernel.stateDigest();
             artifacts.close();
             artifacts.announceObservabilityWritten();
-            final String report = RunReport.render(config, structure, dynamics.summarize(result.finalDigest()));
-            RunConsole.printReport(report, result.elapsedMillis());
+            final String report = RunReport.render(config, structure, dynamics.summarize(finalDigest));
+            System.out.println();
+            System.out.print(report);
+            System.out.println();
+            System.out.println("(wall clock: " + elapsedMillis + " ms — console only, never part of the report)");
             artifacts.writeReport(report, timeSeries.render());
         }
     }

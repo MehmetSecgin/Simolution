@@ -10,7 +10,7 @@ public final class SimulationRun {
     private SimulationRun() {
     }
 
-    public static RunResult execute(final Kernel kernel, final int ticks, final TickObserver[] observers)
+    public static long execute(final Kernel kernel, final int ticks, final TickObserver[] observers)
             throws IOException {
         final long start = System.nanoTime();
         for (int i = 0; i < ticks; i++) {
@@ -20,7 +20,6 @@ public final class SimulationRun {
                 observer.observe(snapshot);
             }
         }
-        final long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
-        return new RunResult(kernel.stateDigest(), elapsedMillis);
+        return (System.nanoTime() - start) / 1_000_000;
     }
 }
