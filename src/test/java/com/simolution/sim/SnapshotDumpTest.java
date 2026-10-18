@@ -11,6 +11,7 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.layout.CompiledConnection;
 import com.simolution.kernel.runtime.Kernel;
+import com.simolution.support.Worlds;
 
 class SnapshotDumpTest {
 
@@ -20,7 +21,7 @@ class SnapshotDumpTest {
         final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
         final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
         final EngineConfig config = EngineConfig.defaults(0L, 4, 8).withChemicals(List.of(first, second));
-        final Kernel kernel = new Kernel(GenomeFactory.random(1L, 4, 8), Kernel.scatterFounders(0L, 4, 4), config, 1);
+        final Kernel kernel = Worlds.randomKernel(1L, 4, 8, config);
         kernel.tick();
 
         // act

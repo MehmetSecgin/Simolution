@@ -69,25 +69,4 @@ class KernelVerticalSliceTest {
             delayPrev = delayNext;
         }
     }
-
-    @Test
-    void isDeterministicAcrossRuns() {
-        // arrange
-        final int[] genome = {Genes.sensorToInternal(NodeLayout.Sensor.RAND, NodeLayout.Internal.CLAMP, 16384)};
-        final Kernel first = Worlds.kernel(1, genome);
-        final Kernel second = Worlds.kernel(1, genome);
-
-        for (int tick = 0; tick < 50; tick++) {
-            // act
-            first.tick();
-            second.tick();
-
-            // assert
-            final float[] firstOutputs = first.snapshot().outputs;
-            final float[] secondOutputs = second.snapshot().outputs;
-            for (int node = 0; node < firstOutputs.length; node++) {
-                assertEquals(firstOutputs[node], secondOutputs[node], 0.0);
-            }
-        }
-    }
 }

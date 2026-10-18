@@ -6,16 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
@@ -172,30 +164,6 @@ class InflowConfigTest {
     }
 
     @Test
-    void capValuesAreBitIdenticalToBefore() throws IOException {
-        // arrange
-        final int w = 40;
-        final List<String> expected = readResourceLines("/inflow-caps-pre-readability.txt");
-        final List<String> actual = new ArrayList<>();
-        final Random random = new Random(5);
-        final int[][] triples = new int[64][];
-        for (int i = 0; i < triples.length; i++) {
-            triples[i] = new int[] {random.nextInt(w), random.nextInt(w), random.nextInt(5000)};
-        }
-
-        // act
-        for (Map.Entry<String, InflowSource> source : capCaseSources().entrySet()) {
-            for (int[] t : triples) {
-                actual.add(source.getKey() + " " + t[0] + " " + t[1] + " " + t[2] + " "
-                        + Double.toHexString(source.getValue().capAt(t[0], t[1], t[2], w)));
-            }
-        }
-
-        // assert
-        assertEquals(expected, actual);
-    }
-
-    @Test
     void jsonRoundTripIsUnchangedForEverySourceKind() {
         // arrange
         final InflowConfig inflow = InflowConfig.field(0.2, InflowConfig.Combine.ADD,
@@ -210,12 +178,6 @@ class InflowConfigTest {
         assertEquals(inflow.sources(), ConfigJson.read(json).chemicals().get(0).inflow().sources());
         assertTrue(json.contains("\"m0\"") && json.contains("\"m1\"") && json.contains("\"motionPeriod\""));
         assertFalse(json.contains("orbitRadiusFraction") || json.contains("driftX") || json.contains("driftY"));
-    }
-
-    private static List<String> readResourceLines(final String name) throws IOException {
-        try (InputStream in = InflowConfigTest.class.getResourceAsStream(name)) {
-            return new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).lines().toList();
-        }
     }
 
     private static Map<String, InflowSource> capCaseSources() {

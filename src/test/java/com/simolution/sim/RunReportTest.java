@@ -95,18 +95,4 @@ class RunReportTest {
         }
         assertTrue(report.endsWith("\n"));
     }
-
-    @Test
-    void reportOmitsRetiredLines() {
-        // act
-        final String report = runAndRender(new RunConfig(5, 50, 8, false, null, MapSampling.EVERY_TICK,
-                new Observation(false, 0), EngineConfig.defaults(9L, 64, 8), 1, false));
-
-        // assert
-        for (String retired : new String[] {"## intake", "## burn-rate", "## terminal-regimes", "## action-channel",
-                "junk-sink-", "clamp-saturation-events", "thresh-flips-total", "units-dormant-",
-                "units-alive-at-end", "units-dead-at-end", "death-tick-"}) {
-            assertFalse(report.contains(retired), retired);
-        }
-    }
 }

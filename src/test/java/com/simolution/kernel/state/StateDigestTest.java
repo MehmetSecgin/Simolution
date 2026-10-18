@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.phase.ParallelRunner;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.sim.GenomeFactory;
+import com.simolution.support.Worlds;
 
 class StateDigestTest {
 
@@ -19,8 +19,7 @@ class StateDigestTest {
 
     private static Kernel kernel(final int threads) {
         final EngineConfig config = EngineConfig.defaults(SEED, WORLD, GENES * 2);
-        return new Kernel(GenomeFactory.random(SEED, FOUNDERS, GENES),
-                Kernel.scatterFounders(SEED, FOUNDERS, WORLD), config, threads);
+        return Worlds.randomKernel(SEED, FOUNDERS, GENES, config, threads);
     }
 
     private static long finalDigest(final int threads) {
@@ -95,8 +94,7 @@ class StateDigestTest {
         // act
         final long first = finalDigest(1);
         final long second;
-        try (Kernel k = new Kernel(GenomeFactory.random(SEED + 1, FOUNDERS, GENES),
-                Kernel.scatterFounders(SEED + 1, FOUNDERS, WORLD), other, 1)) {
+        try (Kernel k = Worlds.randomKernel(SEED + 1, FOUNDERS, GENES, other)) {
             k.step(200);
             second = k.stateDigest();
         }
