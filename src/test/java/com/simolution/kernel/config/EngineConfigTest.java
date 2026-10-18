@@ -65,15 +65,8 @@ class EngineConfigTest {
     @Test
     void rejectsBadChemicalTable() {
         final EngineConfig config = EngineConfig.defaults(1L, 10, 8);
-        final ChemicalSpec first = config.chemicals().get(0);
-        final ChemicalSpec selfDecay = new ChemicalSpec("a", first.inflow(), 1.0, 0.0, 0.1, 0.1, 0);
-        final ChemicalSpec outOfRange = new ChemicalSpec("a", first.inflow(), 1.0, 0.0, 0.1, 0.1, 3);
 
         assertThrows(IllegalArgumentException.class, () -> config.withChemicals(List.of()));
-        assertTrue(assertThrows(IllegalArgumentException.class, () -> config.withChemicals(List.of(selfDecay)))
-                .getMessage().contains("decayTarget"));
-        assertTrue(assertThrows(IllegalArgumentException.class, () -> config.withChemicals(List.of(outOfRange)))
-                .getMessage().contains("decayTarget"));
     }
 
     @Test

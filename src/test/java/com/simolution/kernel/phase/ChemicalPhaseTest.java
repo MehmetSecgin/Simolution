@@ -1,9 +1,6 @@
 package com.simolution.kernel.phase;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
@@ -13,7 +10,6 @@ import com.simolution.kernel.config.ChemicalSpec;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.state.WorldState;
 
 class ChemicalPhaseTest {
 
@@ -28,35 +24,10 @@ class ChemicalPhaseTest {
     }
 
     @Test
-    void decayIntoAnotherChemicalConserves() {
-        // arrange
-        final ChemicalSpec source =
-                new ChemicalSpec("source", InflowConfig.uniform(1.0), 100.0, 50.0, DIFFUSION, DECAY, 1);
-        final ChemicalSpec product =
-                new ChemicalSpec("product", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, 0.0, -1);
-        final Kernel kernel = emptyKernel(List.of(source, product));
-
-        // act
-        for (int i = 0; i < 50; i++) {
-            kernel.tick();
-        }
-
-        // assert
-        final WorldState snapshot = kernel.snapshot();
-        double productTotal = 0.0;
-        for (int cell = 0; cell < CELLS; cell++) {
-            productTotal += snapshot.cellChem[CELLS + cell];
-        }
-        assertTrue(productTotal > 0.0, "chemical 1 must receive the decayed share of chemical 0");
-        assertEquals(snapshot.initialResourceTotal + snapshot.cumulativeInflow,
-                snapshot.reservoir() + snapshot.energySink, 1.0e-9);
-    }
-
-    @Test
     void decayToSinkMatchesV5() {
         // arrange
         final ChemicalSpec resource =
-                new ChemicalSpec("resource", InflowConfig.uniform(0.0), 100.0, 50.0, DIFFUSION, DECAY, -1);
+                new ChemicalSpec("resource", InflowConfig.uniform(0.0), 100.0, 50.0, DIFFUSION, DECAY);
         final Kernel kernel = emptyKernel(List.of(resource));
         final double[] expected = new double[CELLS];
         java.util.Arrays.fill(expected, 50.0);
@@ -72,19 +43,6 @@ class ChemicalPhaseTest {
 
         // assert
         assertArrayEquals(expected, kernel.snapshot().cellChem, 0.0);
-    }
-
-    @Test
-    void chemicalDecayTargetMustBeASinkOrAnotherChemical() {
-        // arrange
-        final ChemicalSpec selfTarget =
-                new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 0);
-        final ChemicalSpec outOfRange =
-                new ChemicalSpec("a", InflowConfig.uniform(0.0), 100.0, 0.0, DIFFUSION, DECAY, 1);
-
-        // assert
-        assertThrows(IllegalArgumentException.class, () -> emptyKernel(List.of(selfTarget)));
-        assertThrows(IllegalArgumentException.class, () -> emptyKernel(List.of(outOfRange)));
     }
 
     private static void referenceDiffusion(final double[] field) {

@@ -20,7 +20,7 @@ class EvaluatePhaseTest {
     private static final int CELLS = WORLD_WIDTH * WORLD_WIDTH;
 
     private static ChemicalSpec chemical(final String name, final double capacity) {
-        return new ChemicalSpec(name, InflowConfig.uniform(1.0), capacity, 0.0, 0.1, 0.02, -1);
+        return new ChemicalSpec(name, InflowConfig.uniform(1.0), capacity, 0.0, 0.1, 0.02);
     }
 
     @Test

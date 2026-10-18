@@ -68,8 +68,8 @@ public class Kernel implements AutoCloseable {
      * sized to the pool's full capacity {@code unitCount · maxGenes} up front
      * (contract v2 §12 footprint note).
      * <p>
-     * The chemical table is any number of chemicals; each decays to the sink
-     * ({@code decayTarget == -1}) or into another chemical. Chemical 0 is the one
+     * The chemical table is any number of chemicals; each decays to the sink.
+     * Chemical 0 is the one
      * units sense and harvest.
      * <p>
      * {@code threads} sizes the {@link ParallelRunner} the kernel owns (close the kernel to

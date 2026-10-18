@@ -105,7 +105,7 @@ com.simolution
 └── kernel
     ├── config
     │   ├── EngineConfig      per-run law constants as one immutable record grouped into `World`, `Founder`, `Metabolism`, `Harvest`, `Motility`, `Growth`, `Sensing`, `Reproduction`, `Mutation` (plus the chemical table); `defaults(seed, worldWidth, maxGenes)` and `with…` copies; JSON stays flat through `ConfigJson` (`--config`)
-    │   ├── ChemicalSpec      one diffusing field: inflow, capacity, initial, diffusion, decay, decay target (ADR 0042)
+    │   ├── ChemicalSpec      one diffusing field: inflow, capacity, initial, diffusion, decay to the sink (ADR 0042, 0051)
     │   └── InflowConfig / InflowSource / CompiledInflowField / ValueNoise   programmable inflow field (contract-v7), static sources baked once
     ├── layout
     │   ├── NodeCatalog/NodeSpec  declared sensors, internals, actions + junk counts (ADR 0038)

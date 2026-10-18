@@ -43,6 +43,9 @@ energySink         += lost
 * `RESOURCE_DECAY_RATE = 0.02` (≈35-tick half-life). Exponential relaxation: a cell
   with no inflow decays toward 0; a cell with steady inflow `I` settles at the
   fixed point `I / RESOURCE_DECAY_RATE` (capped at `CELL_CAPACITY`).
+* With a chemical table (ADR 0042) every chemical decays this way, each at its own
+  `decayRate`, and always to the sink. The configurable decay target (decay into
+  another chemical) was removed unused (ADR 0051).
 * `CELL_INITIAL = 0`. The field **starts empty** — only inflow sources hold
   resource, so the map begins dark and fills according to the pattern rather than
   starting pre-loaded.

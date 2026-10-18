@@ -18,8 +18,8 @@ class SnapshotDumpTest {
     @Test
     void resourceRowHoldsOneDigitPerCellWithTwoChemicals() {
         // arrange
-        final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02);
+        final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02);
         final EngineConfig config = EngineConfig.defaults(0L, 4, 8).withChemicals(List.of(first, second));
         final Kernel kernel = Worlds.randomKernel(1L, 4, 8, config);
         kernel.tick();

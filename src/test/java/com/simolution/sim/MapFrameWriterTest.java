@@ -134,8 +134,8 @@ class MapFrameWriterTest {
     @Test
     void secondChemicalDoesNotWidenTheResourceField() throws Exception {
         // arrange
-        final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
-        final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02, -1);
+        final ChemicalSpec first = new ChemicalSpec("first", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02);
+        final ChemicalSpec second = new ChemicalSpec("second", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02);
         final FrameHarness harness = smallWorld().ticks(1).sampling(MapSampling.window(1, 1))
                 .configure(config -> config.withChemicals(List.of(first, second)));
 

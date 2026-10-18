@@ -1,9 +1,7 @@
 package com.simolution.kernel.config;
 
 /**
- * One diffusing resource field of the world. {@code decayTarget == -1} dissipates the
- * decayed share to the energy sink; another chemical's index moves the decayed share into
- * that chemical.
+ * One diffusing resource field of the world. Its decayed share goes to the energy sink.
  */
 public record ChemicalSpec(
         String name,
@@ -11,9 +9,5 @@ public record ChemicalSpec(
         double capacity,
         double initial,
         double diffusionRate,
-        double decayRate,
-        int decayTarget
-) {
-
-    public static final int SINK = -1;
-}
+        double decayRate
+) {}

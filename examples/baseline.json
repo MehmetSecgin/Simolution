@@ -12,8 +12,7 @@
     "capacity" : 100.0,
     "initial" : 0.0,
     "diffusionRate" : 0.1,
-    "decayRate" : 0.02,
-    "decayTarget" : -1
+    "decayRate" : 0.02
   } ],
   "initialEnergy" : 1000.0,
   "basalCost" : 0.5,

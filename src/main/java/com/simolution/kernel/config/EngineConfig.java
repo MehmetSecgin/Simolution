@@ -33,14 +33,6 @@ public record EngineConfig(
             Checks.nonNegative(at + "initial", chemical.initial());
             Checks.unitInterval(at + "diffusionRate", chemical.diffusionRate());
             Checks.unitInterval(at + "decayRate", chemical.decayRate());
-            final int target = chemical.decayTarget();
-            if (target < ChemicalSpec.SINK || target >= chemicals.size()) {
-                throw new IllegalArgumentException(at + "decayTarget " + target
-                        + " is neither -1 (sink) nor a chemical index");
-            }
-            if (target == k) {
-                throw new IllegalArgumentException(at + "decayTarget cannot be the chemical itself");
-            }
         }
     }
 
@@ -48,8 +40,7 @@ public record EngineConfig(
         return new EngineConfig(
                 seed,
                 new World(worldWidth, maxGenes),
-                List.of(new ChemicalSpec("resource", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02,
-                        ChemicalSpec.SINK)),
+                List.of(new ChemicalSpec("resource", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02)),
                 new Founder(1000.0, 1.0),
                 new Metabolism(0.5, 0.06, 0.5, 0.0005),
                 new Harvest(1.5, 1.0, 0.5),
@@ -82,7 +73,7 @@ public record EngineConfig(
         final ChemicalSpec first = chemicals.get(0);
         final List<ChemicalSpec> updated = new ArrayList<>(chemicals);
         updated.set(0, new ChemicalSpec(first.name(), inflow, first.capacity(), first.initial(),
-                first.diffusionRate(), first.decayRate(), first.decayTarget()));
+                first.diffusionRate(), first.decayRate()));
         return withChemicals(updated);
     }
 
