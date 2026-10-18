@@ -71,7 +71,7 @@ function outcomes() {
 }
 
 function charts() {
-  const maxX = Math.max(1, ...view.result.runs.map((r) => Math.max(r.targetTicks, ticksDone(r))));
+  const maxX = Math.max(1, ...view.result.runs.map((r) => Math.max(r.manifest ? r.manifest.targetTicks : 0, ticksDone(r))));
   for (const chart of CHARTS) {
     const canvas = $('cmp-' + chart.key);
     drawChart(canvas, view.metrics.map((m, i) => ({ x: m.tick, y: m[chart.key], colour: COLOURS[i] })), {
