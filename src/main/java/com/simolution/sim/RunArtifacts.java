@@ -99,7 +99,7 @@ public class RunArtifacts implements Closeable {
             addWriter(new MapFrameWriter(openBytes(paths.framesZst()), openText(paths.framesIdx()), catalog,
                     config.ticks(), config.mapSampling(), kernel.config()));
         }
-        addWriter(new EventLogWriter(openText(paths.events()), kernel.state(), config.founderCount()));
+        addWriter(new EventLogWriter(openGzipText(paths.events()), kernel.state(), config.founderCount()));
         addWriter(new MetricsWriter(openText(paths.metrics()), config.founderCount()));
         observers.add(snapshot -> checkpoints.checkpointIfDue(kernel));
     }

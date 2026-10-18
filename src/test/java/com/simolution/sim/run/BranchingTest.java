@@ -4,12 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -69,8 +72,14 @@ class BranchingTest {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
     }
 
+    private static List<String> eventLines(final Path events) throws IOException {
+        try (InputStream in = new GZIPInputStream(Files.newInputStream(events))) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8).lines().toList();
+        }
+    }
+
     private static List<String> eventsAfter(final Path events, final int tick) throws IOException {
-        return Files.readAllLines(events).stream()
+        return eventLines(events).stream()
                 .filter(line -> Integer.parseInt(line.substring(5, line.indexOf(','))) > tick)
                 .map(line -> line.replaceAll(",\"(lifespan|peakMembers|maxGeneration)\":-?[0-9]+", ""))
                 .toList();
@@ -119,7 +128,7 @@ class BranchingTest {
         assertFalse(branchEvents.isEmpty());
         assertEquals(eventsAfter(new RunPaths(parent).events(), BUSY_TICK).subList(0, branchEvents.size()),
                 branchEvents);
-        assertEquals(branchEvents.size(), Files.readAllLines(branch.events()).size());
+        assertEquals(branchEvents.size(), eventLines(branch.events()).size());
     }
 
     @Test

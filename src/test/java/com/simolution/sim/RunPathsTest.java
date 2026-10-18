@@ -22,7 +22,7 @@ class RunPathsTest {
         assertEquals(dir.resolve("run.json"), paths.manifest());
         assertEquals(dir.resolve("status.json"), paths.status());
         assertEquals(dir.resolve("metrics.csv"), paths.metrics());
-        assertEquals(dir.resolve("events.jsonl"), paths.events());
+        assertEquals(dir.resolve("events.jsonl.gz"), paths.events());
         assertEquals(dir.resolve("ckpt"), paths.checkpoints());
         assertEquals(dir.resolve("frames.zst"), paths.framesZst());
         assertEquals(dir.resolve("frames.idx"), paths.framesIdx());

@@ -1,7 +1,7 @@
 # run-directory-v1: one run directory for the CLI and the Observatory
 
 **Status:** implemented 2026-10-18 · **Kernel:** v6.1 (unchanged) · **Report:** report-v15 (unchanged)
-**ADRs:** [0055](../decisions/0055-one-run-directory.md), [0056](../decisions/0056-branch-restore-and-live-frame.md)
+**ADRs:** [0055](../decisions/0055-one-run-directory.md), [0056](../decisions/0056-branch-restore-and-live-frame.md), [0060](../decisions/0060-gzip-event-log.md)
 **Delta over:** [report-v8](report-v8.md) (metrics, events, run directory) and [report-v14](report-v14.md) (frame row)
 
 ## Why
@@ -20,7 +20,7 @@ The CLI wrote a report with sidecars beside it (`<base>.frames.zst`, `<base>.obs
 | `layout.json` | `NodeLayout.toJson()` | always |
 | `ckpt/<tick>.ckpt` | checkpoint format 3: the first tick, then every `checkpointEvery` ticks (default 500, `--checkpoint-every`) | always |
 | `metrics.csv` | one row per tick | always |
-| `events.jsonl` | births, deaths, extinctions | always |
+| `events.jsonl.gz` | births, deaths, extinctions | always |
 | `births.csv.gz`, `catalog.gz` | lineage store and genome catalog | always |
 | `frames.zst`, `frames.idx` | map frames | with `--map-frames` or `--map-from/--map-to` |
 | `report.txt` | report-v15, written at the end | at the end |
@@ -77,9 +77,9 @@ tick,population,lineages_alive,births_cum,deaths_cum,energy_total,field_total,si
 - `top_lineage`: the founder lineage with the most living units; a tie goes to the lowest id; `-1` when no unit is alive.
 - `top_lineage_share`: its members over the population, `0` when no unit is alive.
 
-## `events.jsonl` delta over report-v8
+## `events.jsonl.gz` delta over report-v8
 
-The format is unchanged. On a branch the writer starts from the restored state, so no false event appears at the branch tick. Two fields then cover the branch span only: a `DEATH`'s `lifespan` is `-1` for a unit born before the branch tick, and an `EXTINCTION`'s `peakMembers` and `maxGeneration` count from the branch tick.
+The file is gzipped like `births.csv.gz`; DuckDB reads it directly (`read_json_auto('events.jsonl.gz')`). The lines inside are unchanged. On a branch the writer starts from the restored state, so no false event appears at the branch tick. Two fields then cover the branch span only: a `DEATH`'s `lifespan` is `-1` for a unit born before the branch tick, and an `EXTINCTION`'s `peakMembers` and `maxGeneration` count from the branch tick.
 
 ## Frame delta over report-v14
 

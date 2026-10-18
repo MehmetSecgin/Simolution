@@ -25,7 +25,7 @@ public record RunPaths(Path dir) {
     }
 
     public Path events() {
-        return dir.resolve("events.jsonl");
+        return dir.resolve("events.jsonl.gz");
     }
 
     public Path checkpoints() {

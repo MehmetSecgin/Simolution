@@ -52,7 +52,7 @@ Next: sensors that read beyond the own cell, several resources with separate har
 #   Founders (--units N) must fit: N ≤ W². Default if omitted: W = ceil(sqrt(units·4)).
 # --out runs/<dir> writes one run directory (docs/specs/run-directory-v1.md, ADR 0055):
 #   run.json, status.json, config.json, layout.json (node names, offsets, junk ranges, gene
-#   bit layout: the viewers read it), ckpt/<tick>.ckpt, metrics.csv, events.jsonl,
+#   bit layout: the viewers read it), ckpt/<tick>.ckpt, metrics.csv, events.jsonl.gz,
 #   catalog.gz, births.csv.gz and report.txt. Map frames are opt-in (below).
 #   `--out runs/x.txt` is refused: --out names a directory.
 
@@ -67,7 +67,7 @@ Next: sensors that read beyond the own cell, several resources with separate har
 # creation (the branch tick for a branch), then every --checkpoint-every ticks. Checkpoints from
 # another engine version or format are refused. Seek, branch and re-run happen in the Observatory.
 ./gradlew run --args="--units 100 --ticks 1000 --seed 42 --world 100 --out runs/foo --checkpoint-every 500"
-# aggregate queries go straight to DuckDB over events.jsonl / metrics.csv (no JVM dep)
+# aggregate queries go straight to DuckDB over events.jsonl.gz / metrics.csv (no JVM dep)
 
 # lineage / "what happened to who": every --out run writes <dir>/births.csv.gz
 # (tick,child_slot,lineage,generation,parent_slot,child_genome_id,parent_genome_id,mutated).
@@ -134,7 +134,7 @@ com.simolution.sim            run harness + observer (laws stay in kernel, inter
 ├── MapFrameWriter            writes map frames: `MapSampling` picks the ticks, `SlotGenomeCache` maps slots to catalog ids, `ResourceLevels` quantises the field, `ChunkedFrameStream` seals 256-frame zstd level 9 chunks into frames.zst (run-directory-v1: row `u <cell> <slot> <genomeId> <lineage>`; RLE resource field) and the ASCII frames.idx (`<firstTick> <lastTick> <off> <len> <count>`, one zstd chunk per `FrameReader` read); O(one open chunk) RAM; a running run's live frame comes from `LatestFrame`, not the idx
 ├── GenomeCatalogWriter       <base>.catalog.gz: gzipped global write-once genome dictionary (`g <id> <count> <genes>`), whole-loaded + native-gunzipped by the viewer; frames carry the id
 ├── BirthLogWriter            <base>.births.csv.gz: one row per birth from the engine's birth list (lineage/generation/parent exact, genome ids from the shared catalog); DuckDB-queryable lineage store
-├── EventLogWriter            events.jsonl: births from the birth list, deaths/extinctions derived from snapshot deltas, seeded from the start state (a branch logs no false events); mutation bits by child↔parent gene diff (no kernel hook)
+├── EventLogWriter            events.jsonl.gz: births from the birth list, deaths/extinctions derived from snapshot deltas, seeded from the start state (a branch logs no false events); mutation bits by child↔parent gene diff (no kernel hook)
 ├── MetricsWriter             metrics.csv: per-tick aggregates incl. top lineage and its share, streamed, O(1)/tick
 └── run
     ├── RunManifest / RunStatus / RunState / RunOrigin   run.json, status.json and their states (Jackson)

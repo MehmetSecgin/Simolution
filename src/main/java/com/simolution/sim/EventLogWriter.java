@@ -7,7 +7,7 @@ import java.util.Arrays;
 
 import com.simolution.kernel.state.WorldState;
 
-/** Streams birth, death and extinction events to events.jsonl; format in docs/specs/run-directory-v1.md. */
+/** Streams birth, death and extinction events to events.jsonl.gz; format in docs/specs/run-directory-v1.md. */
 public class EventLogWriter implements TickObserver, Closeable {
 
     private static final int BORN_BEFORE_START = -1;
