@@ -49,7 +49,6 @@ public final class ConfigJson {
             double costPerPropagation,
             double harvestCapacityPerConnection,
             double harvestHalfSaturation,
-            double harvestMassExponent,
             double moveCostBase,
             double moveCostPerMass,
             double moveDeadzone,
@@ -128,7 +127,6 @@ public final class ConfigJson {
                 metabolism.costPerPropagation(),
                 harvest.capacityPerConnection(),
                 harvest.halfSaturation(),
-                harvest.massExponent(),
                 motility.fixedCost(),
                 motility.costPerMass(),
                 motility.deadzone(),
@@ -154,8 +152,7 @@ public final class ConfigJson {
         final Founder founder = new Founder(flat.initialEnergy(), flat.initialMass());
         final Metabolism metabolism =
                 new Metabolism(flat.basalCost(), flat.costPerPropagation(), flat.maintPerMass(), flat.agingCost());
-        final Harvest harvest = new Harvest(flat.harvestCapacityPerConnection(), flat.harvestHalfSaturation(),
-                flat.harvestMassExponent());
+        final Harvest harvest = new Harvest(flat.harvestCapacityPerConnection(), flat.harvestHalfSaturation());
         final Motility motility = new Motility(flat.moveCostBase(), flat.moveCostPerMass(), flat.moveDeadzone());
         final Sensing sensing = new Sensing(flat.selfEnergyScale(), flat.selfMassScale());
         final Growth growth = new Growth(flat.growMax(), flat.growHalfSaturation(), flat.growYield());

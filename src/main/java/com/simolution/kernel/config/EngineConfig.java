@@ -43,7 +43,7 @@ public record EngineConfig(
                 List.of(new ChemicalSpec("resource", InflowConfig.uniform(1.0), 100.0, 0.0, 0.1, 0.02)),
                 new Founder(1000.0, 1.0),
                 new Metabolism(0.5, 0.06, 0.5, 0.0005),
-                new Harvest(1.5, 1.0, 0.5),
+                new Harvest(1.5, 1.0),
                 new Motility(0.2, 0.1, 0.1),
                 new Growth(5.0, 1.0, 0.8),
                 new Sensing(2000.0, 10.0),

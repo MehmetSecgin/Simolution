@@ -280,8 +280,9 @@ mandatory baseline pass, not targets:
 * `MAINT_PER_MASS` — energy/tick of maintenance per unit mass (§3). Replaces
   `STORAGE_LEAK_RATE`. Sets, against `HARVEST_CAPACITY_PER_CONNECTION` and `α`, the
   optimal size.
-* `α = 0.5` (`HARVEST_MASS_EXPONENT`) — the sublinear surface exponent on harvest
-  (§4); the single hand-asserted surface law.
+* `α = 0.5` — the sublinear surface exponent on harvest (§4); the single
+  hand-asserted surface law. Fixed in the engine as `sqrt` since ADR 0052, no longer
+  a config constant.
 * `GROW_MAX` — ceiling on energy converted to mass per tick (§2).
 * `GROW_HALF_SATURATION` — the σ half-saturation for the `GROW` drive (§2).
 * `GROW_YIELD` (< 1) — anabolic efficiency; `1 − GROW_YIELD` dissipates to sink.

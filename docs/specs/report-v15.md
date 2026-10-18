@@ -1,6 +1,6 @@
 # report-v15: engine v6 report, parallel state digest, observer without founder state
 
-**Kernel:** v6 (`kernel: v6`, `schema: report-v15`)
+**Kernel:** v6 (`kernel: v6`, `schema: report-v15`; `kernel: v6.1` since ADR 0052)
 **Delta over:** [report-v14](report-v14.md) (frame, catalog and births formats are unchanged)
 **Design:** [engine-v6-design.md](../notes/engine-v6-design.md) §6 (semantic changes) and §7 (observer, digest)
 

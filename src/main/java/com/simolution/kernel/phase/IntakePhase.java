@@ -23,15 +23,11 @@ public class IntakePhase implements Phase {
     private final WorldState state;
     private final double harvestCapacityPerConnection;
     private final double harvestHalfSaturation;
-    private final double harvestMassExponent;
-    private final boolean sqrtHarvest;
 
     public IntakePhase(final WorldState state, final EngineConfig config) {
         this.state = state;
         this.harvestCapacityPerConnection = config.harvest().capacityPerConnection();
         this.harvestHalfSaturation = config.harvest().halfSaturation();
-        this.harvestMassExponent = config.harvest().massExponent();
-        this.sqrtHarvest = harvestMassExponent == 0.5;
     }
 
     @Override
@@ -56,35 +52,18 @@ public class IntakePhase implements Phase {
         final int[] position = state.position;
         final double[] cellChem = state.cellChem;
 
-        if (sqrtHarvest) {
-            for (int unit = from; unit < to; unit++) {
-                if (energy[unit] <= 0.0) {
-                    continue;
-                }
-                final double drive = harvestDrive(unit);
-                if (drive <= 0.0) {
-                    continue;
-                }
-                final int cell = position[unit];
-                final double intake = Math.min(drive * Math.sqrt(mass[unit]), cellChem[cell]);
-                energy[unit] += intake;
-                cellChem[cell] -= intake;
+        for (int unit = from; unit < to; unit++) {
+            if (energy[unit] <= 0.0) {
+                continue;
             }
-        } else {
-            for (int unit = from; unit < to; unit++) {
-                if (energy[unit] <= 0.0) {
-                    continue;
-                }
-                final double drive = harvestDrive(unit);
-                if (drive <= 0.0) {
-                    continue;
-                }
-                final int cell = position[unit];
-                final double intake = Math.min(drive * StrictMath.pow(mass[unit], harvestMassExponent),
-                        cellChem[cell]);
-                energy[unit] += intake;
-                cellChem[cell] -= intake;
+            final double drive = harvestDrive(unit);
+            if (drive <= 0.0) {
+                continue;
             }
+            final int cell = position[unit];
+            final double intake = Math.min(drive * StrictMath.sqrt(mass[unit]), cellChem[cell]);
+            energy[unit] += intake;
+            cellChem[cell] -= intake;
         }
     }
 
@@ -107,10 +86,8 @@ public class IntakePhase implements Phase {
      * A non-finite output is unreadable garbage, not a harvest action, so it
      * demands nothing; {@code max(0, …)} also means you cannot un-eat.
      * <p>
-     * This returns the demand per unit of {@code mass^α}: the caller multiplies by the mass term,
-     * which is exact {@code sqrt} when {@code α = 1/2} and {@link StrictMath#pow} otherwise, fixed
-     * once at construction so the per-unit loop never tests the exponent. {@code α = 1/2} is the
-     * default, and {@code sqrt} is correctly rounded on every machine.
+     * This returns the demand per unit of {@code mass^α}: the caller multiplies by
+     * {@code sqrt(mass)} ({@code α = 1/2}, ADR 0052), which is correctly rounded on every machine.
      */
     private double harvestDrive(final int unit) {
         final float[] outputsPrev = state.outputsPrev;

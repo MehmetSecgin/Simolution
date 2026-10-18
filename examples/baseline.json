@@ -19,7 +19,6 @@
   "costPerPropagation" : 0.06,
   "harvestCapacityPerConnection" : 1.5,
   "harvestHalfSaturation" : 1.0,
-  "harvestMassExponent" : 0.5,
   "moveCostBase" : 0.2,
   "moveCostPerMass" : 0.1,
   "moveDeadzone" : 0.1,

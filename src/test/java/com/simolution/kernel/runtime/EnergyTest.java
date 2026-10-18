@@ -133,7 +133,7 @@ class EnergyTest {
         // arrange
         final Kernel kernel = Worlds.kernel(1, DELAY_BOMB);
         final double ceiling = DEFAULTS.harvest().capacityPerConnection() * DELAY_BOMB_TRANSPORTERS
-                * Math.pow(DEFAULTS.founder().initialMass(), DEFAULTS.harvest().massExponent());
+                * Math.sqrt(DEFAULTS.founder().initialMass());
 
         // act
         double previousEnergy = DEFAULTS.founder().initialEnergy();

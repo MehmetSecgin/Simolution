@@ -1,6 +1,6 @@
 # Simolution run report
 schema: report-v15
-kernel: v6
+kernel: v6.1
 seed: 42
 units: 100
 world-width: 100
