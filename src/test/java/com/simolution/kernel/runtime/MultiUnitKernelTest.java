@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.Genes;
 import com.simolution.support.Worlds;
 
@@ -24,16 +25,16 @@ class MultiUnitKernelTest {
 
         // act
         kernel.step(10);
-        final KernelSnapshot snapshot = kernel.snapshot();
+        final WorldState snapshot = kernel.snapshot();
 
         // assert
         for (int unit : new int[] {0, 2}) {
             final int base = unit * NodeLayout.TOTAL;
-            assertEquals(0.0, snapshot.outputs[base + addIdx], 0.0, "ADD of empty unit " + unit);
-            assertEquals(0.0, snapshot.outputs[base + actionIdx], 0.0, "ACTION of empty unit " + unit);
+            assertEquals(0.0, snapshot.outputsPrev[base + addIdx], 0.0, "ADD of empty unit " + unit);
+            assertEquals(0.0, snapshot.outputsPrev[base + actionIdx], 0.0, "ACTION of empty unit " + unit);
         }
         final int activeBase = NodeLayout.TOTAL;
-        assertNotEquals(0.0, snapshot.outputs[activeBase + addIdx]);
+        assertNotEquals(0.0, snapshot.outputsPrev[activeBase + addIdx]);
     }
 
     @Test
@@ -49,8 +50,8 @@ class MultiUnitKernelTest {
             crowded.tick();
 
             // assert
-            final float[] aloneOutputs = alone.snapshot().outputs;
-            final float[] crowdedOutputs = crowded.snapshot().outputs;
+            final float[] aloneOutputs = alone.snapshot().outputsPrev;
+            final float[] crowdedOutputs = crowded.snapshot().outputsPrev;
             for (int node = 0; node < NodeLayout.TOTAL; node++) {
                 assertEquals(aloneOutputs[node], crowdedOutputs[node], 0.0, "node " + node + " at tick " + tick);
             }
@@ -65,9 +66,9 @@ class MultiUnitKernelTest {
 
         // act
         kernel.tick();
-        final KernelSnapshot snapshot = kernel.snapshot();
+        final WorldState snapshot = kernel.snapshot();
 
         // assert
-        assertNotEquals(snapshot.outputs[randIdx], snapshot.outputs[NodeLayout.TOTAL + randIdx]);
+        assertNotEquals(snapshot.outputsPrev[randIdx], snapshot.outputsPrev[NodeLayout.TOTAL + randIdx]);
     }
 }

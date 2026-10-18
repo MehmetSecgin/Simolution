@@ -4,7 +4,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.Writer;
 
-import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.kernel.state.WorldState;
 
 /** Streams one CSV row per birth, with genome ids from the shared catalog; format in docs/specs/report-v13.md. */
@@ -21,14 +20,13 @@ public class BirthLogWriter implements TickObserver, Closeable {
     }
 
     @Override
-    public void observe(final KernelSnapshot snapshot) throws IOException {
-        final WorldState state = snapshot.state;
-        for (int i = 0; i < state.birthCount; i++) {
-            appendBirth(snapshot, state.birthChild[i], state.birthParent[i]);
+    public void observe(final WorldState snapshot) throws IOException {
+        for (int i = 0; i < snapshot.birthCount; i++) {
+            appendBirth(snapshot, snapshot.birthChild[i], snapshot.birthParent[i]);
         }
     }
 
-    private void appendBirth(final KernelSnapshot snapshot, final int child, final int parent)
+    private void appendBirth(final WorldState snapshot, final int child, final int parent)
             throws IOException {
         final int childId = catalog.idOf(snapshot.genes, child * snapshot.maxGenes, snapshot.geneCount[child]);
         final int parentId = catalog.idOf(snapshot.genes, parent * snapshot.maxGenes, snapshot.geneCount[parent]);

@@ -1,6 +1,6 @@
 package com.simolution.sim;
 
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 /** Keeps at most {@code BUCKETS} evenly spaced rows, so the footprint is constant in ticks. */
 public class TimeSeriesSampler implements TickObserver {
@@ -19,7 +19,7 @@ public class TimeSeriesSampler implements TickObserver {
     }
 
     @Override
-    public void observe(final KernelSnapshot snapshot) {
+    public void observe(final WorldState snapshot) {
         if (isSampled(snapshot.tick - 1)) {
             appendRow(snapshot);
         }
@@ -29,7 +29,7 @@ public class TimeSeriesSampler implements TickObserver {
         return tickIndex % step == 0 || tickIndex == totalTicks - 1;
     }
 
-    private void appendRow(final KernelSnapshot snapshot) {
+    private void appendRow(final WorldState snapshot) {
         int population = 0;
         double unitEnergy = 0.0;
         for (double e : snapshot.energy) {

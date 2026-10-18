@@ -308,4 +308,14 @@ public class WorldState {
             default -> throw new IllegalStateException("cannot zero field " + spec.name());
         }
     }
+
+    /** Resource held by every cell field, as a {@link Chunks#orderedSum chunk-ordered sum}. */
+    public double reservoir() {
+        return Chunks.orderedSum(cellChem);
+    }
+
+    /** Biomass of every slot (dead slots hold 0), as a {@link Chunks#orderedSum chunk-ordered sum}. */
+    public double massTotal() {
+        return Chunks.orderedSum(mass);
+    }
 }

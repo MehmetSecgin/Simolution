@@ -6,7 +6,7 @@ import java.io.OutputStream;
 import java.io.Writer;
 
 import com.simolution.kernel.config.EngineConfig;
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 /** Writes the spatial map frames of a run into a chunked zstd stream; format in docs/specs/report-v14.md. */
 public class MapFrameWriter implements TickObserver, Closeable {
@@ -31,12 +31,12 @@ public class MapFrameWriter implements TickObserver, Closeable {
     }
 
     @Override
-    public void observe(final KernelSnapshot snapshot) throws IOException {
+    public void observe(final WorldState snapshot) throws IOException {
         if (!sampling.samples(snapshot.tick, sampleEvery)) {
             return;
         }
         appendFrameHeader(snapshot.tick);
-        appendResourceRuns(snapshot.resourceField);
+        appendResourceRuns(snapshot.cellChem);
         appendLivingUnits(snapshot);
         stream.frameWritten(snapshot.tick);
     }
@@ -70,7 +70,7 @@ public class MapFrameWriter implements TickObserver, Closeable {
         }
     }
 
-    private void appendLivingUnits(final KernelSnapshot snapshot) throws IOException {
+    private void appendLivingUnits(final WorldState snapshot) throws IOException {
         final double[] energy = snapshot.energy;
         final StringBuilder text = stream.chunkText();
         for (int slot = 0; slot < energy.length; slot++) {

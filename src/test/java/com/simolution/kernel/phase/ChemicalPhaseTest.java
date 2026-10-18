@@ -13,7 +13,7 @@ import com.simolution.kernel.config.ChemicalSpec;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.config.InflowConfig;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 class ChemicalPhaseTest {
 
@@ -42,10 +42,10 @@ class ChemicalPhaseTest {
         }
 
         // assert
-        final KernelSnapshot snapshot = kernel.snapshot();
+        final WorldState snapshot = kernel.snapshot();
         double productTotal = 0.0;
         for (int cell = 0; cell < CELLS; cell++) {
-            productTotal += snapshot.resourceField[CELLS + cell];
+            productTotal += snapshot.cellChem[CELLS + cell];
         }
         assertTrue(productTotal > 0.0, "chemical 1 must receive the decayed share of chemical 0");
         assertEquals(snapshot.initialResourceTotal + snapshot.cumulativeInflow,
@@ -71,7 +71,7 @@ class ChemicalPhaseTest {
         }
 
         // assert
-        assertArrayEquals(expected, kernel.snapshot().resourceField, 0.0);
+        assertArrayEquals(expected, kernel.snapshot().cellChem, 0.0);
     }
 
     @Test

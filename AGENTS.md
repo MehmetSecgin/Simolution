@@ -117,7 +117,7 @@ com.simolution
     │   ├── SlotCompiler      writes a slot's flat connection region (source/destination/weight arrays), junk-source connections pruned; once per slot at start, at birth and at restore, no allocation
     │   └── GenomeCompiler    int[] genes → CompiledConnection[] (founder structure stats)
     ├── state
-    │   ├── WorldState        every state array and scalar, allocated once; `fields()` declares each as a FieldSpec (ADR 0038)
+    │   ├── WorldState        every state array and scalar, allocated once; `reservoir()`/`massTotal()` chunk-ordered sums; `fields()` declares each as a FieldSpec (ADR 0038)
     │   ├── FieldSpec         name, dimension, persistence (SAVED/DERIVED/SCRATCH), birth rule, death rule
     │   ├── StateDigest       parallel chunked digest of the SAVED state (ADR 0044)
     │   └── CheckpointCodec   self-sufficient versioned checkpoint, format 2 (ADR 0043)
@@ -127,8 +127,7 @@ com.simolution
     │   ├── PhaseRunner / ParallelRunner   run the list; the parallel one uses a fixed pool, an atomic chunk counter and an allocation-free barrier
     │   └── Clear, Propagate, Evaluate, Swap, Intake, Inflow, Cost, Growth, Reproduction, Movement, Diffusion, Decay   the 12 phases of the tick, in that order (Reproduction and Movement are CLAIM, Swap is SERIAL)
     ├── runtime
-    │   ├── Kernel            owns `ENGINE_VERSION` (report header, checkpoints, run.json); builds the phase list and runs it: W×W toroidal lattice, slot = permanent storage identity, cell = position[slot]; `tick()`, `step(n)`, `snapshot()`, `stateDigest()`, `liveConnections()`, `close()` (stops workers). Population is derived (energy>0)
-    │   ├── KernelSnapshot    read view of tick + outputs + delay memory + energy + mass + sink; the tick's birth list (`birthParent`, `birthChild`, `birthCount`) is published in `WorldState`
+    │   ├── Kernel            owns `ENGINE_VERSION` (report header, checkpoints, run.json); builds the phase list and runs it: W×W toroidal lattice, slot = permanent storage identity, cell = position[slot]; `tick()`, `step(n)`, `snapshot()` (the live `WorldState`, read before the next tick), `stateDigest()`, `liveConnections()`, `close()` (stops workers). Population is derived (energy>0)
     │   └── Noise             stateless counter-based RNG with tagged streams (RAND 1, mutation 2, placement 3), all keyed by the run seed
     └── logging
         └── ConsoleTableLogger renders snapshots as a per-tick trace table
@@ -215,8 +214,8 @@ The engine is built for a multi-core research machine (a Hetzner CX33 is the dep
 - The signal arrays (outputs ×2, accumulators, delayMemory) are `float`; the energy economy stays `double` so the audit is exact (ADR 0037).
 - **Memory discipline (core value).** Total footprint is linear in units and cells and CONSTANT in tick count. Nothing accumulates per-tick history: observers keep running aggregates, never trajectories. If a feature seems to need history, it needs a bounded ring buffer. Observers preallocate in their constructors.
 - Footprint growth (a new per-unit array, a wider connection record) needs a sentence in the design note or an ADR, not a per-array justification.
-- `Kernel.snapshot()` allocates one small view object per call; the `observe()`-style per-tick methods allocate nothing. Boxing and string building stay out of per-tick paths (trace logging is exempt: opt-in, small runs only).
-- Known serial costs (resolve passes of the claim phases, `snapshot()` sums) bound the thread speed-up; the bench note has the profile.
+- `Kernel.snapshot()` hands observers the live `WorldState` (the tick's birth list is `birthParent`, `birthChild`, `birthCount`) and allocates nothing; the `observe()`-style per-tick methods allocate nothing. Boxing and string building stay out of per-tick paths (trace logging is exempt: opt-in, small runs only).
+- Known serial costs (resolve passes of the claim phases, `reservoir()`/`massTotal()` sums) bound the thread speed-up; the bench note has the profile.
 
 ## Decision records
 

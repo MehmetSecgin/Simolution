@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.Genes;
 import com.simolution.support.Worlds;
 
@@ -26,7 +27,7 @@ class MulNodeTest {
     private static double mulOutputAfterTwoTicks(final int... genome) {
         final Kernel kernel = Worlds.kernel(1, genome);
         kernel.step(2);
-        return kernel.snapshot().outputs[MUL_IDX];
+        return kernel.snapshot().outputsPrev[MUL_IDX];
     }
 
     @Test
@@ -103,9 +104,9 @@ class MulNodeTest {
         kernel.step(2);
 
         // assert
-        assertEquals(2, kernel.snapshot().state.mulInDegree[0]);
+        assertEquals(2, kernel.snapshot().mulInDegree[0]);
         assertEquals(1, kernel.state().mulEnd[0] - kernel.state().sumStart[0]);
-        assertEquals(0.0, kernel.snapshot().outputs[MUL_IDX], 0.0);
+        assertEquals(0.0, kernel.snapshot().outputsPrev[MUL_IDX], 0.0);
     }
 
     @Test
@@ -118,9 +119,9 @@ class MulNodeTest {
         kernel.step(2);
 
         // assert
-        assertEquals(1, kernel.snapshot().state.mulInDegree[0]);
+        assertEquals(1, kernel.snapshot().mulInDegree[0]);
         assertEquals(0, kernel.state().mulEnd[0] - kernel.state().sumStart[0]);
-        assertEquals(0.0, kernel.snapshot().outputs[MUL_IDX], 0.0);
+        assertEquals(0.0, kernel.snapshot().outputsPrev[MUL_IDX], 0.0);
     }
 
     @Test
@@ -141,10 +142,10 @@ class MulNodeTest {
         boolean addGrew = false;
         for (int i = 0; i < 20; i++) {
             kernel.tick();
-            final KernelSnapshot snapshot = kernel.snapshot();
-            mulEverNonZero |= snapshot.outputs[MUL_IDX] != 0.0;
-            addGrew |= snapshot.outputs[ADD_IDX] > previousAdd;
-            previousAdd = snapshot.outputs[ADD_IDX];
+            final WorldState snapshot = kernel.snapshot();
+            mulEverNonZero |= snapshot.outputsPrev[MUL_IDX] != 0.0;
+            addGrew |= snapshot.outputsPrev[ADD_IDX] > previousAdd;
+            previousAdd = snapshot.outputsPrev[ADD_IDX];
         }
 
         // assert

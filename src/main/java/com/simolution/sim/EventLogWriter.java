@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
 
-import com.simolution.kernel.runtime.KernelSnapshot;
 import com.simolution.kernel.state.WorldState;
 
 /** Streams birth, death and extinction events to events.jsonl; format in docs/specs/report-v8.md. */
@@ -63,14 +62,14 @@ public class EventLogWriter implements TickObserver, Closeable {
     }
 
     @Override
-    public void observe(final KernelSnapshot snapshot) throws IOException {
+    public void observe(final WorldState snapshot) throws IOException {
         tallyLivingLineages(snapshot);
         diffSlots(snapshot);
         emitExtinctions(snapshot.tick);
         rememberCurrentState(snapshot);
     }
 
-    private void tallyLivingLineages(final KernelSnapshot snapshot) {
+    private void tallyLivingLineages(final WorldState snapshot) {
         Arrays.fill(lineageCount, 0);
         for (int slot = 0; slot < slotCount; slot++) {
             if (snapshot.energy[slot] <= 0.0) {
@@ -86,18 +85,17 @@ public class EventLogWriter implements TickObserver, Closeable {
         }
     }
 
-    private void diffSlots(final KernelSnapshot snapshot) throws IOException {
-        final WorldState state = snapshot.state;
+    private void diffSlots(final WorldState snapshot) throws IOException {
         int nextBirth = 0;
         for (int slot = 0; slot < slotCount; slot++) {
             final boolean wasAlive = prevEnergy[slot] > 0.0;
             final boolean isAlive = snapshot.energy[slot] > 0.0;
-            final boolean slotReceivedBirth = nextBirth < state.birthCount && state.birthChild[nextBirth] == slot;
+            final boolean slotReceivedBirth = nextBirth < snapshot.birthCount && snapshot.birthChild[nextBirth] == slot;
             if (wasAlive && (!isAlive || slotReceivedBirth)) {
                 emitDeath(snapshot.tick, slot);
             }
             if (slotReceivedBirth) {
-                emitBirth(snapshot.tick, slot, state.birthParent[nextBirth], snapshot);
+                emitBirth(snapshot.tick, slot, snapshot.birthParent[nextBirth], snapshot);
                 nextBirth++;
             }
         }
@@ -113,7 +111,7 @@ public class EventLogWriter implements TickObserver, Closeable {
         }
     }
 
-    private void rememberCurrentState(final KernelSnapshot snapshot) {
+    private void rememberCurrentState(final WorldState snapshot) {
         System.arraycopy(snapshot.energy, 0, prevEnergy, 0, slotCount);
         System.arraycopy(snapshot.lineageId, 0, prevLineage, 0, slotCount);
         System.arraycopy(snapshot.generation, 0, prevGeneration, 0, slotCount);
@@ -122,7 +120,7 @@ public class EventLogWriter implements TickObserver, Closeable {
     }
 
     private void emitBirth(final int tick, final int child, final int parent,
-            final KernelSnapshot snapshot) throws IOException {
+            final WorldState snapshot) throws IOException {
         birthTickBySlot[child] = tick;
         line.setLength(0);
         line.append("{\"t\":").append(tick)
@@ -165,7 +163,7 @@ public class EventLogWriter implements TickObserver, Closeable {
         out.flush();
     }
 
-    private int countMutations(final int child, final int parent, final KernelSnapshot snapshot) {
+    private int countMutations(final int child, final int parent, final WorldState snapshot) {
         final int childCount = snapshot.geneCount[child];
         if (childCount != snapshot.geneCount[parent]) {
             return -1;

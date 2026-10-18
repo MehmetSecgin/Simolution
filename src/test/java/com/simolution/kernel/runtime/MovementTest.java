@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.genome.GeneDecoder;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.EnergyAudit;
 import com.simolution.support.Genes;
 import com.simolution.support.Worlds;
@@ -48,7 +49,7 @@ class MovementTest {
             kernel.tick();
 
             // assert
-            final KernelSnapshot snapshot = kernel.snapshot();
+            final WorldState snapshot = kernel.snapshot();
             assertEquals(expected, snapshot.position[0], "east step at tick " + snapshot.tick);
             EnergyAudit.assertConserved(snapshot, initialCredit, 1.0e-6);
         }
@@ -77,7 +78,7 @@ class MovementTest {
         kernel.step(4);
 
         // assert
-        final KernelSnapshot snapshot = kernel.snapshot();
+        final WorldState snapshot = kernel.snapshot();
         assertEquals(0, snapshot.position[0], "mover blocked by the occupant of cell 1");
         assertEquals(1, snapshot.position[1], "blocker stayed put");
     }
@@ -95,7 +96,7 @@ class MovementTest {
         kernel.tick();
 
         // assert
-        final KernelSnapshot snapshot = kernel.snapshot();
+        final WorldState snapshot = kernel.snapshot();
         assertEquals(1, snapshot.position[0], "slot 0 wins the contested cell");
         assertEquals(2, snapshot.position[1], "slot 1 loses and stays");
         assertEquals(snapshot.energy[1] - moveCost, snapshot.energy[0], 1.0e-9, "only the winner pays the move cost");

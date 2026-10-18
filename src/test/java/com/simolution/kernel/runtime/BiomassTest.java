@@ -10,6 +10,7 @@ import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.NodeCatalog;
 import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.layout.NodeSpec.Kind;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.EnergyAudit;
 import com.simolution.support.Genes;
 import com.simolution.support.Ticks;
@@ -48,7 +49,7 @@ class BiomassTest {
 
         // act
         final int ticksToBirth = Ticks.until(kernel, 10, () -> kernel.snapshot().birthsTotal >= 1);
-        final KernelSnapshot snapshot = kernel.snapshot();
+        final WorldState snapshot = kernel.snapshot();
 
         // assert
         assertTrue(ticksToBirth > 0, "a CONST->REPRODUCE unit must divide");
@@ -77,7 +78,7 @@ class BiomassTest {
         kernel.step(5);
 
         // assert
-        final KernelSnapshot snapshot = kernel.snapshot();
+        final WorldState snapshot = kernel.snapshot();
         assertTrue(snapshot.mass[0] > DEFAULTS.founder().initialMass(),
                 "GROW must raise mass above the founder value, got " + snapshot.mass[0]);
         assertTrue(snapshot.energy[0] < DEFAULTS.founder().initialEnergy(),
@@ -96,9 +97,9 @@ class BiomassTest {
             kernel.tick();
 
             // assert
-            final KernelSnapshot snapshot = kernel.snapshot();
+            final WorldState snapshot = kernel.snapshot();
             final double expected = Math.min(1.0, previousMass / DEFAULTS.sensing().selfMassScale());
-            assertEquals(expected, snapshot.outputs[SELF_MASS_IDX], 1.0e-6,
+            assertEquals(expected, snapshot.outputsPrev[SELF_MASS_IDX], 1.0e-6,
                     "SELF_MASS must equal min(1, mass_at_tick_start/scale) at tick " + snapshot.tick);
             previousMass = snapshot.mass[0];
         }

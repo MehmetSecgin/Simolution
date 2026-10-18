@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
 
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 /** Streams one row of run aggregates per tick to metrics.csv; format in docs/specs/report-v8.md. */
 public class MetricsWriter implements TickObserver, Closeable {
@@ -28,14 +28,14 @@ public class MetricsWriter implements TickObserver, Closeable {
     }
 
     @Override
-    public void observe(final KernelSnapshot snapshot) throws IOException {
+    public void observe(final WorldState snapshot) throws IOException {
         tally(snapshot);
         final double fieldTotal = snapshot.reservoir();
         final double massTotal = snapshot.massTotal();
         appendRow(snapshot, fieldTotal, massTotal, auditError(snapshot, fieldTotal, massTotal));
     }
 
-    private void tally(final KernelSnapshot snapshot) {
+    private void tally(final WorldState snapshot) {
         Arrays.fill(lineageSeen, false);
         population = 0;
         lineagesAlive = 0;
@@ -54,13 +54,13 @@ public class MetricsWriter implements TickObserver, Closeable {
         }
     }
 
-    private double auditError(final KernelSnapshot snapshot, final double fieldTotal, final double massTotal) {
+    private double auditError(final WorldState snapshot, final double fieldTotal, final double massTotal) {
         return (snapshot.creditedInitialEnergy + snapshot.initialResourceTotal
                 + snapshot.creditedInitialMass + snapshot.cumulativeInflow)
                 - (energyTotal + fieldTotal + snapshot.energySink + massTotal);
     }
 
-    private void appendRow(final KernelSnapshot snapshot, final double fieldTotal, final double massTotal,
+    private void appendRow(final WorldState snapshot, final double fieldTotal, final double massTotal,
             final double auditError) throws IOException {
         final long deaths = founderCount + snapshot.birthsTotal - population;
         line.setLength(0);

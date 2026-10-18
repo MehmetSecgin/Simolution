@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.Worlds;
 
 class BirthLogWriterTest {
@@ -29,7 +29,7 @@ class BirthLogWriterTest {
         // act
         for (int i = 0; i < 40; i++) {
             k.tick();
-            final KernelSnapshot s = k.snapshot();
+            final WorldState s = k.snapshot();
             w.observe(s);
         }
         w.close();

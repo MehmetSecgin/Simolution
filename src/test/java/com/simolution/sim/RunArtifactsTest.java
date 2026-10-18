@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 class RunArtifactsTest {
 
@@ -39,7 +39,7 @@ class RunArtifactsTest {
                     RunArtifacts artifacts = RunArtifacts.open(config, founders, kernel)) {
                 for (int i = 0; i < 5; i++) {
                     kernel.tick();
-                    final KernelSnapshot snapshot = kernel.snapshot();
+                    final WorldState snapshot = kernel.snapshot();
                     for (TickObserver observer : artifacts.observers()) {
                         observer.observe(snapshot);
                     }

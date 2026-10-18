@@ -12,7 +12,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.EnergyAudit;
 import com.simolution.support.Worlds;
 
@@ -204,7 +204,7 @@ class InflowConfigTest {
         double maxInflowStep = 0.0, prevInflow = 0.0;
         for (int t = 0; t < 1500; t++) {
             k.tick();
-            final KernelSnapshot s = k.snapshot();
+            final WorldState s = k.snapshot();
             EnergyAudit.assertConserved(s, 1.0e-2);
             maxInflowStep = Math.max(maxInflowStep, s.cumulativeInflow - prevInflow);
             prevInflow = s.cumulativeInflow;

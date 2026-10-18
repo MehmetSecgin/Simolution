@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.runtime.Kernel;
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 class ObservabilityTest {
 
@@ -59,7 +59,7 @@ class ObservabilityTest {
         long digest = 0L;
         for (int i = 0; i < TICKS; i++) {
             kernel.tick();
-            final KernelSnapshot s = kernel.snapshot();
+            final WorldState s = kernel.snapshot();
             if (observe) {
                 eventLog.observe(s);
                 metrics.observe(s);
@@ -74,14 +74,14 @@ class ObservabilityTest {
     }
 
     @SuppressWarnings("checkstyle:FinalParameters")
-    private static long fold(long h, final KernelSnapshot s) {
-        for (double v : s.outputs) {
+    private static long fold(long h, final WorldState s) {
+        for (double v : s.outputsPrev) {
             h = com.simolution.kernel.runtime.Noise.mix(h ^ Double.doubleToLongBits(v));
         }
         for (double v : s.energy) {
             h = com.simolution.kernel.runtime.Noise.mix(h ^ Double.doubleToLongBits(v));
         }
-        for (double v : s.resourceField) {
+        for (double v : s.cellChem) {
             h = com.simolution.kernel.runtime.Noise.mix(h ^ Double.doubleToLongBits(v));
         }
         for (int p : s.position) {

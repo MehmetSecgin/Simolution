@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.sim.GenomeFactory;
 import com.simolution.support.EnergyAudit;
 import com.simolution.support.Genes;
@@ -81,16 +82,16 @@ class EnergyTest {
         // act
         final int ticksToDeath =
                 Ticks.until(kernel, TICKS_TO_OUTLAST_STARVATION, () -> kernel.snapshot().energy[0] <= 0.0);
-        final float[] frozenOutputs = kernel.snapshot().outputs.clone();
+        final float[] frozenOutputs = kernel.snapshot().outputsPrev.clone();
 
         // assert
         assertTrue(ticksToDeath > 0, "busy unit must die within its energy budget");
         for (int i = ticksToDeath; i < TICKS_TO_OUTLAST_STARVATION; i++) {
             kernel.tick();
-            final KernelSnapshot snapshot = kernel.snapshot();
+            final WorldState snapshot = kernel.snapshot();
             assertEquals(0.0, snapshot.energy[0], 0.0);
             for (int n = 0; n < NodeLayout.TOTAL; n++) {
-                assertEquals(frozenOutputs[n], snapshot.outputs[n], 0.0,
+                assertEquals(frozenOutputs[n], snapshot.outputsPrev[n], 0.0,
                         "dead unit node " + n + " must stay frozen");
             }
         }
@@ -173,7 +174,7 @@ class EnergyTest {
             kernel.tick();
 
             // assert
-            final KernelSnapshot snapshot = kernel.snapshot();
+            final WorldState snapshot = kernel.snapshot();
             assertTrue(snapshot.energy[0] >= 0.0, "energy must never be negative");
             assertTrue(snapshot.energySink <= EnergyAudit.credited(snapshot) + 1.0e-9,
                     "sink must never exceed what entered the system");
@@ -192,8 +193,8 @@ class EnergyTest {
             paired.tick();
 
             // assert
-            final float[] aloneOut = alone.snapshot().outputs;
-            final float[] pairedOut = paired.snapshot().outputs;
+            final float[] aloneOut = alone.snapshot().outputsPrev;
+            final float[] pairedOut = paired.snapshot().outputsPrev;
             for (int n = 0; n < NodeLayout.TOTAL; n++) {
                 assertEquals(aloneOut[n], pairedOut[n], 0.0,
                         "unit 0 trajectory must not depend on unit 1 at tick " + (i + 1));

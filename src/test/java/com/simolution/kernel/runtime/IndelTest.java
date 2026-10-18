@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.config.EngineConfig;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.EnergyAudit;
 import com.simolution.support.Worlds;
 
@@ -57,7 +58,7 @@ class IndelTest {
         // act
         for (int t = 0; t < TICKS; t++) {
             kernel.tick();
-            final KernelSnapshot snapshot = kernel.snapshot();
+            final WorldState snapshot = kernel.snapshot();
             for (int slot = 0; slot < snapshot.geneCount.length; slot++) {
                 if (snapshot.energy[slot] <= 0.0) {
                     continue;
@@ -122,8 +123,8 @@ class IndelTest {
         }
 
         // assert
-        final KernelSnapshot sa = a.snapshot();
-        final KernelSnapshot sb = b.snapshot();
+        final WorldState sa = a.snapshot();
+        final WorldState sb = b.snapshot();
         assertArrayEquals(sa.geneCount, sb.geneCount, "geneCount diverged for the same seed");
         assertArrayEquals(sa.genes, sb.genes, "genes diverged for the same seed");
         assertEquals(sa.energySink, sb.energySink, 0.0, "energySink diverged for the same seed");

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 
 import com.simolution.kernel.layout.NodeLayout;
+import com.simolution.kernel.state.WorldState;
 import com.simolution.support.Genes;
 import com.simolution.support.Worlds;
 
@@ -44,7 +45,7 @@ class KernelVerticalSliceTest {
         for (int tick = 1; tick <= 10; tick++) {
             // act
             kernel.tick();
-            final KernelSnapshot snapshot = kernel.snapshot();
+            final WorldState snapshot = kernel.snapshot();
 
             final float addAccumulator = (float) (constPrev * wConstToAdd) + (float) (delayPrev * wDelayToAdd);
             final float delayAccumulator = (float) (addPrev * wAddToDelay);
@@ -58,10 +59,10 @@ class KernelVerticalSliceTest {
 
             // assert
             assertEquals(tick, snapshot.tick);
-            assertEquals(constNext, snapshot.outputs[CONST_IDX], 0.0f, "CONST at tick " + tick);
-            assertEquals(addNext, snapshot.outputs[ADD_IDX], 0.0f, "ADD at tick " + tick);
-            assertEquals(delayNext, snapshot.outputs[DELAY_IDX], 0.0f, "DELAY at tick " + tick);
-            assertEquals(actionNext, snapshot.outputs[ACTION_IDX], 0.0f, "ACTION at tick " + tick);
+            assertEquals(constNext, snapshot.outputsPrev[CONST_IDX], 0.0f, "CONST at tick " + tick);
+            assertEquals(addNext, snapshot.outputsPrev[ADD_IDX], 0.0f, "ADD at tick " + tick);
+            assertEquals(delayNext, snapshot.outputsPrev[DELAY_IDX], 0.0f, "DELAY at tick " + tick);
+            assertEquals(actionNext, snapshot.outputsPrev[ACTION_IDX], 0.0f, "ACTION at tick " + tick);
             assertEquals(delayMemory, snapshot.delayMemory[DELAY_IDX], 0.0f, "DELAY memory at tick " + tick);
 
             constPrev = constNext;

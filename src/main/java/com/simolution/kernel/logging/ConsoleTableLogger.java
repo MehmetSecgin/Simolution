@@ -1,13 +1,13 @@
 package com.simolution.kernel.logging;
 
 import com.simolution.kernel.layout.NodeLayout;
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 public class ConsoleTableLogger {
 
     private boolean headerPrinted = false;
 
-    public void log(final KernelSnapshot snapshot, final int unitsToTrace) {
+    public void log(final WorldState snapshot, final int unitsToTrace) {
         if (!headerPrinted) {
             System.out.printf(
                     "%5s %4s | %7s %7s | %7s %7s %7s %7s %7s | %7s | %7s | %9s%n",
@@ -40,14 +40,14 @@ public class ConsoleTableLogger {
                     "%5d %4d | %7.4f %7.4f | %7.4f %7.4f %7.4f %7.4f %7.4f | %7.4f | %7.4f | %9.3f%n",
                     snapshot.tick,
                     unit,
-                    snapshot.outputs[constIdx],
-                    snapshot.outputs[randIdx],
-                    snapshot.outputs[addIdx],
-                    snapshot.outputs[mulIdx],
-                    snapshot.outputs[clampIdx],
-                    snapshot.outputs[delayIdx],
-                    snapshot.outputs[threshIdx],
-                    snapshot.outputs[actionIdx],
+                    snapshot.outputsPrev[constIdx],
+                    snapshot.outputsPrev[randIdx],
+                    snapshot.outputsPrev[addIdx],
+                    snapshot.outputsPrev[mulIdx],
+                    snapshot.outputsPrev[clampIdx],
+                    snapshot.outputsPrev[delayIdx],
+                    snapshot.outputsPrev[threshIdx],
+                    snapshot.outputsPrev[actionIdx],
                     snapshot.delayMemory[delayIdx],
                     snapshot.energy[unit]
             );

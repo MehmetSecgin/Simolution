@@ -3,7 +3,7 @@ package com.simolution.sim;
 import java.io.IOException;
 import java.util.Arrays;
 
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 class SlotGenomeCache {
 
@@ -22,7 +22,7 @@ class SlotGenomeCache {
         this.catalogIds = new int[slots];
     }
 
-    int catalogIdFor(final KernelSnapshot snapshot, final int slot) throws IOException {
+    int catalogIdFor(final WorldState snapshot, final int slot) throws IOException {
         final int count = snapshot.geneCount[slot];
         final int base = slot * maxGenes;
         if (geneCounts[slot] == count && sameGenes(snapshot.genes, base, count)) {

@@ -248,8 +248,8 @@ public class Kernel implements AutoCloseable {
                 unitOffset + state.connSrc[i], unitOffset + state.connDst[i], state.connWeight[i]);
     }
 
-    public KernelSnapshot snapshot() {
-        return new KernelSnapshot(state);
+    public WorldState snapshot() {
+        return state;
     }
 
     /** {@link StateDigest} of the current state, folded on this kernel's own runner. */

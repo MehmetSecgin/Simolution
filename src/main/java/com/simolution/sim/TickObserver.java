@@ -2,9 +2,9 @@ package com.simolution.sim;
 
 import java.io.IOException;
 
-import com.simolution.kernel.runtime.KernelSnapshot;
+import com.simolution.kernel.state.WorldState;
 
 public interface TickObserver {
 
-    void observe(KernelSnapshot snapshot) throws IOException;
+    void observe(WorldState snapshot) throws IOException;
 }
