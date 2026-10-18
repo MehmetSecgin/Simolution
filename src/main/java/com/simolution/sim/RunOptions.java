@@ -2,7 +2,7 @@ package com.simolution.sim;
 
 import java.nio.file.Path;
 
-final class RunOptions {
+class RunOptions {
 
     Integer founders;
     Integer ticks;

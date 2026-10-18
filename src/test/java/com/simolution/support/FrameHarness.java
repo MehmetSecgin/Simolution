@@ -15,7 +15,7 @@ import com.simolution.sim.GenomeCatalogWriter;
 import com.simolution.sim.MapFrameWriter;
 import com.simolution.sim.MapSampling;
 
-public final class FrameHarness {
+public class FrameHarness {
 
     private static final long FOUNDER_SEED = 1L;
     private static final int DEFAULT_FOUNDERS = 4;

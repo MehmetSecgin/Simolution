@@ -81,7 +81,7 @@ public final class InflowSpecParser {
         return eq;
     }
 
-    private static final class Settings {
+    private static class Settings {
 
         private InflowConfig.Combine combine = InflowConfig.Combine.MAX;
         private double baseline = 0.0;
@@ -104,7 +104,7 @@ public final class InflowSpecParser {
         }
     }
 
-    private static final class Params {
+    private static class Params {
 
         private double fx = CENTRE;
         private double fy = CENTRE;

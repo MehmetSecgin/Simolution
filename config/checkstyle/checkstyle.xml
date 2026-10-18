@@ -18,7 +18,6 @@
             <property name="query" value="//TYPE/IDENT[@text='var']"/>
             <message key="matchxpath.match" value="no var: write the type"/>
         </module>
-        <module name="FinalClass"/>
         <module name="HideUtilityClassConstructor"/>
         <module name="AvoidStarImport"/>
         <module name="RedundantImport"/>

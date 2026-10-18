@@ -18,7 +18,7 @@ import com.simolution.kernel.state.CheckpointCodec;
  * a thread count, so it identifies the run and nothing about how it was executed.
  * {@code checkpointEvery <= 0} keeps only the first checkpoint.
  */
-public final class RunDirectoryWriter {
+public class RunDirectoryWriter {
 
     private final Path ckptDir;
     private final int checkpointEvery;

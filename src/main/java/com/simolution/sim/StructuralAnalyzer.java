@@ -14,7 +14,7 @@ public final class StructuralAnalyzer {
             long duplicates
     ) {}
 
-    private static final class WeightTally {
+    private static class WeightTally {
         private double absSum;
         private double absMax;
         private long positives;

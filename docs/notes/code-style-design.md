@@ -6,13 +6,15 @@ The owner wants one consistent Java style, modelled on the house style of their 
 
 ## Rules
 
+`final` means "this is not supposed to change". Whatever is not supposed to change is `final`; whatever is supposed to change is not, and nothing is made `final` only to satisfy a tool.
+
 | Topic | Rule |
 |---|---|
 | `final` on local variables | always, main and test |
 | `final` on parameters | always on methods and constructors that have a body; never on interface or abstract methods. A parameter the method reassigns stays non-final and carries `@SuppressWarnings("checkstyle:FinalParameters")` |
 | `final` on fields | every field that is never reassigned after construction |
 | `final` on catch parameters, enhanced-for variables, lambda parameters, methods | never |
-| `final` on classes | static-only utility classes, which also get a private constructor, and any class whose constructors are all private (Checkstyle `FinalClass` requires it); no other class is final |
+| `final` on classes | only on static-only utility classes, which also get a private constructor; no other class is final |
 | `var` | never, main and test; tests use explicit `final Type name` |
 | Records | 2 or more components: one component per line, `)` on its own line; an empty body is written `) {}`. A single component may stay on one line |
 | Formatting | 4-space indent, 8-space continuation, 120 columns, no tabs; the formatter never joins lines a human wrapped; comment formatting off |
@@ -23,8 +25,8 @@ The owner wants one consistent Java style, modelled on the house style of their 
 ## Enforcement
 
 - Spotless with the Eclipse JDT formatter (config written for this repo, not copied from elsewhere) owns layout, import order, unused imports, trailing whitespace and the final newline.
-- Checkstyle owns the `final` and `var` rules it can express: `FinalLocalVariable`, `FinalParameters`, `FinalClass`, `HideUtilityClassConstructor`, `AvoidStarImport`, `RedundantImport`, and a `MatchXpath` ban on `var`.
-- Field finality, "no other class is final" and the never-final cases (catch, enhanced-for, lambda parameters, methods) are not expressible in Checkstyle; they are applied once and kept by the AGENTS.md rule and review.
+- Checkstyle owns the `final` and `var` rules it can express: `FinalLocalVariable`, `FinalParameters`, `HideUtilityClassConstructor`, `AvoidStarImport`, `RedundantImport`, and a `MatchXpath` ban on `var`.
+- Field finality, class finality and the never-final cases (catch, enhanced-for, lambda parameters, methods) are not expressible in Checkstyle; they are applied once and kept by the AGENTS.md rule and review.
 - `./gradlew check` runs all of it.
 
 ## Constraints

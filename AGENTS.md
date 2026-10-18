@@ -240,11 +240,12 @@ The owner wants autonomous implementation but full understanding. So: small sing
 
 Spotless (Eclipse JDT) owns layout and imports, Checkstyle owns `final` and `var`; `./gradlew check` fails on a layout, import, final local or parameter, utility-class or `var` breach. Spec: [docs/notes/code-style-design.md](docs/notes/code-style-design.md), decision: [ADR 0049](docs/decisions/0049-code-style.md).
 
+- `final` means "not supposed to change": whatever is not supposed to change is `final`, whatever is supposed to change is not. Never add `final` only to satisfy a tool.
 - `final` on every local variable, main and test.
 - `final` on every parameter of a method or constructor with a body, never on interface or abstract methods. A parameter the body reassigns stays non-final and carries `@SuppressWarnings("checkstyle:FinalParameters")`.
 - `final` on every field that is never reassigned after construction. Not enforced by a tool: apply it by hand and in review.
 - No `final` on catch parameters, enhanced-for variables, lambda parameters or methods.
-- `final` on a class only when it is static-only (with a private constructor), or when all its constructors are private (Checkstyle `FinalClass` requires it). No other class is final.
+- `final` on a class only when it is static-only (with a private constructor). No other class is final.
 - No `var`, main or test. Tests write `final Type name`.
 - Records with 2 or more components: one component per line, `)` on its own line, an empty body is `) {}`. A single component may stay on one line.
 - 4-space indent, 8-space continuation, 120 columns, no tabs. The formatter keeps lines a human wrapped and leaves comments alone.

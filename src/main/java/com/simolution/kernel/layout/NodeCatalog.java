@@ -10,7 +10,7 @@ import com.simolution.kernel.layout.NodeSpec.Role;
  * follows each block. {@link NodeLayout} derives every index, offset and count
  * from one catalog, so adding a node here is the whole change to the layout.
  */
-public final class NodeCatalog {
+public class NodeCatalog {
 
     public static final NodeCatalog V5 = new NodeCatalog(
             List.of(

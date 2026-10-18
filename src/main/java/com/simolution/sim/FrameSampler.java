@@ -1,6 +1,6 @@
 package com.simolution.sim;
 
-final class FrameSampler {
+class FrameSampler {
 
     private final int every;
     private final int fromTick;

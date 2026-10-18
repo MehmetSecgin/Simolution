@@ -16,7 +16,7 @@ import com.simolution.kernel.layout.NodeLayout;
 import com.simolution.kernel.runtime.Kernel;
 import com.simolution.sim.run.RunDirectoryWriter;
 
-public final class RunArtifacts implements Closeable {
+public class RunArtifacts implements Closeable {
 
     private final RunPaths paths;
     private final boolean framesEnabled;
